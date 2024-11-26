@@ -2,7 +2,7 @@
 
 # Verificar que se hayan pasado exactamente 3 parámetros
 if [ $# -ne 3 ]; then
-  echo "Uso: $0 <ruta> <texto-antiguo> <texto-nuevo>"
+  echo "Uso: ~/scripts/mv-depth.sh <ruta> <texto-antiguo> <texto-nuevo>"
   exit 1
 fi
 
