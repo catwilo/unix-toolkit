@@ -8,6 +8,6 @@ xrandr --newmode "1366x768"  40.00  1366 1408 1520 1664  768 771 774 798 -hsync 
 xrandr --addmode VIRTUAL1 "1366x768"
 xrandr --output VIRTUAL1 --mode "1366x768" --right-of DP2
 
-
+vncviewer e430:0
 
 
