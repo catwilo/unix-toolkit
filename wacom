@@ -1,0 +1,5 @@
+#!/bin/sh
+xsetwacom --list devices
+xsetwacom set "Wacom Intuos S Pen stylus" Area 0 0 12000 7500
+xsetwacom --set "Wacom Intuos S Pen stylus" Button 2 "pan"
+xsetwacom --set "Wacom Intuos S Pen stylus" PanScrollThreshold 200
