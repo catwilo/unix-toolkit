@@ -19,7 +19,7 @@ mapfile -t pkgs < <(grep -vE '^\s*(#|$)' "$f")
 
 # Intento de instalación y captura de error
 err=$(mktemp)
-if ! sudo pacman -Sy --noconfirm --needed "${pkgs[@]}" 2>"$err"; then
+if ! sudo pacman -S --noconfirm --needed "${pkgs[@]}" 2>"$err"; then
   # Busca líneas sobre conflicto
   if grep -qE 'conflicting|exists in filesystem' "$err"; then
     grep -E 'error: .*conflicting|exists in filesystem' "$err" \
@@ -31,6 +31,6 @@ if ! sudo pacman -Sy --noconfirm --needed "${pkgs[@]}" 2>"$err"; then
     cat "$err"
   fi
   rm "$err"
-  echo "Intentando con apt..."
-  sudo apt install -y "${pkgs[@]}"
+  echo "Intentando con apt Termux..."
+  apt install -y "${pkgs[@]}"
 fi
