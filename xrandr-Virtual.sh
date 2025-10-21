@@ -1,13 +1,37 @@
 #!/bin/bash
+# ----------------------------------------------
+# Propósito: Crear una pantalla extendida virtual
+#             a la derecha (1366x768) y compartirla por VNC.
+# ----------------------------------------------
 
-#cvt 1366 768 60 // X Y frecuenciaHz
+# Configuración
+VIRTUAL_OUTPUT="VIRTUAL1"
+MAIN_OUTPUT=$(xrandr | grep " connected" | awk '{print $1}' | head -n1)
+VNC_PORT=5901
+RESOLUTION="1366x768"
 
-xrandr --newmode "1366x768"  40.00  1366 1408 1520 1664  768 771 774 798 -hsync +vsync
-#xrandr --newmode "1366x768"  85.25  1366 1440 1576 1784  768 771 781 798 -hsync +vsync
+echo "🖥️  Configurando salida virtual en $VIRTUAL_OUTPUT (resolución $RESOLUTION)..."
 
-xrandr --addmode VIRTUAL1 "1366x768"
-xrandr --output VIRTUAL1 --mode "1366x768" --right-of DP2
+# Anadir modo virtual (si no existe)
+if ! xrandr | grep -q "$VIRTUAL_OUTPUT"; then
+    echo "→ Intentando agregar salida virtual $VIRTUAL_OUTPUT..."
+    xrandr --addmode $VIRTUAL_OUTPUT $RESOLUTION 2>/dev/null || true
+fi
 
-vncviewer e430:0
+# Crear modo si el driver lo permite
+xrandr --output $VIRTUAL_OUTPUT --mode $RESOLUTION --right-of $MAIN_OUTPUT || {
+    echo "⚠️ No se pudo activar $VIRTUAL_OUTPUT. Intentando método alternativo (clip)..."
+}
 
+# Obtener ancho del monitor principal
+WIDTH=$(xrandr | grep -A1 "$MAIN_OUTPUT connected" | grep -oP "\d+x\d+" | head -n1 | cut -d'x' -f1)
 
+echo "🧭 Monitor principal: $MAIN_OUTPUT ($WIDTH px ancho)"
+echo "📐 Región para VNC: $RESOLUTION ubicada en +${WIDTH}+0"
+
+# Ejecutar servidor VNC en esa región (solo la pantalla extendida)
+echo "🚀 Iniciando x11vnc en puerto $VNC_PORT..."
+x11vnc -clip ${RESOLUTION}+${WIDTH}+0 -rfbport $VNC_PORT -noxdamage -forever -shared -bg
+
+echo "✅ Servidor listo. Conéctate desde el cliente con:"
+echo "   vncviewer <IP_DEL_SERVIDOR>:$VNC_PORT"
