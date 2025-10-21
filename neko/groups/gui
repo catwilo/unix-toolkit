@@ -18,3 +18,7 @@ dash
 zsh
 fastfetch
 fzf
+xf86-input-wacom
+bluez
+bluez-utils
+alsa-utils
