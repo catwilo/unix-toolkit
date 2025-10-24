@@ -1,5 +1,5 @@
 #!/bin/sh
-ICON_DIR="$HOME/icos/png"
+ICON_DIR="$HOME/icos"
 IDFILE="/tmp/vol_notify_id"
 
 if [ $# -ne 1 ]; then 
@@ -21,13 +21,13 @@ vol=$(pactl get-sink-volume @DEFAULT_SINK@ | awk '{print $5}' | head -n1 | tr -d
 
 # Seleccionar ícono
 if [ "$vol" -le 0 ]; then 
-    icon="mute.png"
+    icon="mute.svg"
 elif [ "$vol" -lt 30 ]; then 
-    icon="low.png"
+    icon="low.svg"
 elif [ "$vol" -lt 85 ]; then 
-    icon="medium.png"
+    icon="medium.svg"
 else 
-    icon="hight.png"
+    icon="hight.svg"
 fi
 
 # Leer ID previo
@@ -37,7 +37,7 @@ prev=0
 # Enviar notificación
 body="<img src=\"$ICON_DIR/$icon\"/><br/>Nivel: ${vol}%"
 
-newid=$(notify-send -p -r "$prev" "Volumen: ${vol}%" "$body" \
+newid=$(notify-send -a "" -p -r "$prev" "Volumen: ${vol}%" "$body" \
     -h string:x-canonical-private-synchronous:volume \
     -h int:value:"$vol" 2>/dev/null)
 

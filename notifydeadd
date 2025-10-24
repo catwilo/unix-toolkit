@@ -17,5 +17,5 @@ done
 
 [[ -n "$ico" && ! -f "$ico" ]] && { echo "Error: icono no encontrado en $ico"; exit 1; }
 
-notify-send -t "$time" "$1" "<img src=\"$ico\"/><br>${2:-}"
+notify-send -a "..." -t "$time" "$1" "<img src=\"$ico\"/><br>${2:-}"
 
