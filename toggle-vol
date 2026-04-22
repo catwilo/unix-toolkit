@@ -9,8 +9,10 @@ vol=$(pactl get-sink-volume @DEFAULT_SINK@ | awk 'NR==1{print $5}' | tr -d '%')
 
 if [ "$status" = "yes" ]; then
     icon="mute.svg"
+    color="grey"
 else
     icon="hight.svg"
+    color="red"
 fi
 
 prev=0
@@ -18,7 +20,7 @@ prev=0
 
 body="<img src=\"$ICON_DIR/$icon\"/><br/>Nivel: ${vol}%"
 
-newid=$(notify-send -a "" -p -r "$prev" "Volumen: ${vol}%" "$body" \
+newid=$(notify-send -p -r "$prev" "Volumen: ${vol}%" "$body" \
     -h string:x-canonical-private-synchronous:volume \
     -h int:value:"$vol" 2>/dev/null)
 

@@ -10,9 +10,9 @@ xorg-xrandr
 ranger
 xclip
 xdotool
-dunst
+deadd-notification-center-bin
 arandr
-flameshot
+scrot
 less
 dash
 zsh
