@@ -1,0 +1,785 @@
+#!/usr/bin/env bash
+# =============================================================================
+# rwxdir-scan v4.0.0
+# Encuentra rutas con permisos rwx completos
+#
+# Plataformas objetivo:
+#   - Termux en Android (FunTouch OS 16) — sin root, permisos restringidos
+#   - Debian GNU/Linux
+#
+# Fixes v4:
+#   - find -print0 + xargs -0: manejo correcto de rutas con espacios,
+#     paréntesis, comillas y cualquier carácter especial
+#   - Portapapeles: siempre activo por defecto (sin flag necesario)
+#   - Output enriquecido tipo 'ls -la' con usuario, grupo, permisos simbólicos
+#   - Si el archivo de output ya existe: pregunta sobrescribir o crear v1.1
+# =============================================================================
+
+set -euo pipefail
+IFS=$'\n\t'
+
+VERSION="4.0.0"
+
+# =============================================================================
+# 1. DETECCIÓN DE ENTORNO
+# =============================================================================
+IS_TERMUX=false
+if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux" ]; then
+  IS_TERMUX=true
+fi
+
+REAL_HOME="${HOME:-/tmp}"
+
+# =============================================================================
+# 2. COLORES ANSI — solo si stderr es TTY
+# =============================================================================
+if [ -t 2 ]; then
+  CR='\033[0m'
+  CB='\033[1m'
+  CG='\033[32m'
+  CY='\033[33m'
+  CR2='\033[31m'
+  CC='\033[36m'
+  CD='\033[2m'
+  CM='\033[35m'
+else
+  CR='' CB='' CG='' CY='' CR2='' CC='' CD='' CM=''
+fi
+
+# =============================================================================
+# 3. FUNCIONES DE LOG
+#    stderr = mensajes de estado | stdout = rutas encontradas
+# =============================================================================
+log_info()  { printf "${CC}[INFO]${CR}  %s\n"   "$*" >&2; }
+log_ok()    { printf "${CG}[OK]${CR}    %s\n"   "$*" >&2; }
+log_warn()  { printf "${CY}[WARN]${CR}  %s\n"   "$*" >&2; }
+log_err()   { printf "${CR2}[ERROR]${CR} %s\n"  "$*" >&2; }
+log_step()  { printf "\n${CB}[STEP]${CR}  %s\n" "$*" >&2; }
+log_dbg()   { [ "$VERBOSE" = true ] && printf "${CD}[DBG]   %s${CR}\n" "$*" >&2 || true; }
+log_skip()  { [ "$VERBOSE" = true ] && printf "${CD}[SKIP]  %s${CR}\n" "$*" >&2 || true; }
+
+# =============================================================================
+# 4. DEFAULTS
+# =============================================================================
+DEFAULT_LOG_NAME="rwxdir-scan.log"
+SCAN_MODE="both"
+TARGET_DIR=""
+OUTPUT_ARG=""
+REAL_WRITE_TEST=false
+CLIPBOARD=true          # portapapeles SIEMPRE activo por defecto
+NO_CLIPBOARD=false      # --no-clipboard para desactivarlo explícitamente
+VERBOSE=false
+MAX_DEPTH=""
+
+# =============================================================================
+# 5. USO
+# =============================================================================
+usage() {
+  cat >&2 << USAGE
+
+${CB}rwxdir-scan v${VERSION}${CR}
+Encuentra rutas con permisos rwx completos, con detalle tipo ls -la.
+Optimizado para Termux (FunTouch OS 16 / Android) y Debian GNU/Linux.
+
+${CB}Uso:${CR}
+  rwxdir-scan [OPCIONES] [DIRECTORIO]
+
+${CB}Opciones:${CR}
+  --scan-directories     Solo directorios
+  --scan-files           Solo archivos
+  --scan-all             Ambos (por defecto)
+  --max-depth <N>        Límite de profundidad (entero >= 0)
+  --output <ruta|nombre> Archivo de salida (por defecto: ~/rwxdir-scan.log)
+  --real-write-test      Prueba de escritura real en directorios
+  --no-clipboard         No copiar al portapapeles (por defecto sí copia)
+  --verbose              Mostrar mensajes de depuración detallados
+  --version              Mostrar versión y salir
+  --help                 Mostrar esta ayuda y salir
+
+${CB}Ejemplos:${CR}
+  rwxdir-scan
+  rwxdir-scan --scan-directories /sdcard
+  rwxdir-scan --verbose --real-write-test /data/local
+  rwxdir-scan --max-depth 4 --output resultado.log /storage/emulated/0
+  rwxdir-scan --no-clipboard --scan-files /home/usuario
+
+${CB}Notas:${CR}
+  - El portapapeles se copia automáticamente al terminar (usa --no-clipboard para desactivar).
+  - Los resultados muestran permisos simbólicos, usuario, grupo y tamaño (como ls -la).
+  - En Termux sin root, errores de permisos de find son normales.
+  - Si el archivo de salida ya existe, se pregunta si sobrescribir o crear uno nuevo.
+
+USAGE
+  exit 1
+}
+
+# =============================================================================
+# 6. PARSEO DE ARGUMENTOS
+# =============================================================================
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --scan-directories)  SCAN_MODE="directories" ;;
+    --scan-files)        SCAN_MODE="files" ;;
+    --scan-all)          SCAN_MODE="both" ;;
+    --real-write-test)   REAL_WRITE_TEST=true ;;
+    --no-clipboard)      NO_CLIPBOARD=true ;;
+    --verbose)           VERBOSE=true ;;
+
+    --version)
+      printf 'rwxdir-scan v%s\n' "$VERSION"
+      exit 0
+      ;;
+
+    --max-depth)
+      shift
+      if [ $# -eq 0 ]; then
+        log_err "--max-depth requiere un argumento numérico"
+        usage
+      fi
+      case "$1" in
+        ''|*[!0-9]*)
+          log_err "--max-depth debe ser un entero >= 0, recibido: '$1'"
+          usage
+          ;;
+      esac
+      MAX_DEPTH="$1"
+      ;;
+
+    --output)
+      shift
+      if [ $# -eq 0 ]; then
+        log_err "--output requiere un argumento"
+        usage
+      fi
+      OUTPUT_ARG="$1"
+      ;;
+
+    --help) usage ;;
+
+    --)
+      shift
+      if [ $# -gt 1 ]; then
+        log_err "Solo se permite un directorio destino"
+        usage
+      fi
+      [ $# -eq 1 ] && TARGET_DIR="$1"
+      break
+      ;;
+
+    -*)
+      log_err "Opción desconocida: $1"
+      usage
+      ;;
+
+    *)
+      if [ -n "$TARGET_DIR" ]; then
+        log_err "Solo se permite un directorio destino. Ya se especificó: '$TARGET_DIR'"
+        usage
+      fi
+      TARGET_DIR="$1"
+      ;;
+  esac
+  shift
+done
+
+# Si --no-clipboard fue dado, desactivar
+[ "$NO_CLIPBOARD" = true ] && CLIPBOARD=false
+
+# =============================================================================
+# 7. BANNER
+# =============================================================================
+printf "${CB}${CC}━━━ rwxdir-scan v%s ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CR}\n" "$VERSION" >&2
+if [ "$IS_TERMUX" = true ]; then
+  log_info "Entorno: Termux (Android / FunTouch OS)"
+else
+  log_info "Entorno: Linux estándar (Debian/compatible)"
+fi
+log_info "Inicio: $(date '+%Y-%m-%d %H:%M:%S')"
+log_dbg  "PID: $$"
+
+# =============================================================================
+# 8. RESOLUCIÓN DEL DIRECTORIO DESTINO
+# =============================================================================
+log_step "Resolución del directorio destino..."
+
+if [ -z "${TARGET_DIR:-}" ]; then
+  TARGET_DIR="$(pwd)"
+  log_dbg "No se especificó directorio, usando el actual: $TARGET_DIR"
+fi
+
+# cd + pwd -P: portable, sin necesidad de 'realpath' (ausente en Termux base)
+if ! RESOLVED_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd -P)"; then
+  log_err "No se puede acceder al directorio: $TARGET_DIR"
+  exit 1
+fi
+
+[ ! -d "$RESOLVED_DIR" ] && { log_err "No es un directorio: $RESOLVED_DIR"; exit 1; }
+[ ! -r "$RESOLVED_DIR" ] && { log_err "Sin permiso de lectura en: $RESOLVED_DIR"; exit 1; }
+[ ! -x "$RESOLVED_DIR" ] && { log_err "Sin permiso de traversal (x) en: $RESOLVED_DIR"; exit 1; }
+
+log_ok "Directorio destino: $RESOLVED_DIR"
+
+# =============================================================================
+# 9. RESOLUCIÓN DEL ARCHIVO DE SALIDA
+#    Si ya existe: pregunta al usuario qué hacer
+# =============================================================================
+log_step "Resolución del archivo de salida..."
+
+if [ -z "$OUTPUT_ARG" ]; then
+  OUTPUT_FILE="$REAL_HOME/$DEFAULT_LOG_NAME"
+  log_dbg "Sin --output, usando: $OUTPUT_FILE"
+else
+  case "$OUTPUT_ARG" in
+    /*)   OUTPUT_FILE="$OUTPUT_ARG" ;;
+    */*)  OUTPUT_FILE="$(pwd)/$OUTPUT_ARG" ;;
+    *)    OUTPUT_FILE="$REAL_HOME/$OUTPUT_ARG" ;;
+  esac
+fi
+
+log_dbg "Archivo candidato: $OUTPUT_FILE"
+
+# --- Si el archivo ya existe: preguntar ---
+if [ -e "$OUTPUT_FILE" ]; then
+  log_warn "El archivo de salida ya existe: $OUTPUT_FILE"
+  printf "${CY}  ¿Qué deseas hacer?${CR}\n" >&2
+  printf "  ${CB}[1]${CR} Sobrescribir (reemplazar el archivo existente)\n" >&2
+  printf "  ${CB}[2]${CR} Crear versión nueva automática (ej: rwxdir-scan.1.log)\n" >&2
+  printf "  ${CB}[3]${CR} Cancelar y salir\n" >&2
+  printf "  Elige [1/2/3]: " >&2
+
+  # Leer respuesta — funciona en Termux y Debian
+  read -r _choice </dev/tty || _choice="3"
+
+  case "$_choice" in
+    1)
+      log_info "Sobrescribiendo: $OUTPUT_FILE"
+      rm -f "$OUTPUT_FILE"
+      ;;
+    2)
+      # Generar nombre con sufijo numérico incremental
+      _base="${OUTPUT_FILE%.log}"
+      _ext="log"
+      # Si no termina en .log, tratar todo como base
+      if [ "$_base" = "$OUTPUT_FILE" ]; then
+        _ext=""
+        _sep=""
+      else
+        _sep="."
+      fi
+      _n=1
+      while true; do
+        if [ -n "$_ext" ]; then
+          _candidate="${_base}.${_n}.${_ext}"
+        else
+          _candidate="${OUTPUT_FILE}.${_n}"
+        fi
+        [ ! -e "$_candidate" ] && break
+        _n=$(( _n + 1 ))
+      done
+      OUTPUT_FILE="$_candidate"
+      log_info "Nuevo archivo: $OUTPUT_FILE"
+      ;;
+    3|*)
+      log_info "Operación cancelada por el usuario."
+      exit 0
+      ;;
+  esac
+fi
+
+OUTPUT_DIR="$(dirname "$OUTPUT_FILE")"
+
+if [ ! -d "$OUTPUT_DIR" ]; then
+  log_err "El directorio de salida no existe: $OUTPUT_DIR"
+  exit 1
+fi
+
+if [ ! -w "$OUTPUT_DIR" ]; then
+  log_err "Sin permiso de escritura en: $OUTPUT_DIR"
+  [ "$IS_TERMUX" = true ] && log_warn "En Termux usa rutas bajo /data/data/com.termux/files/ o /sdcard"
+  exit 1
+fi
+
+log_ok "Archivo de salida: $OUTPUT_FILE"
+
+# =============================================================================
+# 10. DETECCIÓN DE RECURSOS (Termux + Debian)
+# =============================================================================
+log_step "Detección de recursos del sistema..."
+
+# --- CPU ---
+CPU_CORES=1
+if _c="$(getconf _NPROCESSORS_ONLN 2>/dev/null)" && [ -n "$_c" ]; then
+  CPU_CORES="$_c"; log_dbg "CPU vía getconf: $CPU_CORES"
+elif _c="$(nproc 2>/dev/null)" && [ -n "$_c" ]; then
+  CPU_CORES="$_c"; log_dbg "CPU vía nproc: $CPU_CORES"
+elif _c="$(ls /sys/devices/system/cpu/ 2>/dev/null | grep -c '^cpu[0-9]' || true)" && [ "${_c:-0}" -gt 0 ]; then
+  CPU_CORES="$_c"; log_dbg "CPU vía /sys: $CPU_CORES"
+else
+  log_warn "No se detectaron CPUs — usando 1"
+fi
+case "$CPU_CORES" in ''|*[!0-9]*) CPU_CORES=1 ;; esac
+[ "$CPU_CORES" -lt 1 ] && CPU_CORES=1
+
+# --- RAM ---
+MEM_MB=512
+if [ -r "/proc/meminfo" ]; then
+  _m="$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null || true)"
+  if [ -n "$_m" ] && [ "$_m" -gt 0 ] 2>/dev/null; then
+    MEM_MB="$_m"; log_dbg "RAM vía /proc/meminfo: ${MEM_MB} MB"
+  else
+    log_warn "/proc/meminfo inaccesible (Termux restringido) — asumiendo ${MEM_MB} MB"
+  fi
+else
+  log_warn "/proc/meminfo no disponible — asumiendo ${MEM_MB} MB"
+fi
+
+# --- Workers paralelos ---
+if   [ "$MEM_MB" -lt 1024 ]; then MAX_JOBS=1
+elif [ "$MEM_MB" -lt 2048 ]; then MAX_JOBS=$(( CPU_CORES / 2 > 0 ? CPU_CORES / 2 : 1 ))
+else                               MAX_JOBS="$CPU_CORES"
+fi
+if [ "$IS_TERMUX" = true ] && [ "$MAX_JOBS" -gt 4 ]; then
+  MAX_JOBS=4; log_dbg "Termux: workers limitados a 4"
+fi
+
+log_ok "CPUs: $CPU_CORES | RAM: ${MEM_MB} MB | Workers: $MAX_JOBS"
+
+# =============================================================================
+# 11. VERIFICACIÓN DE xargs -0 -P
+#     -0: separación por null byte (rutas con caracteres especiales)
+#     -P: paralelismo
+# =============================================================================
+log_step "Verificando capacidades de xargs..."
+
+USE_PARALLEL=false
+# Probar -0 y -P juntos — es lo mínimo requerido
+if printf '\0' | xargs -0 -P 1 true >/dev/null 2>&1; then
+  USE_PARALLEL=true
+  log_ok "xargs -0 -P soportado — modo paralelo ($MAX_JOBS workers)"
+else
+  log_warn "xargs -0 -P NO disponible — modo secuencial"
+  [ "$IS_TERMUX" = true ] && log_warn "Instala findutils: pkg install findutils"
+  MAX_JOBS=1
+fi
+
+# =============================================================================
+# 12. DETECCIÓN DE PORTAPAPELES
+# =============================================================================
+CLIPBOARD_CMD=""
+if [ "$CLIPBOARD" = true ]; then
+  log_step "Detección de herramienta de portapapeles..."
+
+  if command -v termux-clipboard-set >/dev/null 2>&1; then
+    CLIPBOARD_CMD="termux-clipboard-set"
+    log_ok "Portapapeles: termux-clipboard-set (Termux)"
+  elif command -v xclip >/dev/null 2>&1; then
+    CLIPBOARD_CMD="xclip -selection clipboard"
+    log_ok "Portapapeles: xclip (X11)"
+  elif command -v xsel >/dev/null 2>&1; then
+    CLIPBOARD_CMD="xsel --clipboard --input"
+    log_ok "Portapapeles: xsel (X11)"
+  elif command -v wl-copy >/dev/null 2>&1; then
+    CLIPBOARD_CMD="wl-copy"
+    log_ok "Portapapeles: wl-copy (Wayland)"
+  else
+    log_warn "Sin herramienta de portapapeles disponible."
+    if [ "$IS_TERMUX" = true ]; then
+      log_warn "  → Instala Termux:API: pkg install termux-api"
+      log_warn "  → Luego instala la app 'Termux:API' desde F-Droid o Play Store"
+    else
+      log_warn "  → X11:    apt install xclip"
+      log_warn "  → Wayland: apt install wl-clipboard"
+    fi
+    log_warn "Continuando sin portapapeles."
+  fi
+fi
+
+# =============================================================================
+# 13. FUNCIÓN: stat_line — genera línea detallada tipo ls -la
+#     Funciona con stat de GNU (Debian) y con stat de Termux (toybox/busybox)
+#     Argumentos: $1 = ruta
+#     Salida:  perms  links  usuario  grupo  tamaño  fecha  hora  ruta
+# =============================================================================
+stat_line() {
+  local _path="$1"
+  local _perms _links _user _group _size _date _time _type_char
+
+  # --- Intentar GNU stat (Debian y Termux con coreutils instalado) ---
+  if stat --version >/dev/null 2>&1; then
+    # GNU stat
+    read -r _perms _links _user _group _size _date _time <<EOF
+$(stat -c '%A %h %U %G %s %y' "$_path" 2>/dev/null \
+  | sed 's/\.[0-9]* [+-][0-9]*//' \
+  | awk '{print $1, $2, $3, $4, $5, $6, $7}')
+EOF
+  else
+    # toybox/busybox stat (Termux sin coreutils)
+    # toybox stat -c no existe, pero sí stat con formato diferente
+    # Fallback: usar ls -ld para parsear
+    local _ls_line
+    _ls_line="$(ls -ld "$_path" 2>/dev/null)" || { printf 'ERROR\n'; return 1; }
+    # Formato ls: perms links user group size mes dia hora nombre
+    _perms="$(  printf '%s' "$_ls_line" | awk '{print $1}')"
+    _links="$(  printf '%s' "$_ls_line" | awk '{print $2}')"
+    _user="$(   printf '%s' "$_ls_line" | awk '{print $3}')"
+    _group="$(  printf '%s' "$_ls_line" | awk '{print $4}')"
+    _size="$(   printf '%s' "$_ls_line" | awk '{print $5}')"
+    _date="$(   printf '%s' "$_ls_line" | awk '{print $6, $7}')"
+    _time="$(   printf '%s' "$_ls_line" | awk '{print $8}')"
+  fi
+
+  # Formatear tamaño legible (sin numfmt — ausente en Termux base)
+  local _hsize
+  _size="${_size:-0}"
+  if   [ "$_size" -ge 1073741824 ] 2>/dev/null; then
+    _hsize="$(awk "BEGIN{printf \"%.1fG\", $_size/1073741824}")"
+  elif [ "$_size" -ge 1048576 ] 2>/dev/null; then
+    _hsize="$(awk "BEGIN{printf \"%.1fM\", $_size/1048576}")"
+  elif [ "$_size" -ge 1024 ] 2>/dev/null; then
+    _hsize="$(awk "BEGIN{printf \"%.1fK\", $_size/1024}")"
+  else
+    _hsize="${_size}B"
+  fi
+
+  printf '%-11s  %3s  %-10s  %-10s  %6s  %s %s  %s\n' \
+    "${_perms:----}" \
+    "${_links:-?}" \
+    "${_user:-?}" \
+    "${_group:-?}" \
+    "${_hsize:-?}" \
+    "${_date:--}" \
+    "${_time:-}" \
+    "$_path"
+}
+
+# Exportar para uso desde el helper — pero como no podemos export -f de forma segura,
+# la función stat_line se reproduce dentro del helper script más abajo.
+
+# =============================================================================
+# 14. ARCHIVOS TEMPORALES Y TRAP DE LIMPIEZA
+# =============================================================================
+log_step "Preparando archivos temporales..."
+
+TMP_PATHS=""
+TMP_RESULTS=""
+TMP_HELPER=""
+
+_cleanup() {
+  local _code=$?
+  log_dbg "Limpieza de temporales..."
+  rm -f "$TMP_PATHS" "$TMP_RESULTS" "$TMP_HELPER" 2>/dev/null || true
+  [ $_code -ne 0 ] && log_err "Script terminó con código: $_code" || true
+}
+trap _cleanup EXIT
+
+TMP_PATHS="$(mktemp)"   || { log_err "mktemp falló (TMP_PATHS)";  exit 1; }
+TMP_RESULTS="$(mktemp)" || { log_err "mktemp falló (TMP_RESULTS)"; exit 1; }
+TMP_HELPER="$(mktemp)"  || { log_err "mktemp falló (TMP_HELPER)";  exit 1; }
+
+log_dbg "TMP_PATHS:   $TMP_PATHS"
+log_dbg "TMP_RESULTS: $TMP_RESULTS"
+log_dbg "TMP_HELPER:  $TMP_HELPER"
+
+# =============================================================================
+# 15. SCRIPT HELPER
+#     Recibe la ruta por stdin (1 arg) — llamado desde xargs -0 o bucle while
+#     Argumentos: $1=ruta  $2=real_write_test  $3=verbose
+#     Salida stdout: línea enriquecida tipo ls -la si tiene rwx
+# =============================================================================
+cat > "$TMP_HELPER" << 'HELPER_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+TARGET_PATH="$1"
+DO_WRITE_TEST="${2:-false}"
+BE_VERBOSE="${3:-false}"
+
+_skip() { [ "$BE_VERBOSE" = true ] && printf '[SKIP]  %s — %s\n' "$TARGET_PATH" "$1" >&2 || true; }
+_dbg()  { [ "$BE_VERBOSE" = true ] && printf '[DBG]   %s\n' "$1" >&2 || true; }
+
+# Guardia: race condition entre find y check
+if [ ! -e "$TARGET_PATH" ] && [ ! -L "$TARGET_PATH" ]; then
+  _skip "desapareció (race condition)"
+  exit 0
+fi
+
+[ ! -r "$TARGET_PATH" ] && { _skip "sin lectura (r)";             exit 0; }
+[ ! -w "$TARGET_PATH" ] && { _skip "sin escritura (w)";           exit 0; }
+[ ! -x "$TARGET_PATH" ] && { _skip "sin ejecución/traverse (x)";  exit 0; }
+
+# Prueba de escritura real — solo directorios, solo si se solicitó
+if [ "$DO_WRITE_TEST" = true ] && [ -d "$TARGET_PATH" ]; then
+  _probe="${TARGET_PATH}/.rwxscan_probe_$$_$(date +%s)"
+  if touch "$_probe" 2>/dev/null; then
+    rm -f "$_probe" 2>/dev/null || true
+    _dbg "Escritura real OK: $TARGET_PATH"
+  else
+    _skip "falló touch real"
+    exit 0
+  fi
+fi
+
+# --- Generar línea enriquecida tipo ls -la ---
+_perms='' _links='' _user='' _group='' _size=0 _date='' _time=''
+
+if stat --version >/dev/null 2>&1; then
+  # GNU stat (Debian y Termux con coreutils)
+  _raw="$(stat -c '%A %h %U %G %s %y' "$TARGET_PATH" 2>/dev/null \
+    | sed 's/\.[0-9]* [+-][0-9]*//' \
+    | awk '{print $1, $2, $3, $4, $5, $6, $7}')"
+  _perms="$(printf '%s' "$_raw" | awk '{print $1}')"
+  _links="$(printf '%s' "$_raw" | awk '{print $2}')"
+  _user="$( printf '%s' "$_raw" | awk '{print $3}')"
+  _group="$(printf '%s' "$_raw" | awk '{print $4}')"
+  _size="$( printf '%s' "$_raw" | awk '{print $5}')"
+  _date="$( printf '%s' "$_raw" | awk '{print $6}')"
+  _time="$( printf '%s' "$_raw" | awk '{print $7}')"
+else
+  # toybox/busybox ls (Termux sin coreutils extra)
+  _ls="$(ls -ld "$TARGET_PATH" 2>/dev/null)" || { printf '%s\n' "$TARGET_PATH"; exit 0; }
+  _perms="$(printf '%s' "$_ls" | awk '{print $1}')"
+  _links="$(printf '%s' "$_ls" | awk '{print $2}')"
+  _user="$( printf '%s' "$_ls" | awk '{print $3}')"
+  _group="$(printf '%s' "$_ls" | awk '{print $4}')"
+  _size="$( printf '%s' "$_ls" | awk '{print $5}')"
+  _date="$( printf '%s' "$_ls" | awk '{print $6, $7}')"
+  _time="$( printf '%s' "$_ls" | awk '{print $8}')"
+fi
+
+# Tamaño legible sin numfmt (ausente en Android toybox)
+_size="${_size:-0}"
+if   [ "$_size" -ge 1073741824 ] 2>/dev/null; then
+  _hsize="$(awk "BEGIN{printf \"%.1fG\", $_size/1073741824}")"
+elif [ "$_size" -ge 1048576 ] 2>/dev/null; then
+  _hsize="$(awk "BEGIN{printf \"%.1fM\", $_size/1048576}")"
+elif [ "$_size" -ge 1024 ] 2>/dev/null; then
+  _hsize="$(awk "BEGIN{printf \"%.1fK\", $_size/1024}")"
+else
+  _hsize="${_size}B"
+fi
+
+# Determinar para quién aplica rwx (usuario / grupo / otros / todos)
+# Analizamos los bits de los perms simbólicos
+# Formato: drwxrwxrwx  → pos 1-3=user 4-6=group 7-9=other
+_u_rwx="${_perms:1:3}"   # ej: rwx
+_g_rwx="${_perms:4:3}"   # ej: r-x
+_o_rwx="${_perms:7:3}"   # ej: r--
+
+_who=""
+# Usuario actual tiene rwx si los bits de user son rwx
+# (asumimos que el script corre como el usuario propietario si llegó hasta aquí)
+case "$_u_rwx" in *r*) ;; *) ;; esac
+
+# Construir etiqueta de "quién tiene rwx" para contexto
+_rwx_owners=""
+[ "$_u_rwx" = "rwx" ] && _rwx_owners="${_rwx_owners}usuario(${_user}) "
+[ "$_g_rwx" = "rwx" ] && _rwx_owners="${_rwx_owners}grupo(${_group}) "
+[ "$_o_rwx" = "rwx" ] && _rwx_owners="${_rwx_owners}otros "
+_rwx_owners="${_rwx_owners:-efectivo}"
+
+printf '%-11s  %3s  %-12s  %-12s  %7s  %s %s  rwx→[%s]  %s\n' \
+  "${_perms:----}" \
+  "${_links:-?}" \
+  "${_user:-?}" \
+  "${_group:-?}" \
+  "${_hsize:-?}" \
+  "${_date:--}" \
+  "${_time:-}" \
+  "${_rwx_owners% }" \
+  "$TARGET_PATH"
+HELPER_SCRIPT
+
+chmod +x "$TMP_HELPER"
+log_ok "Helper listo: $TMP_HELPER"
+
+# =============================================================================
+# 16. FASE 1 — RECOLECCIÓN CON find -print0
+#     -print0: separación por null byte — soporta cualquier carácter en rutas
+# =============================================================================
+log_step "FASE 1/3 — Recolección de rutas con find..."
+log_info "Destino: $RESOLVED_DIR | Modo: $SCAN_MODE | Profundidad: ${MAX_DEPTH:-sin límite}"
+
+FIND_ARGS=""
+[ -n "$MAX_DEPTH" ] && FIND_ARGS="$FIND_ARGS -maxdepth $MAX_DEPTH"
+case "$SCAN_MODE" in
+  directories) FIND_ARGS="$FIND_ARGS -type d" ;;
+  files)       FIND_ARGS="$FIND_ARGS -type f" ;;
+  both)        ;;
+esac
+
+log_dbg "find $RESOLVED_DIR $FIND_ARGS -print0"
+
+FIND_EXIT=0
+# shellcheck disable=SC2086
+find "$RESOLVED_DIR" $FIND_ARGS -print0 2>/dev/null > "$TMP_PATHS" || FIND_EXIT=$?
+
+if [ "$FIND_EXIT" -ne 0 ]; then
+  log_warn "find terminó con código $FIND_EXIT (rutas inaccesibles omitidas — normal en Termux/FunTouch)"
+fi
+
+# Contar entradas null-separated
+PATH_COUNT="$(tr -cd '\0' < "$TMP_PATHS" | wc -c | tr -d '[:space:]')"
+log_ok "Rutas recolectadas: $PATH_COUNT"
+
+if [ "$PATH_COUNT" -eq 0 ]; then
+  log_warn "Sin rutas bajo $RESOLVED_DIR para el modo '$SCAN_MODE'"
+  {
+    printf '# rwxdir-scan v%s\n' "$VERSION"
+    printf '# Fecha: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+    printf '# Destino: %s\n' "$RESOLVED_DIR"
+    printf '# Resultado: sin rutas encontradas\n'
+  } > "$OUTPUT_FILE"
+  printf '\nGuardado en: %s\n' "$OUTPUT_FILE"
+  exit 0
+fi
+
+# =============================================================================
+# 17. FASE 2 — VERIFICACIÓN DE PERMISOS
+#     xargs -0: consume null-separated input → rutas con caracteres especiales OK
+# =============================================================================
+log_step "FASE 2/3 — Verificación de permisos ($PATH_COUNT rutas, $MAX_JOBS workers)..."
+
+if [ "$USE_PARALLEL" = true ] && [ "$MAX_JOBS" -gt 1 ]; then
+  log_info "Modo paralelo ($MAX_JOBS workers) — xargs -0 -P"
+
+  TMP_MIXED="$(mktemp)"
+  # -0: lee separado por null | -P: paralelo | -I{}: un path por invocación
+  xargs -0 -a "$TMP_PATHS" -P "$MAX_JOBS" -I{} \
+    bash "$TMP_HELPER" {} "$REAL_WRITE_TEST" "$VERBOSE" \
+    > "$TMP_MIXED" 2>&1 || true
+
+  while IFS= read -r _line; do
+    case "$_line" in
+      \[SKIP\]*|\[DBG\]*) printf '%s\n' "$_line" >&2 ;;
+      '') ;;
+      *)  printf '%s\n' "$_line" >> "$TMP_RESULTS" ;;
+    esac
+  done < "$TMP_MIXED"
+  rm -f "$TMP_MIXED"
+
+else
+  log_info "Modo secuencial"
+  _total="$PATH_COUNT"
+  _i=0
+
+  # Leer null-separated con while read -d $'\0'
+  while IFS= read -r -d $'\0' _path; do
+    _i=$(( _i + 1 ))
+
+    if [ $(( _i % 25 )) -eq 0 ] || [ "$_i" -eq "$_total" ]; then
+      printf '\r%s[PROG]%s  %d/%d verificadas...' "$CC" "$CR" "$_i" "$_total" >&2
+    fi
+
+    _out="$(bash "$TMP_HELPER" "$_path" "$REAL_WRITE_TEST" "$VERBOSE" 2>&1)" || true
+
+    while IFS= read -r _line; do
+      [ -z "$_line" ] && continue
+      case "$_line" in
+        \[SKIP\]*|\[DBG\]*) printf '\n%s\n' "$_line" >&2 ;;
+        *)                   printf '%s\n' "$_line" >> "$TMP_RESULTS" ;;
+      esac
+    done << _EOF
+$_out
+_EOF
+
+  done < "$TMP_PATHS"
+  printf '\n' >&2
+fi
+
+# Deduplicar y ordenar por la columna de ruta (última columna)
+sort -u "$TMP_RESULTS" -o "$TMP_RESULTS"
+
+FOUND_COUNT="$(wc -l < "$TMP_RESULTS" | tr -d '[:space:]')"
+log_ok "Verificación completa: $FOUND_COUNT rutas con rwx"
+
+# =============================================================================
+# 18. FASE 3 — ESCRITURA DEL LOG CON CABECERA
+# =============================================================================
+log_step "FASE 3/3 — Escribiendo archivo de salida..."
+
+# Cabecera de columnas
+HEADER="$(printf '%-11s  %3s  %-12s  %-12s  %7s  %-16s  %-20s  %s\n' \
+  'PERMISOS' 'LNK' 'USUARIO' 'GRUPO' 'TAMAÑO' 'FECHA HORA' 'RWX-PARA' 'RUTA')"
+
+{
+  printf '# rwxdir-scan v%s\n'               "$VERSION"
+  printf '# Fecha              : %s\n'        "$(date '+%Y-%m-%d %H:%M:%S')"
+  printf '# Entorno            : %s\n'        "$([ "$IS_TERMUX" = true ] && echo 'Termux (Android)' || echo 'Linux (Debian)')"
+  printf '# Destino            : %s\n'        "$RESOLVED_DIR"
+  printf '# Modo               : %s\n'        "$SCAN_MODE"
+  printf '# Profundidad máxima : %s\n'        "${MAX_DEPTH:-sin límite}"
+  printf '# Real write test    : %s\n'        "$REAL_WRITE_TEST"
+  printf '# Rutas escaneadas   : %s\n'        "$PATH_COUNT"
+  printf '# Rutas con rwx      : %s\n'        "$FOUND_COUNT"
+  printf '#\n'
+  printf '%s\n' "$HEADER"
+  printf '%s\n' "$(printf '%0.s─' {1..100})"
+  cat "$TMP_RESULTS"
+} > "$OUTPUT_FILE"
+
+log_ok "Log escrito: $OUTPUT_FILE"
+
+# =============================================================================
+# 19. MOSTRAR RESULTADOS EN STDERR (con color) + STDOUT (limpio)
+# =============================================================================
+if [ "$FOUND_COUNT" -eq 0 ]; then
+  log_warn "No se encontraron rutas con rwx completos bajo $RESOLVED_DIR"
+else
+  printf '\n' >&2
+  printf "${CB}${CM}%s${CR}\n" "$HEADER" >&2
+  printf "${CD}%s${CR}\n" "$(printf '%0.s─' {1..100})" >&2
+
+  while IFS= read -r _line; do
+    case "$_line" in
+      '#'*|'─'*) continue ;;
+      '')        continue ;;
+      *)
+        # Colorear: permisos en verde, usuario en cian, ruta al final sin color
+        printf "${CG}%s${CR}\n" "$_line" >&2
+        ;;
+    esac
+  done < "$OUTPUT_FILE"
+fi
+
+# =============================================================================
+# 20. PORTAPAPELES — siempre al final, con el contenido enriquecido
+# =============================================================================
+if [ -n "$CLIPBOARD_CMD" ]; then
+  log_step "Copiando resultados al portapapeles..."
+
+  # Copiar solo las líneas de datos (sin comentarios #)
+  _clip_content="$(grep -v '^#' "$OUTPUT_FILE" || true)"
+
+  if printf '%s\n' "$_clip_content" | $CLIPBOARD_CMD 2>/dev/null; then
+    log_ok "✓ Resultados copiados al portapapeles"
+    log_info "  Incluye: permisos, usuario, grupo, tamaño, fecha, rwx-para, ruta"
+  else
+    log_warn "Falló la copia al portapapeles (cmd: $CLIPBOARD_CMD)"
+    if [ "$IS_TERMUX" = true ]; then
+      log_warn "  ¿Está instalada la app Termux:API?"
+      log_warn "  Pasos: F-Droid → instalar 'Termux:API' → pkg install termux-api"
+    fi
+  fi
+elif [ "$CLIPBOARD" = true ]; then
+  # Se quiso usar portapapeles pero no hay herramienta
+  log_warn "No se copió al portapapeles (sin herramienta disponible)"
+fi
+
+# =============================================================================
+# 21. RESUMEN FINAL
+# =============================================================================
+printf '\n' >&2
+printf "${CB}${CC}━━━ Resumen ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CR}\n" >&2
+printf "${CB}  Entorno      :${CR} %s\n" "$([ "$IS_TERMUX" = true ] && echo 'Termux (Android)' || echo 'Debian/Linux')" >&2
+printf "${CB}  Destino      :${CR} %s\n" "$RESOLVED_DIR"            >&2
+printf "${CB}  Modo         :${CR} %s\n" "$SCAN_MODE"               >&2
+printf "${CB}  Profundidad  :${CR} %s\n" "${MAX_DEPTH:-sin límite}" >&2
+printf "${CB}  Write test   :${CR} %s\n" "$REAL_WRITE_TEST"         >&2
+printf "${CB}  Escaneadas   :${CR} %s\n" "$PATH_COUNT"              >&2
+printf "${CB}  Con rwx      :${CR} %s\n" "$FOUND_COUNT"             >&2
+printf "${CB}  Log          :${CR} %s\n" "$OUTPUT_FILE"             >&2
+printf "${CB}  Portapapeles :${CR} %s\n" "$([ -n "$CLIPBOARD_CMD" ] && echo "sí ($CLIPBOARD_CMD)" || echo 'no disponible')" >&2
+printf "${CB}  Duración     :${CR} %ss\n" "$SECONDS"                >&2
+printf "${CB}${CC}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CR}\n" >&2
+
+printf '\nGuardado en: %s\n' "$OUTPUT_FILE"
