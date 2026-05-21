@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# wifi-connect <ssid> [usb|native]   — connect NOW and PIN it (manual lock).
+# wifi-connect --auto                 — release the pin, return to automatic failover.
+#
+# Pinning means: the failover monitor will NOT switch away from this network
+# just because another has better signal. (Soft pin: if the pinned network
+# loses real Internet, the monitor releases the pin and resumes failover.)
+set -Eeuo pipefail
+IFS=$'\n\t'
+source /opt/wifi-setup/lib/common.sh
+
+require_root
+require_nm
+
+# ── Mode: release pin ────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--auto" ]]; then
+    if [[ -n "$(pin_get)" ]]; then
+        prev="$(pin_get)"; pin_clear
+        ok "ancla liberada (era '${prev}') — failover automático reactivado"
+        log INFO "wifi-connect: pin released ('${prev}')"
+    else
+        info "no había ninguna red anclada — ya estás en automático"
+    fi
+    exit 0
+fi
+
+# ── Mode: connect + pin ──────────────────────────────────────────────────────
+ssid="${1:-}"
+[[ -n "${ssid}" ]] || die "uso: wifi-connect <ssid> [usb|native]   |   wifi-connect --auto"
+nm_profile_exists "${ssid}" || die "no existe la red '${ssid}' en el banco — añádela con: wifi-add ${ssid}"
+
+# Optional antenna choice; default to preferred order's first available.
+role="${2:-}"
+if [[ -n "${role}" ]]; then
+    case "${role}" in usb|native) ;; *) die "antena inválida: '${role}' (usa usb|native)";; esac
+    iface="$(detect_iface "${role}")"
+    [[ -n "${iface}" ]] || die "no se encontró la antena '${role}'"
+else
+    # Pick first available antenna in preferred order.
+    iface=""
+    while IFS= read -r r; do
+        cand="$(detect_iface "${r}")"
+        [[ -n "${cand}" ]] && { iface="${cand}"; break; }
+    done < <(antenna_order)
+    [[ -n "${iface}" ]] || die "no se detectó ninguna antena wifi"
+fi
+
+iface_up "${iface}"
+# Pick the right profile for the chosen antenna (dual-profile model).
+prof="${ssid}"
+if [[ "${role:-}" == "native" ]] && nm_profile_exists "${ssid}-failover"; then
+    prof="${ssid}-failover"
+elif [[ -z "${role:-}" ]]; then
+    # auto-picked iface: if it's the native one, prefer the failover twin
+    native_if="$(detect_iface native)"
+    [[ -n "${native_if}" && "${iface}" == "${native_if}" ]] && nm_profile_exists "${ssid}-failover" && prof="${ssid}-failover"
+fi
+info "conectando vía perfil '${prof}' en ${iface}…"
+# `connection up` respects the profile's fixed IP/MAC (no DHCP renegotiation).
+nmcli connection up "${prof}" ifname "${iface}" >/dev/null 2>&1 \
+    || die "no se pudo conectar '${prof}' en ${iface}"
+
+pin_set "${ssid}"
+ok "conectado y anclado a '${ssid}' en ${iface}"
+warn "el failover NO cambiará de red mientras '${ssid}' funcione (ancla blanda)"
+echo "para volver al modo automático:  wifi-connect --auto"
+log INFO "wifi-connect: pinned '${ssid}' (perfil ${prof}) on ${iface}"

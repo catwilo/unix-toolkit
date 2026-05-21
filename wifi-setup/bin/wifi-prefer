@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# wifi-prefer [usb|native] — set or show the preferred antenna for failover.
+set -Eeuo pipefail
+IFS=$'\n\t'
+source /opt/wifi-setup/lib/common.sh
+
+require_root
+
+choice="${1:-}"
+if [[ -z "${choice}" ]]; then
+    cur="usb"; [[ -f "${WS_PREF_FILE}" ]] && cur="$(cat "${WS_PREF_FILE}")"
+    echo "antena preferida actual: ${cur}"
+    echo "uso: wifi-prefer [usb|native]"
+    exit 0
+fi
+
+case "${choice}" in
+    usb|native) ;;
+    *) die "valor inválido: '${choice}' (usa usb|native)";;
+esac
+
+mkdir -p "${WS_STATE}"
+printf '%s\n' "${choice}" > "${WS_PREF_FILE}"
+ok "antena preferida fijada a: ${choice}"
+log INFO "wifi-prefer: preferida = ${choice}"
+echo "el cambio se aplicará en el próximo ciclo de failover (o ejecuta: wifi-failover test)"

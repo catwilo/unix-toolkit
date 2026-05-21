@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# bin/spfx-test — Integration tests against frozen fixture projects.
+# Usage: spfx-test [--fixture react-webpart|extension|library-component|ace|all]
+#                  [--keep] [--scaffold-only]
+# shellcheck shell=bash
+set -euo pipefail
+
+export SPFX_DIR="${SPFX_DIR:-$HOME/dev/spfx}"
+export LOG_FILE="${SPFX_DIR}/logs/spfx-test-$(date '+%Y%m%d-%H%M%S').log"
+mkdir -p "${SPFX_DIR}/logs"
+
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/core.sh
+source "${_SCRIPT_DIR}/lib/core.sh"
+# shellcheck source=lib/runtime.sh
+source "${_SCRIPT_DIR}/lib/runtime.sh"
+# shellcheck source=lib/state.sh
+source "${_SCRIPT_DIR}/lib/state.sh"
+
+spfx_load_versions
+
+declare -A FIXTURE_MAP=( [react-webpart]="react-webpart" [extension]="extension" [library-component]="library-component" [ace]="ace" )
+FIXTURE_NAMES=(react-webpart extension library-component ace)
+
+_TARGET="all"; _KEEP=0; _SCAFFOLD_ONLY=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --fixture)       _TARGET="${2:?--fixture requires a value}";     shift 2 ;;
+        --keep)          _KEEP=1;           shift   ;;
+        --scaffold-only) _SCAFFOLD_ONLY=1; shift   ;;
+        --help|-h)
+            echo "Usage: spfx-test [--fixture <name>|all] [--keep] [--scaffold-only]"
+            printf "  Fixtures: %s\n" "${FIXTURE_NAMES[*]}"; exit 0 ;;
+        *) log_die "Unknown option: $1" ;;
+    esac
+done
+
+require_podman
+
+# ── Stale workspace cleanup ───────────────────────────────────────────────────
+# Remove _test_* directories left behind by previously interrupted runs so
+# re-running spfx-test always starts from a clean state.
+_stale=0
+for _d in "${SPFX_DIR}/projects/_test_"*; do
+    [[ -d "$_d" ]] || continue
+    ((_stale++)) || true
+    podman unshare rm -rf "$_d" 2>/dev/null || rm -rf "$_d" 2>/dev/null || true
+done
+[[ "$_stale" -gt 0 ]] && log_info "Removed ${_stale} stale test workspace(s)"
+unset _stale _d
+
+_PASS=0; _FAIL=0; _RESULTS=()
+_test_pass() { ((_PASS++)) || true; _RESULTS+=("  ${GREEN}✔${NC}  $*"); log_ok "$*"; }
+_test_fail() { ((_FAIL++)) || true; _RESULTS+=("  ${RED}✘${NC}  $*"); log_err "$*"; }
+
+# ── Cleanup & signal handling ─────────────────────────────────────────────────
+
+_WORKSPACES=()
+
+# _cleanup: remove test workspaces.
+# Uses `podman unshare` to delete files owned by container sub-UIDs (uid 1000
+# inside the container maps to a host sub-UID under rootless Podman, so plain
+# rm -rf from the host would hit EACCES on node_modules).  Falls back to
+# plain rm -rf if podman unshare is unavailable or the dir is already gone.
+_cleanup() {
+    [[ "$_KEEP" -eq 1 ]] && return
+    local w
+    for w in "${_WORKSPACES[@]:-}"; do
+        [[ -d "$w" ]] || continue
+        podman unshare rm -rf "$w" 2>/dev/null             || rm -rf "$w" 2>/dev/null             || true
+    done
+}
+
+# _int_handler: fired on Ctrl-C.
+# podman run also receives SIGINT from the terminal and stops its container;
+# we wait briefly to let it exit cleanly before wiping the workspace.
+_int_handler() {
+    echo "" >&2
+    log_warn "Interrupted — cleaning up..."
+    sleep 1
+    _cleanup
+    exit 130
+}
+
+trap '_cleanup'              EXIT
+trap '_int_handler'          INT
+trap '_cleanup; exit 143'   TERM
+
+run_fixture_test() {
+    local fixture="$1"
+    local fixture_dir="${SPFX_DIR}/fixtures/${FIXTURE_MAP[$fixture]}"
+
+    [[ -d "$fixture_dir" ]] || { _test_fail "[${fixture}] fixture directory missing: $fixture_dir"; return; }
+
+    log_step "Fixture: ${fixture}"
+
+    local ws_name="_test_${fixture}_$$_$(date +%s)"
+    local ws="${SPFX_DIR}/projects/${ws_name}"
+    _WORKSPACES+=("$ws")
+    cp -r "$fixture_dir" "$ws"
+
+    local missing=()
+    for f in package.json tsconfig.json config/heft.json config/rig.json; do
+        [[ -f "$ws/$f" ]] || missing+=("$f")
+    done
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        _test_pass "[${fixture}] fixture files present"
+    else
+        _test_fail "[${fixture}] fixture missing: ${missing[*]}"; return
+    fi
+
+    if [[ "$_SCAFFOLD_ONLY" -eq 1 ]]; then return; fi
+
+    # Normalize ownership before npm — cp -r from fixtures can carry host UID mismatches.
+    podman_exec_root "$ws_name" "chown -R u:u /workspace" >> "${LOG_FILE}" 2>&1 || true
+
+    # Inject the package-lock.json generated during image build (stored in /spfx-locks/).
+    # This converts a lockfile-free fixture into a deterministic npm ci target,
+    # so npm ci --prefer-offline never needs to query the registry.
+    local _lock_src="/spfx-locks/${fixture}/package-lock.json"
+    local _lock_inject="if [[ ! -f package-lock.json && -f ${_lock_src} ]]; then cp ${_lock_src} package-lock.json && echo '  → injected package-lock.json from /spfx-locks/'; fi"
+    run_exec "$ws_name" "$_lock_inject" >> "${LOG_FILE}" 2>&1 || true
+
+    # npm ci --prefer-offline: uses ~/.npm cache warmed during image build.
+    # With lockfile injected above, this is fully deterministic and offline.
+    if run_exec "$ws_name" \
+        'npm ci --prefer-offline --no-fund' \
+        >> "${LOG_FILE}" 2>&1; then
+        _test_pass "[${fixture}] npm install"
+    else
+        _test_fail "[${fixture}] npm install"; return
+    fi
+
+    # Normalize ownership back to u:u so host cleanup works (npm ci creates files as containerfs owner).
+    podman_exec_root "$ws_name" "chown -R u:u /workspace" >> "${LOG_FILE}" 2>&1 || true
+
+    local pipeline; pipeline="$(detect_pipeline "$ws_name")"
+    local build_cmd; build_cmd="$(build_command "$pipeline")"
+
+    if run_exec "$ws_name" "$build_cmd" >> "${LOG_FILE}" 2>&1; then
+        _test_pass "[${fixture}] production build (${pipeline})"
+    else
+        _test_fail "[${fixture}] production build (${pipeline})"; return
+    fi
+
+    # Validate the artifact appropriate to the pipeline:
+    #   heft   → compiled JS output. Heft/SPFx writes to lib/ (and may also emit
+    #            lib-commonjs/ or a bundle under dist/). We use `find` rather than
+    #            a shell glob because bash `**` is only recursive when globstar is
+    #            enabled, and the compiled tree is nested several levels deep
+    #            (e.g. lib/extensions/<name>/*.js) — a plain glob would miss it.
+    #   hybrid → packaged .sppkg under sharepoint/solution/
+    if [[ "$pipeline" == "heft" ]]; then
+        local outdir="" jscount=0
+        local d
+        for d in lib dist lib-commonjs; do
+            if [[ -d "${ws}/${d}" ]]; then
+                local n
+                n="$(find "${ws}/${d}" -type f -name '*.js' 2>/dev/null | wc -l | tr -d ' ')"
+                if [[ "$n" -gt 0 ]]; then outdir="$d"; jscount="$n"; break; fi
+            fi
+        done
+        if [[ -n "$outdir" ]]; then
+            local lsz; lsz="$(du -sh "${ws}/${outdir}" | awk '{print $1}')"
+            _test_pass "[${fixture}] artifact: ${outdir}/ (${lsz}, ${jscount} JS files)"
+        else
+            _test_fail "[${fixture}] artifact not found (no compiled JS in lib/, dist/, or lib-commonjs/)"
+        fi
+    else
+        shopt -s nullglob
+        local sppkgs=( "${ws}/sharepoint/solution/"*.sppkg )
+        shopt -u nullglob
+        if [[ ${#sppkgs[@]} -gt 0 ]]; then
+            local sz; sz="$(du -h "${sppkgs[0]}" | awk '{print $1}')"
+            _test_pass "[${fixture}] artifact: $(basename "${sppkgs[0]}") (${sz})"
+            if command -v unzip >/dev/null 2>&1; then
+                if unzip -t "${sppkgs[0]}" >/dev/null 2>&1; then
+                    _test_pass "[${fixture}] artifact integrity: ZIP valid"
+                else
+                    _test_fail "[${fixture}] artifact integrity: ZIP invalid"
+                fi
+            fi
+        else
+            _test_fail "[${fixture}] artifact not found (.sppkg)"
+        fi
+    fi
+}
+
+declare -a _TO_RUN=()
+if [[ "$_TARGET" == "all" ]]; then
+    _TO_RUN=("${FIXTURE_NAMES[@]}")
+else
+    [[ -v "FIXTURE_MAP[$_TARGET]" ]] || log_die "Unknown fixture: '$_TARGET'. Valid: ${FIXTURE_NAMES[*]}"
+    _TO_RUN=("$_TARGET")
+fi
+
+log_step "SPFx fixture tests (${#_TO_RUN[@]})"
+log_info "Log: ${LOG_FILE}"
+
+for _f in "${_TO_RUN[@]}"; do run_fixture_test "$_f"; done
+
+echo ""
+echo -e "${BOLD}══ Test Results ══════════════════════════════════${NC}"
+for r in "${_RESULTS[@]}"; do echo -e "$r"; done
+echo -e "${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "  Passed: ${GREEN}${_PASS}${NC}   Failed: ${RED}${_FAIL}${NC}"
+echo ""
+
+if [[ "$_FAIL" -eq 0 ]]; then spfx_load_versions; state_verify_cache_write 0; fi
+[[ "$_FAIL" -eq 0 ]]

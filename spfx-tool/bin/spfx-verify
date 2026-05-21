@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# bin/spfx-verify — Verify the full environment.
+# Checks: Podman, dev image, Node/npm/yo inside container.
+# Usage: spfx-verify [--quiet]
+# Exit 0 = all checks passed; 1 = one or more failures.
+# shellcheck shell=bash
+set -euo pipefail
+
+export SPFX_DIR="${SPFX_DIR:-$HOME/dev/spfx}"
+export LOG_FILE="${SPFX_DIR}/logs/spfx-verify-$(date '+%Y%m%d-%H%M%S').log"
+mkdir -p "${SPFX_DIR}/logs"
+
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/core.sh
+source "${_SCRIPT_DIR}/lib/core.sh"
+# shellcheck source=lib/runtime.sh
+source "${_SCRIPT_DIR}/lib/runtime.sh"
+
+spfx_load_versions
+
+_QUIET=0
+if [[ "${1:-}" == "--quiet" ]]; then _QUIET=1; fi
+
+_FAIL=0
+_FAIL_CRITICAL=0
+
+# check <label> <rc> [msg] [critical=1]
+check() {
+    local label="$1" rc="$2" msg="${3:-}" critical="${4:-0}"
+    if [[ "$rc" -eq 0 ]]; then
+        if [[ "$_QUIET" -eq 0 ]]; then log_ok "${label}${msg:+: $msg}"; fi
+    else
+        if [[ "$critical" -eq 1 ]]; then
+            log_err "${label}${msg:+: $msg} [CRITICAL]"
+            (( _FAIL_CRITICAL++ )) || true
+        else
+            log_warn "${label}${msg:+: $msg} [optional]"
+        fi
+        (( _FAIL++ )) || true
+    fi
+}
+
+# check_cmd <cmd> [critical=1]
+check_cmd() {
+    local cmd="$1" critical="${2:-1}"
+    local disk_path="${SPFX_DIR}/bin/${cmd}"
+    if [[ ! -x "$disk_path" ]]; then
+        check "$cmd (file)" 1 "not found: $disk_path" "$critical"
+        return
+    fi
+    local resolved
+    resolved="$(command -v "$cmd" 2>/dev/null || true)"
+    if [[ -z "$resolved" ]]; then
+        check "$cmd (PATH)" 1 "not resolvable via PATH (is ${SPFX_DIR}/bin in PATH?)" "$critical"
+        return
+    fi
+    check "$cmd" 0 "$resolved" "$critical"
+}
+
+log_step "Environment verification [debian]"
+
+# ── CLI binaries — critical ───────────────────────────────────────────────────
+for _cmd in spfx-bootstrap spfx-new spfx-build spfx-smoke spfx-dev spfx-shell spfx-verify spfx-test spfx-upgrade; do
+    check_cmd "$_cmd" 1
+done
+
+# ── versions.env + presets — critical ────────────────────────────────────────
+_rc=0; [[ -f "${SPFX_DIR}/versions.env" ]] || _rc=1
+check "versions.env" $_rc "" 1
+for _p in react-webpart extension library ace; do
+    _rc=0; [[ -f "${SPFX_DIR}/lib/presets/${_p}.json" ]] || _rc=1
+    check "preset/${_p}" $_rc "" 1
+done
+
+# ── Runtime checks ────────────────────────────────────────────────────────────
+_rc=0; command -v podman >/dev/null 2>&1             || _rc=1; check "podman"                  $_rc "" 1
+_rc=0; podman image exists "$PODMAN_IMAGE" 2>/dev/null || _rc=1; check "image: ${PODMAN_IMAGE}" $_rc "" 1
+
+if [[ "$_QUIET" -eq 0 ]]; then log_info "Checking container toolchain..."; fi
+_result="$(
+    _podman_run \
+        --user u \
+        "$PODMAN_IMAGE" \
+        bash --noprofile --norc -c '
+            _gen_pkg="'"${_PODMAN_TOOLS_MNT}"'/lib/node_modules/@microsoft/generator-sharepoint/package.json"
+            if [[ -f "$_gen_pkg" ]]; then
+                _gen="$(node -p "require(\"$_gen_pkg\").version" 2>/dev/null || echo FAIL)"
+            else
+                _gen="FAIL"
+            fi
+            printf "%s %s %s %s\n" \
+                "$(node --version 2>/dev/null||echo FAIL)" \
+                "$(npm --version 2>/dev/null||echo FAIL)" \
+                "$(yo --version 2>/dev/null||echo FAIL)" \
+                "$_gen"
+        ' \
+    2>/dev/null
+)" || _result="FAIL FAIL FAIL FAIL"
+
+_nv="$(awk '{print $1}'  <<< "$_result")"
+_npmv="$(awk '{print $2}' <<< "$_result")"
+_yo_v="$(awk '{print $3}' <<< "$_result")"
+_gen_v="$(awk '{print $4}' <<< "$_result")"
+
+_rc=0; [[ "$_nv"   == v${NODE_VERSION}* ]]                  || _rc=1; check "Node ${NODE_VERSION} (container)" $_rc "$_nv" 1
+_rc=0; [[ "$_npmv" != "FAIL" ]]                             || _rc=1; check "npm (container)" $_rc "$_npmv" 1
+_rc=0; [[ "$_yo_v" == "${YO_VERSION}"* ]]                   || _rc=1; check "yo ${YO_VERSION} (container)" $_rc "$_yo_v" 1
+_rc=0; [[ "$_gen_v" == "${SPFX_GENERATOR_VERSION}"* ]]      || _rc=1; check "@microsoft/generator-sharepoint ${SPFX_GENERATOR_VERSION} (container)" $_rc "$_gen_v" 1
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+echo ""
+if [[ "$_FAIL" -eq 0 ]]; then
+    echo -e "${GREEN}${BOLD}  All checks passed.${NC}  SPFx ${SPFX_GENERATOR_VERSION} | Node ${NODE_VERSION} [debian]"
+elif [[ "$_FAIL_CRITICAL" -gt 0 ]]; then
+    echo -e "${RED}${BOLD}  ${_FAIL_CRITICAL} critical failure(s), ${_FAIL} total.${NC}  Run: ${CYAN}spfx-bootstrap${NC} to repair."
+else
+    echo -e "${YELLOW}${BOLD}  ${_FAIL} optional check(s) failed.${NC}  Run: ${CYAN}spfx-bootstrap${NC} to repair."
+fi
+echo ""
+
+[[ "$_FAIL" -eq 0 ]]

@@ -1,0 +1,23 @@
+# rsync-folder@.service — instancia por perfil
+# Uso: systemctl --user enable --now rsync-folder@default.service
+#      systemctl --user enable --now rsync-folder@trabajo.service
+#
+# Reemplaza el antiguo rsync-folder.service (sin @).
+# Permite correr múltiples perfiles simultáneamente como servicios separados.
+
+[Unit]
+Description=rsync-folder watcher — perfil %i
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/rsync-folder watch %i
+Restart=on-failure
+RestartSec=5
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/data/data/com.termux/files/usr/bin
+Environment=SSH_AUTH_SOCK=%t/keychain/ssh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

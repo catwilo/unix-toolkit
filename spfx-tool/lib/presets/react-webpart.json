@@ -1,0 +1,16 @@
+{
+  "solution": {
+    "name": "__PROJECT_NAME__",
+    "version": "1.0.0.0",
+    "isDomainIsolated": false,
+    "skipFeatureDeployment": false
+  },
+  "components": [
+    {
+      "type": "webpart",
+      "name": "__PROJECT_NAME__",
+      "framework": "react",
+      "template": "react"
+    }
+  ]
+}

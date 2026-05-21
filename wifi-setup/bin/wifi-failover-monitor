@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# wifi-failover-monitor — core failover engine (run by systemd timer every 20s)
+#
+# Logic:
+#   1. Determine the active interface and whether it has REAL Internet.
+#   2. If Internet is fine -> nothing to do (respects a pinned network too).
+#   3. If Internet is down -> walk saved networks best-signal-first, trying the
+#      preferred antenna (USB) fully before falling back to the native one.
+#   4. Soft pin: a manually pinned network is respected ONLY while it works;
+#      once it loses Internet, the pin is released and normal failover resumes.
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+source /opt/wifi-setup/lib/common.sh
+
+require_root
+require_nm
+
+# ── Resolve antennas ─────────────────────────────────────────────────────────
+USB_IFACE="$(detect_iface usb)"
+NATIVE_IFACE="$(detect_iface native)"
+
+# ── Find the currently active wifi interface (if any) ────────────────────────
+active_iface() {
+    nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null \
+        | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}'
+}
+
+# ── Map an SSID + role to the right NM profile name ──────────────────────────
+# Dual-profile model: "<ssid>" is bound to USB, "<ssid>-failover" to native.
+profile_for() {
+    local ssid="$1" role="$2"
+    if [[ "${role}" == "native" ]] && nm_profile_exists "${ssid}-failover"; then
+        printf '%s-failover\n' "${ssid}"
+    else
+        printf '%s\n' "${ssid}"
+    fi
+}
+
+# ── List base SSIDs we have a profile for, visible on iface, best signal first ─
+visible_saved_on() {
+    local iface="$1" ssid signal base
+    declare -A saved=()
+    # Collect base SSIDs (strip the -failover suffix so both map to one SSID).
+    while IFS= read -r s; do
+        [[ -n "$s" ]] || continue
+        base="${s%-failover}"
+        saved["${base}"]=1
+    done < <(nm_saved_ssids)
+    [[ "${#saved[@]}" -gt 0 ]] || return 0
+    {
+        nmcli -t -f SSID,SIGNAL device wifi list ifname "${iface}" --rescan yes 2>/dev/null \
+            | awk -F: 'NF>=2 && $1!="" {print $2":"$1}' \
+            | sort -t: -k1,1nr \
+            | while IFS=: read -r signal ssid; do
+                [[ -n "${saved[$ssid]:-}" ]] && printf '%s\n' "${ssid}"
+              done
+    } || true
+}
+
+# ── Try to connect a base SSID on a given interface, via the right profile ───
+try_connect() {
+    local ssid="$1" iface="$2" role="$3" prof
+    prof="$(profile_for "${ssid}" "${role}")"
+    iface_up "${iface}"
+    # `connection up` respects the profile's fixed IP/MAC. Never `device wifi
+    # connect` (it renegotiates DHCP and would drift a static IP).
+    if nmcli connection up "${prof}" ifname "${iface}" >/dev/null 2>&1; then
+        sleep 3
+        if has_internet ""; then
+            log INFO "failover: conectado vía perfil '${prof}' en ${iface} con Internet"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# ── Walk all saved+visible networks on one interface, best signal first ──────
+walk_interface() {
+    local iface="$1" role="$2" ssid
+    [[ -n "${iface}" ]] || return 1
+    while IFS= read -r ssid; do
+        [[ -n "${ssid}" ]] || continue
+        log INFO "failover: probando '${ssid}' en ${iface} (${role})"
+        try_connect "${ssid}" "${iface}" "${role}" && return 0
+    done < <(visible_saved_on "${iface}")
+    return 1
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+main() {
+    local cur pinned
+    cur="$(active_iface)"
+    pinned="$(pin_get)"
+
+    # Healthy path: if connected with Internet, do nothing. Check is unbound
+    # (reliable) and we never touch a working connection.
+    if [[ -n "${cur}" ]] && has_internet ""; then
+        exit 0
+    fi
+
+    # Be conservative before the destructive sweep: a single failed probe is
+    # often a transient hiccup (AP busy, just reconnected). Confirm the outage
+    # with several spaced retries; bail out the moment Internet returns.
+    local i
+    for i in 1 2 3; do
+        sleep 3
+        if has_internet ""; then
+            log INFO "failover: Internet recuperado solo (intento ${i}) — sin acción"
+            exit 0
+        fi
+    done
+
+    # Confirmed outage. Soft-pin release: a pin only survives while it works.
+    if [[ -n "${pinned}" ]]; then
+        log WARN "failover: red anclada '${pinned}' sin Internet — liberando ancla"
+        pin_clear
+    fi
+
+    log WARN "failover: sin Internet real confirmado — iniciando barrido"
+
+    # Determine preferred + fallback antenna roles.
+    local roles=() role iface
+    mapfile -t roles < <(antenna_order)
+
+    for role in "${roles[@]}"; do
+        iface="$(detect_iface "${role}")"
+        [[ -n "${iface}" ]] || continue
+        if walk_interface "${iface}" "${role}"; then
+            # Success: keep this antenna up, take the other one down to save power
+            # and prevent split-brain. NEVER down the interface carrying SSH.
+            local other_iface ssh_if
+            if [[ "${role}" == "usb" ]]; then other_iface="${NATIVE_IFACE}"; else other_iface="${USB_IFACE}"; fi
+            ssh_if="$(ssh_iface)"
+            if [[ -n "${other_iface}" && "${other_iface}" != "${iface}" ]]; then
+                if [[ -n "${ssh_if}" && "${other_iface}" == "${ssh_if}" ]]; then
+                    log WARN "failover: NO bajo ${other_iface} (lleva la sesión SSH)"
+                else
+                    iface_down "${other_iface}"
+                fi
+            fi
+            exit 0
+        fi
+        log WARN "failover: ninguna red guardada funcionó en ${iface}"
+    done
+
+    log ERR "failover: barrido completo sin conectividad en ninguna antena"
+    exit 1
+}
+
+main "$@"

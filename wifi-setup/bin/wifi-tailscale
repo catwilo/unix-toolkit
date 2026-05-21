@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# wifi-tailscale [install|up|status] — minimal, KISS Tailscale helper.
+#
+#   install  install Tailscale + enable tailscaled at boot. Does NOT log in.
+#   up       run `tailscale up --accept-dns=false` (no MagicDNS); you complete
+#            the browser/login step yourself. Re-runnable.
+#   status   show install/connection state.
+#
+# Login is intentionally manual: this keeps the tool simple and puts auth fully
+# in your hands. No MagicDNS (--accept-dns=false) so it never overrides your DNS.
+set -Eeuo pipefail
+IFS=$'\n\t'
+source /opt/wifi-setup/lib/common.sh
+
+require_root
+
+show_status() {
+    if ! ts_installed; then echo "Tailscale: no instalado"; return; fi
+    echo "Tailscale: $(tailscale version 2>/dev/null | head -1)"
+    if ts_connected; then
+        ok "conectado"
+        tailscale ip -4 2>/dev/null | sed 's/^/  IP: /' || true
+    else
+        warn "instalado pero sin sesión — ejecuta: sudo tailscale up --accept-dns=false"
+    fi
+}
+
+do_install() {
+    if ts_installed; then
+        ok "Tailscale ya instalado"
+        ts_maybe_upgrade
+        systemctl enable --now tailscaled >/dev/null 2>&1 || true
+    else
+        ts_install
+    fi
+    echo "para iniciar sesión (tú, manualmente):  sudo tailscale up --accept-dns=false"
+}
+
+do_up() {
+    ts_installed || die "Tailscale no está instalado — ejecuta primero: wifi-tailscale install"
+    info "iniciando 'tailscale up --ssh --accept-dns=false' (sin MagicDNS)…"
+    echo "→ abre la URL que aparezca para completar el login."
+    tailscale up --ssh --accept-dns=false
+    sleep 2
+    show_status
+}
+
+case "${1:-status}" in
+    install) do_install ;;
+    up)      do_up ;;
+    status)  show_status ;;
+    *)       die "uso: wifi-tailscale <install|up|status>" ;;
+esac

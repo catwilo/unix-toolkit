@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# bin/spfx-bootstrap — Install and configure the SPFx environment.
+# Idempotent: safe to re-run.
+# Requires: Debian 13 (trixie), rootless Podman, x86_64.
+# Usage: spfx-bootstrap [--skip-verify] [-v]
+# shellcheck shell=bash
+set -euo pipefail
+umask 022
+
+export SPFX_DIR="${SPFX_DIR:-$HOME/dev/spfx}"
+mkdir -p "${SPFX_DIR}/logs"
+export LOG_FILE="${SPFX_DIR}/logs/bootstrap-$(date '+%Y%m%d-%H%M%S').log"
+
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/core.sh
+source "${_SCRIPT_DIR}/lib/core.sh"
+# shellcheck source=lib/runtime.sh
+source "${_SCRIPT_DIR}/lib/runtime.sh"
+
+# Keep logs/ bounded — never deletes the active LOG_FILE.
+prune_logs 50
+
+spfx_load_versions
+
+# ── Flags ─────────────────────────────────────────────────────────────────────
+_SKIP_VERIFY=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --skip-verify) _SKIP_VERIFY=1; shift ;;
+        -vvv) export SPFX_DEBUG=1; shift ;;
+        -v)   export SPFX_DEBUG=1; shift ;;
+        --help|-h)
+            echo "Usage: spfx-bootstrap [--skip-verify] [-v]"
+            exit 0 ;;
+        *) log_die "Unknown option: $1" ;;
+    esac
+done
+
+validate_node_spfx_compat
+
+log_step "SPFx Bootstrap — Debian | SPFx ${SPFX_GENERATOR_VERSION} | Node ${NODE_VERSION} LTS"
+log_info "Log: ${LOG_FILE}"
+
+# ── 1. Directory layout ───────────────────────────────────────────────────────
+log_step "1 · Directory layout"
+mkdir -p "${SPFX_DIR}"/{projects,bin,lib,ci,logs,fixtures,cache,state}
+log_ok "Layout: ${SPFX_DIR}"
+
+# ── 2. Installing CLI commands ────────────────────────────────────────────────
+log_step "2 · Installing CLI commands"
+if [[ "${_SCRIPT_DIR}/lib" != "${SPFX_DIR}/lib" ]]; then
+    cp -r "${_SCRIPT_DIR}/lib/."      "${SPFX_DIR}/lib/"
+    cp -r "${_SCRIPT_DIR}/fixtures/." "${SPFX_DIR}/fixtures/"
+fi
+if [[ "${_SCRIPT_DIR}/bin" != "${SPFX_DIR}/bin" ]]; then
+    cp -r "${_SCRIPT_DIR}/bin/." "${SPFX_DIR}/bin/"
+fi
+if [[ "${_SCRIPT_DIR}/ci" != "${SPFX_DIR}/ci" ]]; then
+    cp -r "${_SCRIPT_DIR}/ci/."  "${SPFX_DIR}/ci/"
+fi
+chmod 0755 "${SPFX_DIR}/bin"/spfx-*
+if [[ "${_SCRIPT_DIR}/versions.env" != "${SPFX_DIR}/versions.env" ]]; then
+    cp "${_SCRIPT_DIR}/versions.env" "${SPFX_DIR}/versions.env"
+fi
+log_ok "CLI commands: ${SPFX_DIR}/bin/"
+
+# ── 3. Podman ─────────────────────────────────────────────────────────────────
+log_step "3 · Podman (rootless)"
+if ! command -v podman >/dev/null 2>&1; then
+    log_info "Installing Podman..."
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq podman uidmap slirp4netns
+    log_ok "Podman installed"
+else
+    log_ok "Podman already installed: $(podman --version)"
+fi
+
+podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null | grep -q true \
+    || log_die "Podman rootless not available. See: https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md"
+log_ok "Podman rootless: OK"
+
+# ── 4. Base image ─────────────────────────────────────────────────────────────
+log_step "4 · Base image"
+podman_ensure_base_image
+
+# ── 4a. Dev container image ───────────────────────────────────────────────────
+log_step "4a · Dev container image (spfx-dev)"
+if ! podman image exists "$PODMAN_IMAGE" 2>/dev/null; then
+    podman_build_image
+else
+    log_ok "Image already present: ${PODMAN_IMAGE}"
+fi
+
+# ── 5. Global npm tools (yo + generator) ─────────────────────────────────────
+log_step "5 · Global npm tools (yo + generator)"
+
+# Query both versions in one container invocation to avoid double cold-start.
+# Generator version comes from its package.json inside the tools volume —
+# this is the canonical install location given NPM_CONFIG_PREFIX.
+_versions_raw="$(_podman_run --user u "$PODMAN_IMAGE" \
+    bash --noprofile --norc -c '
+        _yo="$(yo --version 2>/dev/null || echo NONE)"
+        _gen_pkg="'"${_PODMAN_TOOLS_MNT}"'/lib/node_modules/@microsoft/generator-sharepoint/package.json"
+        if [[ -f "$_gen_pkg" ]]; then
+            _gen="$(node -p "require(\"$_gen_pkg\").version" 2>/dev/null || echo NONE)"
+        else
+            _gen="NONE"
+        fi
+        printf "%s %s\n" "$_yo" "$_gen"
+    ' 2>/dev/null || echo 'NONE NONE')"
+
+_cur_yo="$(awk '{print $1}' <<< "$_versions_raw")"
+_cur_gen="$(awk '{print $2}' <<< "$_versions_raw")"
+
+_yo_ok=0; _gen_ok=0
+if [[ "$_cur_yo"  == "${YO_VERSION}"*             ]]; then _yo_ok=1; fi
+if [[ "$_cur_gen" == "${SPFX_GENERATOR_VERSION}"* ]]; then _gen_ok=1; fi
+
+if [[ "$_yo_ok" -eq 1 && "$_gen_ok" -eq 1 ]]; then
+    log_ok "yo ${_cur_yo} already installed (pinned: ${YO_VERSION})"
+    log_ok "@microsoft/generator-sharepoint ${_cur_gen} already installed (pinned: ${SPFX_GENERATOR_VERSION})"
+else
+    [[ "$_yo_ok"  -eq 1 ]] || log_info "yo: have='${_cur_yo}' want='${YO_VERSION}' → reinstall"
+    [[ "$_gen_ok" -eq 1 ]] || log_info "generator: have='${_cur_gen}' want='${SPFX_GENERATOR_VERSION}' → reinstall"
+    log_info "Volume : ${_PODMAN_TOOLS_VOLUME}  →  ${_PODMAN_TOOLS_MNT}"
+    log_info "Install: root  →  chown to user u (uid 1000) after"
+    echo ""
+
+    _podman_run --user root "$PODMAN_IMAGE" \
+        bash --noprofile --norc -c "
+set -euo pipefail
+
+echo '  ┌─ yo@${YO_VERSION} ──────────────────────────────────────────────────────'
+npm install -g --no-fund 'yo@${YO_VERSION}'
+echo '  └─ yo done'
+echo ''
+echo '  ┌─ @microsoft/generator-sharepoint@${SPFX_GENERATOR_VERSION} ──────────'
+npm install -g --no-fund '@microsoft/generator-sharepoint@${SPFX_GENERATOR_VERSION}'
+echo '  └─ generator done'
+echo ''
+echo '  ┌─ ownership  →  user u (uid 1000) ──────────────────────────────────────'
+chown -R 1000:1000 '${_PODMAN_TOOLS_MNT}'
+echo '  └─ chown done'
+" 2>&1 | tee -a "${LOG_FILE}"
+
+    echo ""
+
+    # Post-install verification: both tools must be runnable as user u.
+    _post="$(_podman_run --user u "$PODMAN_IMAGE" \
+        bash --noprofile --norc -c '
+            _yo="$(yo --version 2>/dev/null || echo FAIL)"
+            _gen_pkg="'"${_PODMAN_TOOLS_MNT}"'/lib/node_modules/@microsoft/generator-sharepoint/package.json"
+            if [[ -f "$_gen_pkg" ]]; then
+                _gen="$(node -p "require(\"$_gen_pkg\").version" 2>/dev/null || echo FAIL)"
+            else
+                _gen="FAIL"
+            fi
+            printf "%s %s\n" "$_yo" "$_gen"
+        ' 2>/dev/null || echo 'FAIL FAIL')"
+    _post_yo="$(awk '{print $1}' <<< "$_post")"
+    _post_gen="$(awk '{print $2}' <<< "$_post")"
+
+    [[ "$_post_yo"  != "FAIL" ]] \
+        || log_die "yo not executable as user u after install — see log: ${LOG_FILE}"
+    [[ "$_post_gen" == "${SPFX_GENERATOR_VERSION}"* ]] \
+        || log_die "@microsoft/generator-sharepoint version mismatch after install: got '${_post_gen}', expected '${SPFX_GENERATOR_VERSION}' — see log: ${LOG_FILE}"
+
+    log_ok "yo ${_post_yo}"
+    log_ok "@microsoft/generator-sharepoint ${_post_gen}"
+fi
+
+log_ok "Global tools ready in volume: ${_PODMAN_TOOLS_VOLUME}"
+
+# ── 6. Shell PATH ─────────────────────────────────────────────────────────────
+log_step "6 · Shell PATH"
+_shell="${SHELL:-bash}"; _shell="${_shell##*/}"
+case "$_shell" in
+    zsh)  _RC="${ZDOTDIR:-$HOME}/.zshrc" ;;
+    bash) _RC="$HOME/.bashrc" ;;
+    *)    _RC="$HOME/.bashrc" ;;
+esac
+if ! grep -qF "${SPFX_DIR}/bin" "$_RC" 2>/dev/null; then
+    printf '\n# SPFx tools\nexport SPFX_DIR="%s"\nexport PATH="${SPFX_DIR}/bin:$PATH"\n' \
+        "${SPFX_DIR}" >> "$_RC"
+    log_ok "PATH added to ${_RC}"
+else
+    log_ok "PATH already configured in ${_RC}"
+fi
+
+# ── Verification ──────────────────────────────────────────────────────────────
+if [[ "$_SKIP_VERIFY" -eq 0 ]]; then
+    log_step "Final · Verification"
+    "${SPFX_DIR}/bin/spfx-verify" || log_warn "Verification reported issues — check log"
+fi
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}  Bootstrap complete  [debian]${NC}"
+echo -e "  SPFx ${SPFX_GENERATOR_VERSION} | Node ${NODE_VERSION} LTS"
+echo -e "──────────────────────────────────────────────────"
+echo -e "  ${CYAN}spfx-new   <name> [preset]${NC}   scaffold project"
+echo -e "  ${CYAN}spfx-build <name>${NC}            production build"
+echo -e "  ${CYAN}spfx-dev   <name>${NC}            dev server (Podman)"
+echo -e "  ${CYAN}spfx-shell <name>${NC}            interactive shell"
+echo -e "  ${CYAN}spfx-verify${NC}                  verify environment"
+echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════${NC}"
+echo -e "  Log: ${DIM}${LOG_FILE}${NC}"
+echo ""

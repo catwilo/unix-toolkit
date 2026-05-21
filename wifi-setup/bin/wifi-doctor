@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# wifi-doctor [diagnose|sanitize] — surgical state analysis & cleanup.
+#
+#   diagnose  (default) read-only report: managers, MAC, IP, leftovers, hotspot
+#   sanitize            fix ONLY what is broken; never repeat what's already OK
+#
+# Designed to be safe to run repeatedly. Sanitize is idempotent: it inspects
+# first, then acts only on detected problems, so a half-finished previous run
+# is detected and completed, not blindly redone.
+set -Eeuo pipefail
+IFS=$'\n\t'
+source /opt/wifi-setup/lib/common.sh
+
+# ── Read-only probes (no changes) ────────────────────────────────────────────
+probe_managers() {
+    local s active=()
+    for s in NetworkManager dhcpcd wpa_supplicant systemd-networkd; do
+        systemctl is-active --quiet "$s" 2>/dev/null && active+=("$s")
+    done
+    printf '%s\n' "${active[*]:-ninguno}"
+}
+
+probe_ssh_iface() { ssh_iface; }
+
+# Detect current IPv4/gateway on a given iface.
+probe_ip()  { ip -4 addr show "$1" 2>/dev/null | awk '/inet /{print $2; exit}'; }
+probe_gw()  { ip route show default 2>/dev/null | awk '/default/{print $3; exit}'; }
+
+# Is a MAC locally-administered (randomized/fake)? 2nd hex nibble has bit 0x2.
+mac_is_random() {
+    local mac="$1" second
+    second="$(printf '%s' "${mac}" | cut -c2)"
+    case "${second}" in
+        2|3|6|7|a|b|e|f|A|B|E|F) return 0 ;;  # locally administered bit set
+        *) return 1 ;;
+    esac
+}
+
+diagnose() {
+    require_cmd ip
+    local usb native ssh_if mgrs gw
+    usb="$(detect_iface usb)"; native="$(detect_iface native)"
+    ssh_if="$(probe_ssh_iface)"; mgrs="$(probe_managers)"; gw="$(probe_gw)"
+
+    sep
+    echo "DIAGNÓSTICO DE RED (solo lectura)"
+    sep
+    printf 'Gestores activos : %s\n' "${mgrs}"
+    printf 'Interfaz SSH     : %s\n' "${ssh_if:-(sesión local)}"
+    printf 'Gateway actual   : %s\n' "${gw:-(ninguno)}"
+    echo
+
+    local i
+    for i in "${usb}" "${native}"; do
+        [[ -n "$i" ]] || continue
+        local mac ip role tag
+        mac="$(cat "/sys/class/net/$i/address" 2>/dev/null || echo '?')"
+        ip="$(probe_ip "$i")"
+        [[ "$i" == "${usb}" ]] && role="usb" || role="native"
+        if mac_is_random "${mac}"; then tag="ALEATORIA (causa IP inestable)"; else tag="estable"; fi
+        printf '%-7s %-18s MAC=%s [%s]  IP=%s\n' "${role}" "$i" "${mac}" "${tag}" "${ip:-—}"
+    done
+    echo
+
+    # Problem detection
+    local problems=()
+    [[ "${mgrs}" == *dhcpcd* && "${mgrs}" == *NetworkManager* ]] && \
+        problems+=("dhcpcd y NetworkManager activos a la vez (conflicto)")
+    [[ "${mgrs}" != *NetworkManager* ]] && \
+        problems+=("NetworkManager no está activo")
+    for i in "${usb}" "${native}"; do
+        [[ -n "$i" ]] || continue
+        mac_is_random "$(cat "/sys/class/net/$i/address" 2>/dev/null || echo 00)" && \
+            problems+=("$i tiene MAC aleatoria — la IP cambiará sola")
+    done
+
+    if [[ "${#problems[@]}" -eq 0 ]]; then
+        ok "sin problemas detectados — la red parece sana"
+    else
+        warn "problemas detectados:"
+        printf '  • %s\n' "${problems[@]}"
+        echo
+        echo "ejecuta:  wifi-doctor sanitize   (corrige solo lo anterior)"
+    fi
+    sep
+}
+
+# ── Sanitize: fix only detected problems ─────────────────────────────────────
+sanitize() {
+    require_root
+    info "analizando antes de limpiar…"
+    local mgrs; mgrs="$(probe_managers)"
+
+    # 1. Competing managers: stop them ONLY if active (no blind disable).
+    local svc
+    for svc in dhcpcd wpa_supplicant systemd-networkd; do
+        if systemctl is-active --quiet "$svc" 2>/dev/null; then
+            systemctl disable --now "$svc" >/dev/null 2>&1 \
+                && ok "detenido gestor en conflicto: $svc" \
+                || warn "no se pudo detener $svc"
+        fi
+    done
+    pgrep -x wpa_supplicant >/dev/null 2>&1 && { pkill -x wpa_supplicant; warn "wpa_supplicant suelto terminado"; } || true
+
+    # 2. NetworkManager must be active.
+    if ! systemctl is-active --quiet NetworkManager 2>/dev/null; then
+        systemctl enable --now NetworkManager >/dev/null 2>&1
+        sleep 2
+        systemctl is-active --quiet NetworkManager && ok "NetworkManager activado" \
+            || die "no se pudo activar NetworkManager"
+    else
+        ok "NetworkManager ya activo — sin cambios"
+    fi
+
+    # 3. Report what's left for the installer (don't fix MAC/IP here; that's
+    #    install's job with user-chosen values). Just leave a clean baseline.
+    ok "saneo completado — base limpia para instalar"
+    info "ahora ejecuta el instalador para fijar MAC e IP estables"
+}
+
+case "${1:-diagnose}" in
+    diagnose) diagnose ;;
+    sanitize) sanitize ;;
+    *) die "uso: wifi-doctor <diagnose|sanitize>" ;;
+esac

@@ -1,0 +1,14 @@
+{
+  "solution": {
+    "name": "__PROJECT_NAME__",
+    "version": "1.0.0.0",
+    "isDomainIsolated": false
+  },
+  "components": [
+    {
+      "type": "adaptiveCardExtension",
+      "name": "__PROJECT_NAME__",
+      "aceTemplateType": "PrimaryTextTemplate"
+    }
+  ]
+}

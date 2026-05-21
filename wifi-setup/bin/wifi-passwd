@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# wifi-passwd <ssid> — change the password of a saved network.
+# Confirmed entry, backs up the profile, verifies connectivity, rolls back on failure.
+set -Eeuo pipefail
+IFS=$'\n\t'
+source /opt/wifi-setup/lib/common.sh
+
+require_root
+require_nm
+
+ssid="${1:-}"
+[[ -n "${ssid}" ]] || die "uso: wifi-passwd <ssid>"
+nm_profile_exists "${ssid}" || die "no existe la red guardada '${ssid}'"
+
+# Capture the old secret for rollback (may be empty if agent unavailable).
+old_psk="$(nmcli --show-secrets -g 802-11-wireless-security.psk \
+            connection show "${ssid}" 2>/dev/null || true)"
+
+new_psk="$(read_passphrase)"
+
+nmcli connection modify "${ssid}" wifi-sec.psk "${new_psk}" >/dev/null
+log INFO "wifi-passwd: psk actualizado para '${ssid}'"
+
+# Re-activate to apply, then verify real Internet; roll back if it fails.
+active_iface="$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null \
+                 | awk -F: '$2=="wifi"&&$3=="connected"{print $1;exit}')"
+nmcli connection up "${ssid}" >/dev/null 2>&1 || true
+sleep 2
+
+if has_internet "${active_iface}"; then
+    ok "contraseña actualizada y conectividad verificada para '${ssid}'"
+else
+    warn "sin Internet tras el cambio — revirtiendo"
+    if [[ -n "${old_psk}" ]]; then
+        nmcli connection modify "${ssid}" wifi-sec.psk "${old_psk}" >/dev/null
+        nmcli connection up "${ssid}" >/dev/null 2>&1 || true
+        die "contraseña revertida a la anterior (la nueva no daba Internet)"
+    else
+        die "no se pudo verificar y no había secreto previo para revertir — revisa con: wifi-status"
+    fi
+fi
+unset new_psk old_psk

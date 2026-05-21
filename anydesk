@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# anydesk — AnyDesk client in a rootless Podman container (X11)
+# Install: cp anydesk ~/.local/bin/anydesk && chmod +x ~/.local/bin/anydesk
+# Usage:   anydesk [run|setup|rebuild|logs|help]
+
+set -Eeuo pipefail
+
+# ── Config ────────────────────────────────────────────────────────────
+readonly IMAGE="anydesk-client"
+readonly DEB_URL="https://download.anydesk.com/linux/anydesk_6.4.0-1_amd64.deb"
+readonly DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/anydesk-container"
+
+# ── Output helpers ────────────────────────────────────────────────────
+_c() { printf '\033[0;%sm%s\033[0m\n' "$1" "$2"; }
+ok()   { _c 32 "✓ $*"; }
+info() { _c 34 "→ $*"; }
+warn() { _c 33 "! $*"; }
+die()  { _c 31 "✗ $*" >&2; exit 1; }
+
+# ── Environment validation ────────────────────────────────────────────
+check_env() {
+    command -v podman &>/dev/null || die "podman not found"
+    [[ -n "${DISPLAY:-}" ]]      || die "DISPLAY unset"
+    [[ -S /tmp/.X11-unix/X0 ]]    || die "X11 socket missing"
+    [[ -f "$HOME/.Xauthority" ]] || die ".Xauthority missing"
+
+    DISPLAY="$DISPLAY" xset q &>/dev/null \
+        || die "X server on $DISPLAY not responding"
+}
+
+# ── Inline Containerfile ──────────────────────────────────────────────
+containerfile() {
+    cat <<'EOF'
+FROM debian:bookworm-slim
+
+ARG DEB_URL
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Prevent service startup during package installation.
+RUN printf '#!/bin/sh\nexit 0\n' > /usr/sbin/policy-rc.d \
+ && chmod +x /usr/sbin/policy-rc.d
+
+# Install runtime requirements and AnyDesk.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      wget \
+      xauth \
+      libgtk-3-0 \
+      libxdamage1 \
+      libxfixes3 \
+      libxrandr2 \
+      libxkbcommon0 \
+      libgbm1 \
+      libpango-1.0-0 \
+      libpangocairo-1.0-0 \
+      libcairo2 \
+      libasound2 \
+      libnss3 \
+      libx11-6 \
+      libxext6 \
+      libxtst6 \
+      procps \
+ && wget -qO /tmp/anydesk.deb "$DEB_URL" \
+ && apt-get install -y --no-install-recommends /tmp/anydesk.deb \
+ && apt-get -f install -y \
+ && rm -f /tmp/anydesk.deb \
+ && rm -rf /var/lib/apt/lists/*
+
+# Avoid DBus warnings inside minimal containers.
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+
+ENTRYPOINT ["anydesk"]
+EOF
+}
+
+# ── Build image ───────────────────────────────────────────────────────
+setup() {
+    if podman image exists "$IMAGE"; then
+        ok "image '$IMAGE' already exists"
+        return
+    fi
+
+    info "building '$IMAGE' (first run, ~2 min)…"
+
+    containerfile | podman build \
+        --pull=newer \
+        --build-arg DEB_URL="$DEB_URL" \
+        -t "$IMAGE" \
+        -f - . \
+        || die "build failed"
+
+    podman run --rm "$IMAGE" which anydesk &>/dev/null \
+        || die "AnyDesk binary missing inside image"
+
+    ok "image '$IMAGE' built"
+}
+
+# ── Force rebuild ─────────────────────────────────────────────────────
+rebuild() {
+    if podman image exists "$IMAGE"; then
+        podman image rm -f "$IMAGE" >/dev/null
+        warn "existing image removed"
+    fi
+
+    setup
+}
+
+# ── Run AnyDesk ───────────────────────────────────────────────────────
+run() {
+    check_env
+    setup
+
+    mkdir -p "$DATA_DIR"
+
+    info "launching AnyDesk…"
+
+    podman run --rm \
+        --userns=keep-id \
+        --security-opt label=disable \
+        --ipc=host \
+        -e DISPLAY="$DISPLAY" \
+        -e XAUTHORITY=/tmp/.Xauthority \
+        -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+        -v "$HOME/.Xauthority:/tmp/.Xauthority:ro" \
+        -v "$DATA_DIR:/home/user/.anydesk:Z" \
+        "$IMAGE" \
+        && ok "AnyDesk closed" \
+        || warn "AnyDesk exited with non-zero status"
+}
+
+# ── Logs ──────────────────────────────────────────────────────────────
+logs() {
+    local trace
+    trace="$DATA_DIR/anydesk.trace"
+
+    [[ -f "$trace" ]] \
+        && tail -40 "$trace" \
+        || warn "no trace file found"
+}
+
+# ── Help ──────────────────────────────────────────────────────────────
+help() {
+    cat <<EOF
+anydesk — rootless Podman AnyDesk client
+
+  anydesk run      Launch client
+  anydesk setup    Build image if missing
+  anydesk rebuild  Force image rebuild
+  anydesk logs     Show last trace lines
+  anydesk help     Show this help
+EOF
+}
+
+# ── Entrypoint ────────────────────────────────────────────────────────
+case "${1:-run}" in
+    run)     run     ;;
+    setup)   setup   ;;
+    rebuild) rebuild ;;
+    logs)    logs    ;;
+    help)    help    ;;
+    *)       die "unknown command: $1" ;;
+esac

@@ -1,0 +1,56 @@
+# lib/Containerfile — SPFx dev container image.
+# Built by spfx-bootstrap on top of PODMAN_BASE_IMAGE (runtime.sh:podman_build_image).
+# Build context: SPFX_DIR so COPY can reach both lib/ and fixtures/.
+#
+# Two things happen during build that make spfx-test fully offline:
+#   1. npm install runs for each fixture → warms /home/u/.npm cache
+#   2. Generated package-lock.json files are saved to /spfx-locks/<fixture>/
+#      so spfx-test can inject them before running npm ci --prefer-offline
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# Non-root user u — renames the existing uid-1000 "node" user baked into the base image.
+RUN usermod -l u -d /home/u -m node && \
+    groupmod -n u node && \
+    mkdir -p /usr/local/lib/node_modules_global/bin
+
+# Expose global bin via ENV so it's available in ALL exec contexts
+# (non-login, non-interactive — .bashrc is NOT sourced by `podman run bash -c`).
+ENV PATH="/usr/local/lib/node_modules_global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    NPM_CONFIG_PREFIX="/usr/local/lib/node_modules_global" \
+    npm_config_cache="/home/u/.npm"
+
+# Copy fixture package.json files for npm install (warms cache + generates lockfiles)
+COPY --chown=1000:1000 fixtures/react-webpart     /tmp/fc/react-webpart
+COPY --chown=1000:1000 fixtures/extension         /tmp/fc/extension
+COPY --chown=1000:1000 fixtures/library-component /tmp/fc/library-component
+COPY --chown=1000:1000 fixtures/ace               /tmp/fc/ace
+
+# Create /spfx-locks as root and hand ownership to u before switching users.
+RUN mkdir -p /spfx-locks/react-webpart \
+             /spfx-locks/extension \
+             /spfx-locks/library-component \
+             /spfx-locks/ace \
+ && chown -R 1000:1000 /spfx-locks
+
+USER u
+ENV HOME=/home/u
+
+# Run npm install for each fixture as user u:
+#   - populates /home/u/.npm cache with tarballs (npm_config_cache set above)
+#   - generates package-lock.json for deterministic npm ci in tests
+# Lock files are saved to /spfx-locks/ and node_modules are removed.
+RUN set -ex; \
+    for f in react-webpart extension library-component ace; do \
+        echo "  → installing: $f"; \
+        cd "/tmp/fc/$f"; \
+        npm install --no-fund --verbose; \
+        cp package-lock.json "/spfx-locks/$f/package-lock.json"; \
+        echo "  ✔ $f — lockfile saved, cache warmed"; \
+    done
+
+# Remove temp installs — cache in ~/.npm and lockfiles in /spfx-locks/ persist.
+RUN rm -rf /tmp/fc
+
+WORKDIR /home/u

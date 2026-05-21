@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# wifi-status — at-a-glance: antennas, active network, signal, real Internet, pin.
+set -Eeuo pipefail
+IFS=$'\n\t'
+source /opt/wifi-setup/lib/common.sh
+
+require_nm
+
+usb="$(detect_iface usb)"
+native="$(detect_iface native)"
+pref="usb"; [[ -f "${WS_PREF_FILE}" ]] && pref="$(cat "${WS_PREF_FILE}")"
+pinned="$(pin_get)"
+
+show_iface() {
+    local iface="$1" role="$2"
+    [[ -n "${iface}" ]] || { printf '  %-7s : (no presente)\n' "${role}"; return; }
+    local state ssid signal
+    state="$(nmcli -t -f DEVICE,STATE device 2>/dev/null | awk -F: -v d="${iface}" '$1==d{print $2}')"
+    ssid="$(nmcli -t -f DEVICE,CONNECTION device 2>/dev/null | awk -F: -v d="${iface}" '$1==d{print $2}')"
+    signal="$(nmcli -t -f ACTIVE,SIGNAL device wifi list ifname "${iface}" 2>/dev/null | awk -F: '$1=="yes"{print $2; exit}')"
+    printf '  %-7s : %-18s estado=%-13s red=%-16s señal=%s\n' \
+        "${role}" "${iface}" "${state:-?}" "${ssid:-—}" "${signal:-—}"
+}
+
+echo "── Antenas ──"
+show_iface "${usb}" "usb"
+show_iface "${native}" "native"
+echo
+echo "── Estado ──"
+printf '  preferida : %s\n' "${pref}"
+printf '  anclada   : %s\n' "${pinned:-(ninguna, modo automático)}"
+active_wifi="$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null | awk -F: '$2=="wifi"&&$3=="connected"{print $1;exit}')"
+if has_internet "${active_wifi}"; then
+    ok "Internet real: SÍ"
+else
+    warn "Internet real: NO"
+fi

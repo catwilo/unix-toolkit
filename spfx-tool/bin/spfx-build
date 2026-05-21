@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# bin/spfx-build — Production build. Outputs .sppkg artifact.
+# Usage: spfx-build <name> [--no-install]
+# shellcheck shell=bash
+set -euo pipefail
+
+export SPFX_DIR="${SPFX_DIR:-$HOME/dev/spfx}"
+export LOG_FILE="${SPFX_DIR}/logs/spfx-build-$(date '+%Y%m%d-%H%M%S').log"
+mkdir -p "${SPFX_DIR}/logs"
+
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/core.sh
+source "${_SCRIPT_DIR}/lib/core.sh"
+# shellcheck source=lib/runtime.sh
+source "${_SCRIPT_DIR}/lib/runtime.sh"
+# shellcheck source=lib/state.sh
+source "${_SCRIPT_DIR}/lib/state.sh"
+
+
+spfx_load_versions
+require_podman
+# Skip expensive container verify if cache is fresh.
+if state_verify_cache_valid; then
+    log_debug "Verify cache hit — skipping container check"
+else
+    _verify_rc=0
+    "${SPFX_DIR}/bin/spfx-verify" --quiet || _verify_rc=$?
+    [[ "$_verify_rc" -eq 0 ]] \
+        || log_warn "Environment check failed — run spfx-bootstrap to repair"
+    state_verify_cache_write "$_verify_rc"
+fi
+
+
+NAME="${1:-}"; shift || true
+_NO_INSTALL=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-install) _NO_INSTALL=1; shift ;;
+        --help|-h) echo "Usage: spfx-build <name> [--no-install]"; exit 0 ;;
+        *) log_die "Unknown option: $1" ;;
+    esac
+done
+
+validate_project_name "$NAME"
+require_project "$NAME"
+
+PIPELINE="$(detect_pipeline "$NAME")"
+log_step "Production build: ${NAME} [${PIPELINE}]"
+
+if [[ "$_NO_INSTALL" -eq 0 ]] && needs_install "$NAME"; then
+    install_deps "$NAME"
+fi
+
+run_exec "$NAME" "$(build_command "$PIPELINE")"
+
+# ── Artifact validation ───────────────────────────────────────────────────────
+# heft-only projects compile to lib/ and do not produce a .sppkg (that is a
+# gulp package-solution output). Validate the artifact appropriate to the
+# pipeline so a successful heft build is not reported as a failure.
+PROJ_DIR="${SPFX_DIR}/projects/${NAME}"
+
+if [[ "$PIPELINE" == "heft" ]]; then
+    # Use `find` (not a shell glob) because bash `**` is only recursive with
+    # globstar enabled, and heft's compiled tree is nested several levels deep.
+    OUTDIR=""; JSCOUNT=0
+    for _d in lib dist lib-commonjs; do
+        if [[ -d "${PROJ_DIR}/${_d}" ]]; then
+            _n="$(find "${PROJ_DIR}/${_d}" -type f -name '*.js' 2>/dev/null | wc -l | tr -d ' ')"
+            if [[ "$_n" -gt 0 ]]; then OUTDIR="$_d"; JSCOUNT="$_n"; break; fi
+        fi
+    done
+
+    if [[ -z "$OUTDIR" ]]; then
+        log_die "Build completed but no compiled JS found in lib/, dist/, or lib-commonjs/ under: ${PROJ_DIR}"
+    fi
+
+    LIB_SIZE="$(du -sh "${PROJ_DIR}/${OUTDIR}" | awk '{print $1}')"
+    log_ok "Artifact: ${OUTDIR}/ (${LIB_SIZE}, ${JSCOUNT} JS files)"
+    echo ""
+    echo -e "  ${CYAN}${PROJ_DIR}/${OUTDIR}${NC}"
+    echo ""
+else
+    shopt -s nullglob
+    SPPKG_FILES=( "${PROJ_DIR}/sharepoint/solution/"*.sppkg )
+    shopt -u nullglob
+
+    if [[ ${#SPPKG_FILES[@]} -eq 0 ]]; then
+        log_die "Build completed but .sppkg not found at: ${PROJ_DIR}/sharepoint/solution/"
+    fi
+
+    SPPKG="${SPPKG_FILES[0]}"
+    SPPKG_SIZE="$(du -h "$SPPKG" | awk '{print $1}')"
+
+    log_ok "Artifact: $(basename "$SPPKG") (${SPPKG_SIZE})"
+    echo ""
+    echo -e "  ${CYAN}${SPPKG}${NC}"
+    echo ""
+
+    if command -v unzip >/dev/null 2>&1; then
+        if unzip -t "$SPPKG" >/dev/null 2>&1; then
+            log_ok "Artifact integrity: ZIP valid"
+        else
+            log_warn "Artifact integrity: ZIP validation failed"
+        fi
+    fi
+fi
