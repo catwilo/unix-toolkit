@@ -230,11 +230,12 @@ copy_x11() {
 }
 
 copy_osc52() {
-    # base64 -w0: no line wrapping — single GNU coreutils call, no extra process
+    # portable base64, no line wrapping: GNU uses -w0; BSD/macOS/toybox have no -w
+    # (they emit a single line by default), so fall back to stripping newlines
     local encoded
-    encoded="$(base64 -w0 < "$TMP")"
+    encoded="$(base64 -w0 < "$TMP" 2>/dev/null || base64 < "$TMP" | tr -d '\n')"
 
-    if (( BYTES > 1_000_000 )); then
+    if (( BYTES > 1000000 )); then
         warn "large OSC52 payload (${BYTES} bytes) — some terminals may truncate"
     fi
 
@@ -263,5 +264,12 @@ case "$CLIP_ENV" in
     osc52)   copy_osc52   ;;
     *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
 esac
+
+# under SSH, also mirror to the client clipboard via OSC52 — unless the local
+# backend already WAS osc52 (headless server), to avoid emitting it twice
+if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
+    info "ssh session — mirroring to client clipboard"
+    copy_osc52
+fi
 
 ok "done — ${BYTES} bytes copied"
