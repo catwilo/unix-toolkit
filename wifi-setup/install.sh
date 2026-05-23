@@ -49,6 +49,24 @@ require_root
 
 INSTALL_DIR="/opt/wifi-setup"
 
+# Auto-update: si corremos desde INSTALL_DIR, buscar repo fuente y sincronizar
+_REPO_SOURCE=""
+_candidate="${HOME}/scripts/wifi-setup"
+if [[ "$(realpath "${SCRIPT_DIR}")" == "$(realpath "${INSTALL_DIR}")" ]]; then
+    if [[ -d "${_candidate}" ]] && [[ -f "${_candidate}/install.sh" ]] &&        [[ "$(realpath "${_candidate}")" != "$(realpath "${INSTALL_DIR}")" ]]; then
+        _REPO_SOURCE="${_candidate}"
+        log "INFO" "auto-update: sincronizando desde repo ${_REPO_SOURCE}..."
+        cp -a "${_REPO_SOURCE}/bin/." "${INSTALL_DIR}/bin/"
+        cp -a "${_REPO_SOURCE}/lib/." "${INSTALL_DIR}/lib/"
+        cp -a "${_REPO_SOURCE}/"*.sh "${INSTALL_DIR}/"
+        chmod +x "${INSTALL_DIR}"/bin/* "${INSTALL_DIR}"/*.sh
+        log "INFO" "auto-update: archivos sincronizados — continuando con versión actualizada"
+        exec "${INSTALL_DIR}/install.sh" "$@"
+    else
+        log "INFO" "repo fuente no encontrado en ${_candidate} — usando versión instalada"
+    fi
+fi
+
 # ===========================================================================
 # SUPERVIVENCIA SSH: saltar a la ventana byobu ANTES de cualquier salida.
 # Todo el install (detección, prompts, mutación) ocurre dentro de la ventana.
