@@ -92,30 +92,40 @@ _detect_type() {
         2222) printf 'linux-ssh';   return ;;
     esac
 
-    # Passive banner first (free, no login): distros self-identify.
+    # Fast passive banner grab (free, no login). Distros self-identify;
+    # macOS ships a bare "OpenSSH_x.y" with no platform suffix.
     _banner="$(_get_ssh_banner "$_ip" "$_ssh_port" 2>/dev/null || true)"
     case "$_banner" in
-        *[Uu]buntu*|*[Dd]ebian*|*[Aa]lpine*|*[Aa]rch*|*[Ff]edora*|*[Rr]aspbian*|*[Mm]int*)
+        *[Uu]buntu*|*[Dd]ebian*|*[Aa]lpine*|*[Aa]rch*|*[Ff]edora*|*[Rr]aspbian*|*[Mm]int*|*[Gg]entoo*|*[Ss][Uu][Ss][Ee]*|*armbian*)
             printf 'linux-ssh'; return ;;
     esac
 
-    # Deep mode with an OS-scan result: nmap -O distinguishes Mac/Linux/Windows.
+    # Bare OpenSSH + Unix TTL: macOS is the typical LAN match, since Linux
+    # almost always carries a distro suffix (caught above).
+    case "$_banner" in
+        SSH-2.0-OpenSSH_[0-9]*)
+            case "$_ttl" in
+                64|63) printf 'mac'; return ;;
+            esac
+            printf 'unix-ssh'; return ;;
+    esac
+
+    # Deep mode: confirm any remaining ambiguity with nmap -O if available.
     if [ "${NOEMAP_DEEP:-0}" = "1" ] && [ -n "${_FP_OS_OUT:-}" ] && [ -s "${_FP_OS_OUT:-/nonexistent}" ]; then
         _os_line="$(awk -v host="$_ip" '
             /Nmap scan report for / { found = ($NF == host) }
             found && (/OS details:/ || /Running:/ || /OS guess/) { print; exit }
         ' "$_FP_OS_OUT" 2>/dev/null)"
         case "$_os_line" in
-            *[Dd]arwin*|*[Aa]pple*|*Mac\ OS*|*macOS*) printf 'mac';     return ;;
-            *[Ww]indows*)                             printf 'windows'; return ;;
-            *[Ll]inux*)                               printf 'linux-ssh'; return ;;
+            *[Dd]arwin*|*[Aa]pple*|*macOS*) printf 'mac';      return ;;
+            *[Ww]indows*)                   printf 'windows';  return ;;
+            *[Ll]inux*)                     printf 'linux-ssh'; return ;;
         esac
     fi
 
-    # Ambiguous: bare OpenSSH = unix; empty banner on port 22 = mac-likely.
+    # Empty banner on port 22 (filtered greeting) is often macOS too.
     case "$_banner" in
-        *[Oo]pen[Ss][Ss][Hh]*) printf 'unix-ssh'; return ;;
-        "") [ "$_ssh_port" = "22" ] && { printf 'mac-likely'; return; } ;;
+        "") [ "$_ssh_port" = "22" ] && { printf 'mac'; return; } ;;
     esac
     printf 'linux-ssh'
 }
