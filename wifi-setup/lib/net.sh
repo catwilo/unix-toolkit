@@ -136,6 +136,8 @@ configure_wpa() {
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 country=US
+bgscan=""
+scan_cur_freq=1
 
 network={
     ssid="${ssid}"
