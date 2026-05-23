@@ -19,7 +19,7 @@ else
 fi
 
 LIB_DIR="${PROJECT_ROOT}/lib"
-SCRIPTS_DIR="${PROJECT_ROOT}/scripts"
+SCRIPTS_DIR="${PROJECT_ROOT}"
 
 # ---------------------------------------------------------------------------
 # Colores mínimos (antes de sourcer common.sh)

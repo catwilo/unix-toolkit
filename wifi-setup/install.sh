@@ -5,14 +5,14 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../lib/common.sh"
-source "${SCRIPT_DIR}/../lib/deps.sh"
-source "${SCRIPT_DIR}/../lib/detect.sh"
-source "${SCRIPT_DIR}/../lib/net.sh"
-source "${SCRIPT_DIR}/../lib/forward.sh"
-source "${SCRIPT_DIR}/../lib/survival.sh"
-source "${SCRIPT_DIR}/../lib/ssh.sh"
-source "${SCRIPT_DIR}/../lib/tailscale.sh"
+source "${SCRIPT_DIR}/lib/common.sh"
+source "${SCRIPT_DIR}/lib/deps.sh"
+source "${SCRIPT_DIR}/lib/detect.sh"
+source "${SCRIPT_DIR}/lib/net.sh"
+source "${SCRIPT_DIR}/lib/forward.sh"
+source "${SCRIPT_DIR}/lib/survival.sh"
+source "${SCRIPT_DIR}/lib/ssh.sh"
+source "${SCRIPT_DIR}/lib/tailscale.sh"
 
 if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
     echo "uso: sudo wifi install [server|client] [--help]"
@@ -303,8 +303,8 @@ purge_network_stack
 log "INFO" "instalando archivos en ${INSTALL_DIR}..."
 require_dirs
 cp -a "${SCRIPT_DIR}/../bin/." "${INSTALL_DIR}/bin/"
-cp -a "${SCRIPT_DIR}/../lib/." "${INSTALL_DIR}/lib/"
-cp -a "${SCRIPT_DIR}/../scripts/." "${INSTALL_DIR}/scripts/"
+cp -a "${SCRIPT_DIR}/lib/." "${INSTALL_DIR}/lib/"
+cp -a "${SCRIPT_DIR}/." "${INSTALL_DIR}/scripts/"
 chmod +x "${INSTALL_DIR}"/bin/*
 chmod +x "${INSTALL_DIR}"/scripts/*.sh
 
@@ -466,7 +466,7 @@ bash "${SCRIPT_DIR}/checks.sh" "${INSTALL_MODE}" || true
 # ===========================================================================
 # COMANDOS TAILSCALE
 # ===========================================================================
-source "${SCRIPT_DIR}/../lib/tailscale.sh"
+source "${SCRIPT_DIR}/lib/tailscale.sh"
 print_tailscale_commands "${INSTALL_MODE}"
 
 echo -e "${C_GREEN}${C_BOLD}  Instalación completada.${C_RESET}"

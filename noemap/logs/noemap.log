@@ -70,3 +70,27 @@
 2026-05-23 06:41:46 [INFO] host 1.2.3.1 already registered as 'd0'
 2026-05-23 06:41:46 [INFO] cache saved
 2026-05-23 06:41:46 [OK] noemap completed
+2026-05-23 11:56:18 [INFO] noemap starting (base=/home/u/scripts/noemap)
+2026-05-23 11:56:18 [INFO] cache loaded (age: 18872s)
+2026-05-23 11:56:18 [INFO] interface: wlx088af12a8315  ip: 172.20.10.2  prefix: 28
+2026-05-23 11:56:18 [WARN] detected /28 network (not /24) — nmap will scan correct range; nc fallback still uses /24
+2026-05-23 11:56:18 [INFO] subnet: 172.20.10.0/28  gateway: 172.20.10.1
+2026-05-23 11:56:18 [INFO] discovering hosts on 172.20.10.0/28
+2026-05-23 11:56:18 [INFO] validating registered hosts...
+2026-05-23 11:56:18 [INFO] registered host 1.2.3.1: online — accepted
+2026-05-23 11:56:19 [WARN] registered host 10.241.154.149: no response — removing from devices.db and known_hosts
+2026-05-23 11:56:19 [OK] removed offline host 'd1' (10.241.154.149) from all lists
+2026-05-23 11:56:20 [WARN] registered host 10.241.154.32: no response — removing from devices.db and known_hosts
+2026-05-23 11:56:20 [OK] removed offline host 'd2' (10.241.154.32) from all lists
+2026-05-23 11:56:22 [INFO] phase 1: 6 new candidate(s) to probe
+2026-05-23 11:56:23 [INFO] total: 6 SSH-reachable host(s) (includes validated registered)
+2026-05-23 11:56:24 [INFO] fingerprinting 6 host(s)
+2026-05-23 11:56:25 [INFO] host 1.2.3.1  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 11:56:26 [INFO] host 172.20.10.3  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 11:56:26 [INFO] host 172.20.10.4  ttl=64  ssh=8022  ports=8022  type=android-ssh
+2026-05-23 11:56:26 [INFO] host 172.20.10.5  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 11:56:27 [INFO] host 172.20.10.6  ttl=64  ssh=22  ports=22  type=unix-ssh
+2026-05-23 11:56:28 [INFO] host 172.20.10.7  ttl=64  ssh=8022  ports=8022  type=android-ssh
+2026-05-23 11:56:28 [INFO] host 1.2.3.1 already registered as 'd0'
+2026-05-23 11:56:28 [INFO] cache saved
+2026-05-23 11:56:37 [OK] noemap completed
