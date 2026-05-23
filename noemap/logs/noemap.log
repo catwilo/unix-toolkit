@@ -1,0 +1,72 @@
+2026-05-23 06:20:52 [INFO] noemap starting (base=/home/u/scripts/noemap)
+2026-05-23 06:20:52 [INFO] interface: wlx088af12a8315  ip: 10.241.154.148  prefix: 24
+2026-05-23 06:20:52 [INFO] subnet: 10.241.154.0/24  gateway: 10.241.154.55
+2026-05-23 06:20:52 [INFO] discovering hosts on 10.241.154.0/24
+2026-05-23 06:20:52 [INFO] validating registered hosts...
+2026-05-23 06:20:52 [INFO] registered host 1.2.3.1: online — accepted
+2026-05-23 06:21:02 [INFO] phase 1: 4 new candidate(s) to probe
+2026-05-23 06:21:03 [INFO] total: 2 SSH-reachable host(s) (includes validated registered)
+2026-05-23 06:21:20 [WARN] stale lock found (pid=1430013), recovering
+2026-05-23 06:21:20 [INFO] noemap starting (base=/home/u/scripts/noemap)
+2026-05-23 06:21:20 [INFO] interface: wlx088af12a8315  ip: 10.241.154.148  prefix: 24
+2026-05-23 06:21:20 [INFO] subnet: 10.241.154.0/24  gateway: 10.241.154.55
+2026-05-23 06:21:20 [INFO] discovering hosts on 10.241.154.0/24
+2026-05-23 06:21:20 [INFO] validating registered hosts...
+2026-05-23 06:21:20 [INFO] registered host 1.2.3.1: online — accepted
+2026-05-23 06:21:27 [INFO] phase 1: 4 new candidate(s) to probe
+2026-05-23 06:21:28 [INFO] total: 3 SSH-reachable host(s) (includes validated registered)
+2026-05-23 06:21:28 [INFO] fingerprinting 3 host(s)
+2026-05-23 06:21:29 [INFO] host 10.241.154.149  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:21:29 [INFO] host 10.241.154.32  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:21:29 [INFO] host 1.2.3.1  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:21:29 [INFO] host 1.2.3.1 already registered as 'd0'
+2026-05-23 06:21:30 [INFO] cache saved
+2026-05-23 06:21:37 [OK] noemap completed
+2026-05-23 06:31:14 [INFO] noemap starting (base=/home/u/scripts/noemap)
+2026-05-23 06:31:14 [INFO] cache loaded (age: 585s)
+2026-05-23 06:31:14 [INFO] interface: wlx088af12a8315  ip: 10.241.154.148  prefix: 24
+2026-05-23 06:31:14 [INFO] subnet: 10.241.154.0/24  gateway: 10.241.154.55
+2026-05-23 06:31:14 [INFO] discovering hosts on 10.241.154.0/24
+2026-05-23 06:31:14 [INFO] validating registered hosts...
+2026-05-23 06:31:14 [INFO] registered host 1.2.3.1: online — accepted
+2026-05-23 06:31:14 [INFO] registered host 10.241.154.149: online — accepted
+2026-05-23 06:31:14 [INFO] registered host 10.241.154.32: online — accepted
+2026-05-23 06:31:20 [INFO] phase 1: 1 new candidate(s) to probe
+2026-05-23 06:31:20 [INFO] deep scan requested — running broader discovery...
+2026-05-23 06:31:27 [INFO] deep scan: 3 SSH-reachable host(s)
+2026-05-23 06:31:27 [INFO] total: 4 SSH-reachable host(s) (includes validated registered)
+2026-05-23 06:31:27 [INFO] fingerprinting 4 host(s)
+2026-05-23 06:31:28 [INFO] deep OS scan needs root — caching sudo (one prompt)
+2026-05-23 06:31:46 [INFO] host 10.241.154.149  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:31:46 [INFO] host 10.241.154.32  ttl=64  ssh=22  ports=22  type=unix-ssh
+2026-05-23 06:31:47 [INFO] host 10.241.154.46  ttl=64  ssh=8022  ports=8022  type=android-ssh
+2026-05-23 06:31:47 [INFO] host 1.2.3.1  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:31:47 [INFO] host 10.241.154.149 already registered as 'd1'
+2026-05-23 06:31:47 [INFO] host 10.241.154.32 already registered as 'd2'
+2026-05-23 06:31:47 [INFO] host 1.2.3.1 already registered as 'd0'
+2026-05-23 06:31:47 [INFO] cache saved
+2026-05-23 06:31:47 [OK] noemap completed
+2026-05-23 06:40:56 [INFO] noemap starting (base=/home/u/scripts/noemap)
+2026-05-23 06:40:56 [INFO] deep mode: requesting sudo for OS fingerprint
+2026-05-23 06:40:56 [INFO] cache loaded (age: 549s)
+2026-05-23 06:40:56 [INFO] interface: wlx088af12a8315  ip: 10.241.154.148  prefix: 24
+2026-05-23 06:40:56 [INFO] subnet: 10.241.154.0/24  gateway: 10.241.154.55
+2026-05-23 06:40:56 [INFO] discovering hosts on 10.241.154.0/24
+2026-05-23 06:40:56 [INFO] validating registered hosts...
+2026-05-23 06:40:56 [INFO] registered host 1.2.3.1: online — accepted
+2026-05-23 06:40:56 [INFO] registered host 10.241.154.149: online — accepted
+2026-05-23 06:40:56 [INFO] registered host 10.241.154.32: online — accepted
+2026-05-23 06:41:02 [INFO] phase 1: 2 new candidate(s) to probe
+2026-05-23 06:41:02 [INFO] deep scan requested — running broader discovery...
+2026-05-23 06:41:19 [INFO] deep scan: 3 SSH-reachable host(s)
+2026-05-23 06:41:19 [INFO] total: 4 SSH-reachable host(s) (includes validated registered)
+2026-05-23 06:41:19 [INFO] fingerprinting 4 host(s)
+2026-05-23 06:41:44 [INFO] host 10.241.154.149  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:41:45 [INFO] host 10.241.154.32  ttl=64  ssh=22  ports=none  type=unix-ssh
+2026-05-23 06:41:46 [INFO] host 10.241.154.46  ttl=64  ssh=22  ports=none  type=linux-ssh
+2026-05-23 06:41:46 [INFO] host 1.2.3.1  ttl=64  ssh=22  ports=22  type=linux-ssh
+2026-05-23 06:41:46 [INFO] host 10.241.154.149 already registered as 'd1'
+2026-05-23 06:41:46 [INFO] host 10.241.154.32 already registered as 'd2'
+2026-05-23 06:41:46 [INFO] host 1.2.3.1 already registered as 'd0'
+2026-05-23 06:41:46 [INFO] cache saved
+2026-05-23 06:41:46 [OK] noemap completed

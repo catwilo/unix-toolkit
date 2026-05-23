@@ -19,11 +19,22 @@
 
 set -eu
 
-BASE="${NOEMAP_BASE:-$HOME/dev/noemap}"
+_self="$0"
+case "$_self" in */*) ;; *) _self="$(command -v "$_self")" ;; esac
+if _real="$(readlink -f "$_self" 2>/dev/null)" && [ -n "$_real" ]; then
+    _self="$_real"
+else
+    while [ -L "$_self" ]; do
+        _link="$(readlink "$_self")"
+        case "$_link" in /*) _self="$_link" ;; *) _self="$(dirname "$_self")/$_link" ;; esac
+    done
+fi
+_bindir="$(cd "$(dirname "$_self")" && pwd -P)"
+BASE="${NOEMAP_BASE:-$(dirname "$_bindir")}"
 LIB="$BASE/lib"
 DB="$BASE/state/devices.db"
 CFG="$BASE/config/ssh_config"
-CLIPSO="${CLIPSO_BIN:-$HOME/scripts/clipso.sh}"
+CLIPSO="${CLIPSO_BIN:-$(command -v clipso 2>/dev/null || echo "$HOME/scripts/clipso.sh")}"
 
 # -----------------------------------------------------------------------
 # Load shared helpers (log, has_cmd, resolve_device, _ensure_user)
@@ -41,6 +52,16 @@ done
 # -----------------------------------------------------------------------
 # Argument validation
 # -----------------------------------------------------------------------
+case "${1:-}" in
+    -h|--help)
+        printf 'usage: nclip <alias:/remote/path>\n'
+        printf '  Copy a remote file to the clipboard via SSH cat + clipso.\n'
+        printf '  Alias resolved from devices.db. Falls back to stdout if\n'
+        printf '  clipso is missing.\n'
+        exit 0
+        ;;
+esac
+
 [ $# -eq 1 ] || {
     printf 'usage: nclip <alias:/remote/path>\n' >&2
     exit 1

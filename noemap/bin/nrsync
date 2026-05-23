@@ -26,7 +26,18 @@
 
 set -eu
 
-BASE="${NOEMAP_BASE:-$HOME/dev/noemap}"
+_self="$0"
+case "$_self" in */*) ;; *) _self="$(command -v "$_self")" ;; esac
+if _real="$(readlink -f "$_self" 2>/dev/null)" && [ -n "$_real" ]; then
+    _self="$_real"
+else
+    while [ -L "$_self" ]; do
+        _link="$(readlink "$_self")"
+        case "$_link" in /*) _self="$_link" ;; *) _self="$(dirname "$_self")/$_link" ;; esac
+    done
+fi
+_bindir="$(cd "$(dirname "$_self")" && pwd -P)"
+BASE="${NOEMAP_BASE:-$(dirname "$_bindir")}"
 LIB="$BASE/lib"
 DB="$BASE/state/devices.db"
 CFG="$BASE/config/ssh_config"
@@ -40,6 +51,15 @@ for _mod in util.sh devices.sh; do
     # shellcheck source=/dev/null
     . "$_path"
 done
+
+case "${1:-}" in
+    -h|--help)
+        printf 'usage: nrsync <src> <dst>\n'
+        printf '  rsync between local and a devices.db alias over SSH.\n'
+        printf '  Use alias:/path for the remote side.\n'
+        exit 0
+        ;;
+esac
 
 [ $# -eq 2 ] || {
     printf 'usage: nrsync <src> <dst>\n' >&2

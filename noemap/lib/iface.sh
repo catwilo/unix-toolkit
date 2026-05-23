@@ -14,25 +14,6 @@
 
 _IFACE_SKIP_PATTERN="^(lo|docker|veth|br-|dummy|tailscale|tun|wg|virbr|vmnet)"
 
-# _iface_via_ip — uses ip(8) to find first usable interface+address+prefix.
-# Prints "IFACE|IP|PREFIX" or nothing.
-_iface_via_ip() {
-    ip -4 addr show 2>/dev/null \
-    | awk '
-        /^[0-9]+: / {
-            split($2, a, "@")
-            iface = a[1]
-            sub(/:$/, "", iface)
-        }
-        /inet / && iface != "" {
-            split($2, b, "/")
-            print iface "|" b[1] "|" b[2]
-        }
-    ' \
-    | grep -Ev "$_IFACE_SKIP_PATTERN" \
-    | head -1
-}
-
 # _iface_via_ifconfig — falls back to ifconfig for older envs.
 # Returns "IFACE|IP|" (empty prefix — cannot be reliably extracted).
 _iface_via_ifconfig() {
@@ -48,6 +29,54 @@ _iface_via_ifconfig() {
     ' \
     | grep -Ev "$_IFACE_SKIP_PATTERN" \
     | head -1
+}
+
+# _iface_from_default_route — interface name backing the default route.
+# This is the source of truth for "my real network" on multi-homed hosts.
+_iface_from_default_route() {
+    ip route show default 2>/dev/null \
+    | awk '/^default/ { for (i=1;i<=NF;i++) if ($i=="dev") { print $(i+1); exit } }' \
+    | head -1
+}
+
+# _iface_addr_prefix IFACE — prints "IFACE|IP|PREFIX" for one interface, or empty.
+_iface_addr_prefix() {
+    ip -4 addr show dev "$1" 2>/dev/null \
+    | awk -v ifc="$1" '/inet / { split($2,b,"/"); print ifc "|" b[1] "|" b[2]; exit }'
+}
+
+# _list_iface_candidates — every usable iface as "IFACE|IP|PREFIX", skip-filtered.
+_list_iface_candidates() {
+    ip -4 addr show 2>/dev/null \
+    | awk '
+        /^[0-9]+: / { split($2,a,"@"); iface=a[1]; sub(/:$/,"",iface) }
+        /inet / && iface != "" { split($2,b,"/"); print iface "|" b[1] "|" b[2] }
+    ' \
+    | grep -Ev "$_IFACE_SKIP_PATTERN"
+}
+
+# _iface_from_default_route — interface name backing the default route.
+# This is the source of truth for "my real network" on multi-homed hosts.
+_iface_from_default_route() {
+    ip route show default 2>/dev/null \
+    | awk '/^default/ { for (i=1;i<=NF;i++) if ($i=="dev") { print $(i+1); exit } }' \
+    | head -1
+}
+
+# _iface_addr_prefix IFACE — prints "IFACE|IP|PREFIX" for one interface, or empty.
+_iface_addr_prefix() {
+    ip -4 addr show dev "$1" 2>/dev/null \
+    | awk -v ifc="$1" '/inet / { split($2,b,"/"); print ifc "|" b[1] "|" b[2]; exit }'
+}
+
+# _list_iface_candidates — every usable iface as "IFACE|IP|PREFIX", skip-filtered.
+_list_iface_candidates() {
+    ip -4 addr show 2>/dev/null \
+    | awk '
+        /^[0-9]+: / { split($2,a,"@"); iface=a[1]; sub(/:$/,"",iface) }
+        /inet / && iface != "" { split($2,b,"/"); print iface "|" b[1] "|" b[2] }
+    ' \
+    | grep -Ev "$_IFACE_SKIP_PATTERN"
 }
 
 # _network_addr ip prefix — computes the network address.
@@ -72,8 +101,28 @@ _network_addr() {
 detect_iface() {
     _result=""
 
-    if has_cmd ip; then
-        _result="$(_iface_via_ip)"
+    if [ -n "${NOEMAP_IFACE:-}" ]; then
+        _result="$(_iface_addr_prefix "$NOEMAP_IFACE")"
+        [ -n "$_result" ] || { log ERROR "interface not usable: $NOEMAP_IFACE"; exit 1; }
+    fi
+
+    if [ -z "$_result" ] && has_cmd ip; then
+        _dev="$(_iface_from_default_route)"
+        [ -n "$_dev" ] && _result="$(_iface_addr_prefix "$_dev")"
+    fi
+
+    if [ -z "$_result" ]; then
+        _cands="$(_list_iface_candidates)"
+        _n="$(printf '%s\n' "$_cands" | grep -c .)"
+        if [ "$_n" -gt 1 ]; then
+            printf '  [?] multiple interfaces:\n' >&2
+            printf '%s\n' "$_cands" | nl -w2 -s') ' >&2
+            printf '  select: ' >&2
+            read -r _sel </dev/tty
+            _result="$(printf '%s\n' "$_cands" | sed -n "${_sel}p")"
+        else
+            _result="$_cands"
+        fi
     fi
 
     if [ -z "$_result" ] && has_cmd ifconfig; then
@@ -128,7 +177,7 @@ detect_network() {
 
     GW_IP=""
     if has_cmd ip; then
-        GW_IP="$(ip route 2>/dev/null | awk '/^default/ {print $3; exit}')"
+        GW_IP="$(ip route 2>/dev/null | awk -v ifc="$PRIMARY_IFACE" '/^default/ { for(i=1;i<=NF;i++) if($i=="dev" && $(i+1)==ifc) { for(j=1;j<=NF;j++) if($j=="via") print $(j+1) } }' | head -1)"
     fi
 
     if [ -z "$GW_IP" ] && has_cmd route; then

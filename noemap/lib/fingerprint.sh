@@ -92,21 +92,31 @@ _detect_type() {
         2222) printf 'linux-ssh';   return ;;
     esac
 
-    # Port 22 — fast mode stops here
-    if [ "${NOEMAP_DEEP:-0}" != "1" ] || [ -z "$_ip" ]; then
-        printf 'linux-ssh'; return
-    fi
-
-    # Deep mode: grab banner to distinguish Termux from real Linux sshd
+    # Passive banner first (free, no login): distros self-identify.
     _banner="$(_get_ssh_banner "$_ip" "$_ssh_port" 2>/dev/null || true)"
     case "$_banner" in
-        *[Uu]buntu*|*[Dd]ebian*|*[Aa]lpine*|*[Aa]rch*|*[Ff]edora*|*[Rr]aspbian*)
-            printf 'linux-ssh'   ;;
-        *[Oo]pen[Ss][Ss][Hh]*)
-            printf 'android-ssh' ;;
-        *)
-            printf 'linux-ssh'   ;;
+        *[Uu]buntu*|*[Dd]ebian*|*[Aa]lpine*|*[Aa]rch*|*[Ff]edora*|*[Rr]aspbian*|*[Mm]int*)
+            printf 'linux-ssh'; return ;;
     esac
+
+    # Deep mode with an OS-scan result: nmap -O distinguishes Mac/Linux/Windows.
+    if [ "${NOEMAP_DEEP:-0}" = "1" ] && [ -n "${_FP_OS_OUT:-}" ] && [ -s "${_FP_OS_OUT:-/nonexistent}" ]; then
+        _os_line="$(awk -v host="$_ip" '
+            /Nmap scan report for / { found = ($NF == host) }
+            found && (/OS details:/ || /Running:/ || /OS guess/) { print; exit }
+        ' "$_FP_OS_OUT" 2>/dev/null)"
+        case "$_os_line" in
+            *[Dd]arwin*|*[Aa]pple*|*Mac\ OS*|*macOS*) printf 'mac';     return ;;
+            *[Ww]indows*)                             printf 'windows'; return ;;
+            *[Ll]inux*)                               printf 'linux-ssh'; return ;;
+        esac
+    fi
+
+    # Ambiguous (bare OpenSSH banner, no deep result): generic unix.
+    case "$_banner" in
+        *[Oo]pen[Ss][Ss][Hh]*) printf 'unix-ssh'; return ;;
+    esac
+    printf 'linux-ssh'
 }
 
 # ---------------------------------------------------------------------------
@@ -135,6 +145,26 @@ fingerprint_hosts() {
         printf '%s\n' "$HOST_LIST" > "$_fp_host_file"
         nmap -Pn -n --host-timeout 4s -p "$_FP_SSH_PORTS" \
             -iL "$_fp_host_file" 2>/dev/null > "$_fp_nmap_out" || true
+    fi
+
+    # Deep OS fingerprint (one batch, root only). Termux/no-sudo skip silently
+    # and fall back to passive banner+TTL classification in _detect_type.
+    _FP_OS_OUT=""
+    if [ "${NOEMAP_DEEP:-0}" = "1" ] && has_cmd nmap; then
+        _os_out="$(session_tmp fp_os_out)"
+        if [ "$(id -u)" = "0" ]; then
+            nmap -Pn -n -O --osscan-guess --host-timeout 20s \
+                -iL "$_fp_host_file" 2>/dev/null > "$_os_out" & 
+            _spin_wait "$!" "OS fingerprint" || true
+            _FP_OS_OUT="$_os_out"
+        elif has_cmd sudo && [ -z "${PREFIX:-}" ]; then
+            if sudo -v 2>/dev/null; then
+                sudo nmap -Pn -n -O --osscan-guess --host-timeout 20s \
+                    -iL "$_fp_host_file" 2>/dev/null > "$_os_out" & 
+                _spin_wait "$!" "OS fingerprint" || true
+                _FP_OS_OUT="$_os_out"
+            fi
+        fi
     fi
 
     # Per-host: TTL + SSH port → classify + record

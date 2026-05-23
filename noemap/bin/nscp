@@ -25,7 +25,18 @@
 
 set -eu
 
-BASE="${NOEMAP_BASE:-$HOME/dev/noemap}"
+_self="$0"
+case "$_self" in */*) ;; *) _self="$(command -v "$_self")" ;; esac
+if _real="$(readlink -f "$_self" 2>/dev/null)" && [ -n "$_real" ]; then
+    _self="$_real"
+else
+    while [ -L "$_self" ]; do
+        _link="$(readlink "$_self")"
+        case "$_link" in /*) _self="$_link" ;; *) _self="$(dirname "$_self")/$_link" ;; esac
+    done
+fi
+_bindir="$(cd "$(dirname "$_self")" && pwd -P)"
+BASE="${NOEMAP_BASE:-$(dirname "$_bindir")}"
 LIB="$BASE/lib"
 DB="$BASE/state/devices.db"
 CFG="$BASE/config/ssh_config"
@@ -48,9 +59,15 @@ done
 # -----------------------------------------------------------------------
 _recursive=false
 
-while getopts ":r" _opt; do
+while getopts ":rh" _opt; do
     case "$_opt" in
         r) _recursive=true ;;
+        h)
+            printf 'usage: nscp [-r] <src> <dst>\n'
+            printf '  Copy files between local and a devices.db alias over SSH.\n'
+            printf '  Use alias:/path for remote side. -r for recursive.\n'
+            exit 0
+            ;;
         *) log ERROR "unknown option: -$OPTARG"; exit 1 ;;
     esac
 done

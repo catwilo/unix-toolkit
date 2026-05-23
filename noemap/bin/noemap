@@ -17,7 +17,22 @@
 
 set -eu
 
-BASE="${NOEMAP_BASE:-$HOME/dev/noemap}"
+# Derive BASE from this script's own location so install/runtime never
+# depend on a hardcoded path. Honors NOEMAP_BASE override if set.
+_self="$0"
+case "$_self" in */*) ;; *) _self="$(command -v "$_self")" ;; esac
+# Resolve symlink chain so invocation via ~/.local/bin/noemap finds the
+# real bin dir (readlink -f is GNU/Termux; fall back to a manual walk).
+if _real="$(readlink -f "$_self" 2>/dev/null)" && [ -n "$_real" ]; then
+    _self="$_real"
+else
+    while [ -L "$_self" ]; do
+        _link="$(readlink "$_self")"
+        case "$_link" in /*) _self="$_link" ;; *) _self="$(dirname "$_self")/$_link" ;; esac
+    done
+fi
+_bindir="$(cd "$(dirname "$_self")" && pwd -P)"
+BASE="${NOEMAP_BASE:-$(dirname "$_bindir")}"
 LIB="$BASE/lib"
 
 # ---------------------------------------------------------------------------
@@ -100,24 +115,74 @@ HELP
 }
 
 # ---------------------------------------------------------------------------
+# install — idempotent: symlink bin/ into PATH, wire ~/.zshrc capture loader
+# ---------------------------------------------------------------------------
+_do_install() {
+    _bindir=""
+    if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/bin" ]; then
+        _bindir="${PREFIX}/bin"
+    elif [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
+        _bindir="$HOME/.local/bin"
+    else
+        printf '[ERROR] no writable bin dir found\n' >&2; exit 1
+    fi
+
+    for _f in "$BASE"/bin/*; do
+        [ -f "$_f" ] || continue
+        _n="$(basename "$_f")"
+        ln -sf "$_f" "$_bindir/$_n"
+        printf '  linked %s -> %s\n' "$_n" "$_bindir/$_n"
+    done
+
+    # idempotent ~/.zshrc block between markers (overwrites prior install)
+    _rc="$HOME/.zshrc"
+    _beg='# >>> noemap >>>'
+    _end='# <<< noemap <<<'
+    [ -f "$_rc" ] || : > "$_rc"
+    _tmp="$(mktemp "${TMPDIR:-/tmp}/noemap-rc.XXXXXX")"
+    awk -v b="$_beg" -v e="$_end" '
+        $0==b {skip=1} skip && $0==e {skip=0; next} !skip {print}
+    ' "$_rc" > "$_tmp"
+    {
+        cat "$_tmp"
+        printf '%s\n' "$_beg"
+        printf 'case ":$PATH:" in *":%s:"*) ;; *) export PATH="%s:$PATH";; esac\n' "$_bindir" "$_bindir"
+        printf '[ -n "$LC_NCSSH" ] && source "%s/lib/capture.zsh"\n' "$BASE"
+        printf 'clipc() { if [ "${1:-}" = -- ]; then shift; printf %%s "$*" | clipso; else clipso; fi; }\n'
+        printf 'compctl -c clipc 2>/dev/null || true\n' 
+        printf '%s\n' "$_end"
+    } > "$_rc"
+    rm -f "$_tmp"
+    printf '  wired %s (idempotent block)\n' "$_rc"
+    printf '[OK] noemap installed (bindir: %s)\n' "$_bindir"
+}
+
+if [ "${1:-}" = install ]; then _do_install; exit 0; fi
+
+# ---------------------------------------------------------------------------
 # Parse flags
 # ---------------------------------------------------------------------------
 NOEMAP_FULL_PORTS=0
 NOEMAP_DEEP=0
-for _arg in "$@"; do
-    case "$_arg" in
+NOEMAP_IFACE=""
+while [ $# -gt 0 ]; do
+    case "$1" in
         --ports)    NOEMAP_FULL_PORTS=1 ;;
         --deep)     NOEMAP_DEEP=1 ;;
+        -i)         shift; [ -n "${1:-}" ] || { printf '[ERROR] -i requires an interface name\n' >&2; exit 1; }; NOEMAP_IFACE="$1" ;;
+        -i*)        NOEMAP_IFACE="${1#-i}" ;;
         -h|--help)  _print_help; exit 0 ;;
         *)
-            printf '[ERROR] unknown option: %s\n' "$_arg" >&2
-            printf 'usage: noemap [--deep] [--ports] [-h]\n' >&2
+            printf '[ERROR] unknown option: %s\n' "$1" >&2
+            printf 'usage: noemap [--deep] [--ports] [-i <iface>] [-h]\n' >&2
             exit 1
             ;;
     esac
+    shift
 done
 export NOEMAP_FULL_PORTS
 export NOEMAP_DEEP
+export NOEMAP_IFACE
 
 # ---------------------------------------------------------------------------
 # Bootstrap
@@ -141,11 +206,18 @@ trap 'release_lock; cleanup_session; trap - TERM; kill -TERM "$$"' TERM
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
+ensure_dirs
 acquire_lock
 
 log INFO "noemap starting (base=$BASE)"
 
-ensure_dirs
+# Deep mode needs root for nmap -O. Prompt for sudo once, up front, so the
+# scan never stalls mid-way waiting for a password. Termux/no-sudo skip.
+if [ "$NOEMAP_DEEP" = "1" ] && [ -z "${PREFIX:-}" ] && [ "$(id -u)" != "0" ] && has_cmd sudo; then
+    log INFO "deep mode: requesting sudo for OS fingerprint"
+    sudo -v || log WARN "sudo unavailable — OS detection will fall back to passive"
+fi
+
 validate_env
 load_cache
 

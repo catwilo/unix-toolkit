@@ -41,6 +41,24 @@ has_cmd() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# _spin_wait pid msg — show a cyan spinner with elapsed seconds while pid
+# runs. No-op decoration when stderr is not a TTY (keeps logs/pipes clean).
+_spin_wait() {
+    _sw_pid="$1"; _sw_msg="${2:-working}"
+    if [ ! -t 2 ]; then wait "$_sw_pid" 2>/dev/null; return $?; fi
+    _sw_cyan=''; _sw_reset=''
+    if [ -z "${NO_COLOR:-}" ]; then _sw_cyan='\033[0;36m'; _sw_reset='\033[0m'; fi
+    _sw_frames='|/-\\'; _sw_i=0; _sw_t=0
+    while kill -0 "$_sw_pid" 2>/dev/null; do
+        _sw_c="$(printf '%s' "$_sw_frames" | cut -c $(( (_sw_i % 4) + 1 )))"
+        printf '\r%b[%s]%b %s... %ss ' "$_sw_cyan" "$_sw_c" "$_sw_reset" "$_sw_msg" "$_sw_t" >&2
+        _sw_i=$(( _sw_i + 1 )); sleep 1; _sw_t=$(( _sw_t + 1 ))
+    done
+    wait "$_sw_pid" 2>/dev/null; _sw_rc=$?
+    printf '\r%*s\r' 60 '' >&2
+    return $_sw_rc
+}
+
 # require_cmd cmd — exits with ERROR if cmd is missing.
 require_cmd() {
     has_cmd "$1" || {
