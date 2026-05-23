@@ -4,7 +4,7 @@
 # Crea la estructura completa del proyecto en ~/neko-gba
 #
 # Uso:
-#   bash neko-gba-setup-v0.2.sh
+#   bash neko-gba-setup.sh
 #
 # Qué hace:
 #   1. Crea todos los directorios
