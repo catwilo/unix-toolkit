@@ -1,280 +1,475 @@
 #!/usr/bin/env bash
-# install.sh — SSH-safe, step-verified install of the NM-based wifi-setup.
-#
-# SAFETY MODEL (confirmed commit):
-#   Over SSH the link carrying our session must survive even if the install
-#   fails. We snapshot the working network, arm a SYSTEM-level auto-rollback
-#   timer, then change things in an order that never leaves the SSH interface
-#   without a manager. Each network-touching step is verified; on any failure
-#   we restore immediately. The rollback is disarmed only after final success.
+# scripts/install.sh — instalador principal wifi-setup
+# Modo: SERVER (dos interfaces, NAT, forwarding) | CLIENT (IP estática, recibe internet)
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=/dev/null
-source "${SRC_DIR}/lib/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/common.sh"
+source "${SCRIPT_DIR}/../lib/deps.sh"
+source "${SCRIPT_DIR}/../lib/detect.sh"
+source "${SCRIPT_DIR}/../lib/net.sh"
+source "${SCRIPT_DIR}/../lib/forward.sh"
+source "${SCRIPT_DIR}/../lib/survival.sh"
+source "${SCRIPT_DIR}/../lib/ssh.sh"
+source "${SCRIPT_DIR}/../lib/tailscale.sh"
+
+if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+    echo "uso: sudo wifi install [server|client] [--help]"
+    echo ""
+    echo "Instalador de wifi-setup. Auto-detecta el contexto (máximo automático):"
+    echo "  · modo SERVIDOR por defecto (usa 'client' como argumento para cliente)"
+    echo "  · interfaz WiFi USB upstream (autodetectada)"
+    echo "  · interfaz plan/ethernet hacia el otro equipo (autodetectada)"
+    echo "  · la IP la asigna el AP vía dhcpcd (subred/gateway reales)"
+    echo "  · IPs plan fijas: servidor 1.2.3.2, cliente 1.2.3.1, forward server→client"
+    echo "  · sesión SSH detectada (\$SSH_CONNECTION) para no perder acceso"
+    echo ""
+    echo "Única pregunta: SSID y contraseña WiFi, y solo si NO hay config previa."
+    echo ""
+    echo "Supervivencia SSH:"
+    echo "  · tras pedir credenciales, la fase de red corre en una ventana byobu"
+    echo "  · si se cae el SSH, el proceso sigue vivo en esa ventana"
+    echo "  · cierra la ventana manualmente al terminar para revisar el output"
+    echo "  · instala byobu/tmux automáticamente si falta"
+    echo ""
+    echo "Red de seguridad:"
+    echo "  · verifica internet tras configurar; avisa si falla"
+    echo ""
+    echo "En reinstalación: limpieza idempotente (servicios, symlinks, iptables del"
+    echo "proyecto, networkd, sysctl) y sobrescritura de /opt/wifi-setup."
+    echo ""
+    echo "Ver también:"
+    echo "  sudo wifi uninstall    desinstalar todo"
+    echo "  sudo wifi check <server|client>   solo verificar"
+    exit 0
+fi
 
 require_root
 
-USER_BINS=(wifi-add wifi-saved wifi-rm wifi-connect wifi-status wifi-list \
-           wifi-showpass wifi-passwd wifi-prefer wifi-failover wifi-panic \
-           wifi-tailscale wifi-mac wifi-doctor)
-ALL_BINS=("${USER_BINS[@]}" wifi-failover-monitor)
+INSTALL_DIR="/opt/wifi-setup"
 
-# ── Failure trap: restore network before exiting on any error ────────────────
-SAFE_DONE=0
-on_error() {
-    local code=$?
-    [[ "${SAFE_DONE}" -eq 1 ]] && exit "${code}"
-    err "fallo en la instalación (código ${code}) — restaurando red previa…"
-    [[ -x "${WS_SAFE_DIR}/restore.sh" ]] && "${WS_SAFE_DIR}/restore.sh" || true
-    warn "red previa restaurada. El rollback automático sigue armado por si acaso."
-    warn "revisa el log: ${WS_LOG}"
-    exit "${code}"
-}
-trap on_error ERR
+# ===========================================================================
+# SUPERVIVENCIA SSH: saltar a la ventana byobu ANTES de cualquier salida.
+# Todo el install (detección, prompts, mutación) ocurre dentro de la ventana.
+# Si ya estamos dentro (flag), retorna y continúa.
+# ===========================================================================
+INSTALL_MODE="${1:-server}"
+case "${INSTALL_MODE}" in server|client) ;; *) INSTALL_MODE="server" ;; esac
+relaunch_byobu "${SCRIPT_DIR}/install.sh" "${INSTALL_MODE}"
 
-# ── 0. Prepare state dirs early (needed for snapshot/log) ────────────────────
-mkdir -p "${WS_BIN}" "${WS_LIB}" "${WS_STATE}" "${WS_LOG_DIR}" "${WS_SAFE_DIR}"
-chmod 700 "${WS_STATE}" "${WS_LOG_DIR}"
+# ===========================================================================
+# UPGRADE: limpieza automática de instalación previa
+# — detiene servicios, elimina symlinks viejos (cualquier versión),
+#   limpia iptables y networkd; preserva configs WiFi
+# Solo se ejecuta dentro de la ventana byobu (flag),
+# nunca en el pase interactivo previo al detach, para no duplicar trabajo.
+# ===========================================================================
+# Determinar si esta es la fase donde toca limpiar/mutar la red:
+# Solo dentro de la ventana byobu (flag=1) se ejecuta la fase de mutación.
+RUN_MUTATION=1  # dentro de byobu siempre se ejecuta la mutación
 
-SSH_IF="$(ssh_iface)"
-if [[ -n "${SSH_IF}" ]]; then
-    sep
-    warn "sesión SSH detectada por la interfaz: ${SSH_IF}"
-    warn "se activará protección con rollback automático (${WS_GRACE_SEC}s)"
-    sep
-fi
+if [[ "${RUN_MUTATION}" -eq 1 ]] && [[ -d "${INSTALL_DIR}" ]]; then
+    log "INFO" "instalación previa detectada en ${INSTALL_DIR} — limpiando antes de reinstalar..."
 
-# ── 1. Dependencies (no network change yet) ──────────────────────────────────
-info "verificando dependencias…"
-apt_updated=0
-need_pkg() {
-    local cmd="$1" pkg="$2"
-    command -v "${cmd}" >/dev/null 2>&1 && { ok "ya presente: ${cmd}"; return; }
-    if [[ "${apt_updated}" -eq 0 ]]; then apt-get update -qq || true; apt_updated=1; fi
-    info "instalando ${pkg} (para ${cmd})"
-    apt-get install -y --no-install-recommends "${pkg}"
-}
-need_pkg nmcli network-manager
-need_pkg curl  curl
-need_pkg ip    iproute2
+    # Barrer restos de instaladores VIEJOS (wifi-setup@.service, wifi-panic, services/)
+    sweep_legacy_install
 
-# ── 1b. ASK EVERYTHING UP FRONT — before touching the network ────────────────
-# Nothing below this block prompts the user. If SSH drops mid-install, no
-# question is left waiting; the work proceeds (and rolls back) on its own.
-sep
-info "configuración (se preguntará todo ahora, antes de tocar la red)"
-DEFAULT_SSID="cursed"
-read -r -p "SSID [${DEFAULT_SSID}]: " Q_SSID || Q_SSID=""
-Q_SSID="${Q_SSID:-${DEFAULT_SSID}}"
-
-# Password only needed if the profile doesn't already exist.
-Q_PASS=""
-if ! nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "${Q_SSID}"; then
-    Q_PASS="$(read_passphrase)"
-fi
-
-read -r -p "IP fija deseada [10.26.35.70] (Enter acepta, 'no' = DHCP): " Q_IP || Q_IP=""
-Q_IP="${Q_IP:-10.26.35.70}"
-Q_GW=""
-if [[ "${Q_IP,,}" != "no" ]]; then
-    Q_GW_DEFAULT="$(printf '%s' "${Q_IP}" | sed 's/\.[0-9]*$/.110/')"
-    read -r -p "gateway [${Q_GW_DEFAULT}]: " Q_GW || Q_GW=""
-    Q_GW="${Q_GW:-${Q_GW_DEFAULT}}"
-fi
-
-read -r -p "¿instalar Tailscale? (solo lo deja instalado; tú haces login luego) [s/N]: " Q_TS || Q_TS=""
-sep
-ok "configuración recogida — a partir de aquí no habrá más preguntas"
-
-# ── 2. Snapshot + arm rollback BEFORE touching the network ───────────────────
-snapshot_network
-arm_rollback
-
-# ── 3. Bring up NetworkManager WITHOUT removing dhcpcd yet ───────────────────
-# Goal: NM starts managing devices while dhcpcd still holds the SSH link, so
-# there is never a gap. We tell NM to manage wifi and start it; dhcpcd keeps
-# the lease alive in parallel during the transition.
-info "configurando NetworkManager (sin tocar dhcpcd todavía)…"
-mkdir -p /etc/NetworkManager/conf.d
-cat > /etc/NetworkManager/conf.d/10-wifi-setup.conf <<'EOF'
-[main]
-plugins=keyfile
-
-[connectivity]
-uri=http://nmcheck.gnome.org/check_network_status.txt
-interval=20
-EOF
-
-# Disable scan-time MAC randomization globally: this is the root fix for the
-# "IP changes every few minutes and drops SSH" problem. With a fixed MAC the
-# Android hotspot stops handing out a new IP on every reconnect.
-cat > /etc/NetworkManager/conf.d/90-no-mac-rand.conf <<'EOF'
-[device]
-wifi.scan-rand-mac-address=no
-EOF
-
-systemctl enable NetworkManager >/dev/null 2>&1 || true
-systemctl start  NetworkManager
-sleep 2
-require_nm
-ok "NetworkManager activo (dhcpcd aún presente como respaldo)"
-
-# ── 4. Verify SSH path still alive before the risky step ─────────────────────
-if ! ssh_path_alive; then
-    die "la interfaz SSH (${SSH_IF}) perdió IP tras iniciar NM — abortando (rollback armado)"
-fi
-ok "enlace SSH intacto tras iniciar NM"
-
-# ── 5. Deploy files + symlinks (no network change) ───────────────────────────
-info "desplegando en ${WS_BASE}…"
-cp -a "${SRC_DIR}/bin/." "${WS_BIN}/"
-cp -a "${SRC_DIR}/lib/." "${WS_LIB}/"
-chmod +x "${WS_BIN}"/wifi-*
-for b in "${USER_BINS[@]}"; do ln -sf "${WS_BIN}/${b}" "/usr/local/bin/${b}"; done
-ok "binarios, librería y comandos instalados"
-
-# ── 6. Seed first network as a DUAL profile (USB primary + native failover) ──
-echo
-info "aplicando configuración de red…"
-ssid="${Q_SSID}"
-usb="$(detect_iface usb)"; native="$(detect_iface native)"
-gen_mac() { local h; h="$(printf 'wifi-setup-%s' "${ssid}" | md5sum | cut -c1-6)"; printf '00:1a:2b:%s:%s:%s' "${h:0:2}" "${h:2:2}" "${h:4:2}"; }
-PROFILE_MAC="$(gen_mac)"
-
-if nm_profile_exists "${ssid}"; then
-    ok "ya existe el perfil '${ssid}' — sin cambios"
-else
-    # Primary: bound to USB.
-    nmcli connection add type wifi con-name "${ssid}" ssid "${ssid}" \
-        -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk "${Q_PASS}" \
-        connection.interface-name "${usb}" \
-        connection.autoconnect yes connection.autoconnect-priority 20 \
-        802-11-wireless.cloned-mac-address "${PROFILE_MAC}" >/dev/null
-    ok "perfil principal '${ssid}' (USB ${usb}, MAC ${PROFILE_MAC})"
-
-    # Failover twin: bound to native, DHCP.
-    if [[ -n "${native}" ]]; then
-        nmcli connection add type wifi con-name "${ssid}-failover" ssid "${ssid}" \
-            -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk "${Q_PASS}" \
-            connection.interface-name "${native}" ipv4.method auto \
-            connection.autoconnect yes connection.autoconnect-priority 5 \
-            802-11-wireless.cloned-mac-address "${PROFILE_MAC}" >/dev/null
-        ok "perfil failover '${ssid}-failover' (nativa ${native}, DHCP)"
-    fi
-    unset Q_PASS
-fi
-
-# Fixed IP on the PRIMARY only, with verify + fallback to DHCP.
-if [[ "${Q_IP,,}" == "no" ]]; then
-    nmcli connection modify "${ssid}" ipv4.method auto ipv4.addresses "" ipv4.gateway "" >/dev/null 2>&1 || true
-    ok "IP por DHCP (MAC fija mantiene la IP estable)"
-else
-    nmcli connection modify "${ssid}" \
-        ipv4.method manual ipv4.addresses "${Q_IP}/24" \
-        ipv4.gateway "${Q_GW}" ipv4.dns "1.1.1.1 8.8.8.8" >/dev/null
-    nmcli connection up "${ssid}" ifname "${usb}" >/dev/null 2>&1 || true
-    sleep 3
-    if has_internet ""; then
-        ok "IP fija ${Q_IP} activa en USB con Internet"
-    else
-        warn "IP fija ${Q_IP} sin Internet — revirtiendo a DHCP"
-        nmcli connection modify "${ssid}" ipv4.method auto ipv4.addresses "" ipv4.gateway "" >/dev/null
-        nmcli connection up "${ssid}" ifname "${usb}" >/dev/null 2>&1 || true
-        ok "DHCP restaurado (MAC fija mantiene la IP estable)"
-    fi
-fi
-
-# ── 7. THE RISKY STEP: hand the SSH interface from dhcpcd to NM ───────────────
-# Now retire dhcpcd. NM must immediately take over the SSH interface. We verify
-# connectivity right after; if it breaks, restore and abort (rollback also armed).
-if systemctl is-active --quiet dhcpcd 2>/dev/null; then
-    info "transfiriendo control de red de dhcpcd a NetworkManager…"
-    # Ask NM to connect the SSH interface to a known network first if possible,
-    # so the lease is continuous. If the SSH iface matches a saved profile, up it.
-    if [[ -n "${SSH_IF}" ]]; then
-        nmcli device set "${SSH_IF}" managed yes >/dev/null 2>&1 || true
-        nmcli device connect "${SSH_IF}" >/dev/null 2>&1 || true
-        sleep 3
-    fi
-    systemctl disable --now dhcpcd >/dev/null 2>&1 || warn "no se pudo detener dhcpcd"
-    sleep 3
-
-    # Verify the SSH path survived the handover.
-    tries=0
-    until ssh_path_alive; do
-        tries=$((tries+1))
-        [[ "${tries}" -ge 8 ]] && die "SSH (${SSH_IF}) sin IP tras retirar dhcpcd — restaurando"
-        info "esperando que NM reasigne IP a ${SSH_IF}… (${tries}/8)"
-        nmcli device connect "${SSH_IF}" >/dev/null 2>&1 || true
-        sleep 2
+    # Detener y deshabilitar servicios propios
+    for svc in wifi-setup-forward wifi-setup-client; do
+        systemctl stop    "${svc}" 2>/dev/null || true
+        systemctl disable "${svc}" 2>/dev/null || true
+        rm -f "/etc/systemd/system/${svc}.service"
     done
-    ok "handover completado: NM gestiona ${SSH_IF}, enlace SSH intacto"
+    systemctl daemon-reload 2>/dev/null || true
+
+    # Eliminar symlinks de cualquier versión anterior
+    # (versiones viejas exponían binarios individuales)
+    for old_bin in wifi wfs wifi-status wifi-list wifi-passwd wifi-panic wifi-showpass; do
+        old_link="/usr/local/bin/${old_bin}"
+        # Solo eliminar si apunta a nuestro INSTALL_DIR (no tocar binarios ajenos)
+        if [[ -L "${old_link}" ]] && [[ "$(readlink -f "${old_link}" 2>/dev/null)" == "${INSTALL_DIR}"* ]]; then
+            rm -f "${old_link}"
+            log "INFO" "symlink eliminado: ${old_link}"
+        fi
+    done
+
+    # Limpiar reglas iptables del proyecto de forma quirúrgica.
+    # No usamos -F FORWARD: eso borraría reglas ajenas. Las reglas concretas
+    # del proyecto se vuelven a borrar/insertar idempotentemente en apply_nat
+    # con sus interfaces exactas durante esta misma instalación.
+    while iptables -t nat -D POSTROUTING -j MASQUERADE 2>/dev/null; do :; done
+
+    # Eliminar configs networkd del proyecto (sin restart — se aplica al final)
+    rm -f /etc/systemd/network/10-wifi-setup-*.network
+    # Modelo dhcpcd: limpiar .link de MAC y hooks viejos (sobrescritura limpia)
+    rm -f /etc/systemd/network/10-wifi-setup-*.link
+    rm -f /lib/dhcpcd/dhcpcd-hooks/90-prefer-dot70 /usr/lib/dhcpcd/dhcpcd-hooks/90-prefer-dot70 2>/dev/null || true
+
+    # Eliminar config SSH del proyecto (sin restart — se aplica al final)
+    rm -f /etc/ssh/sshd_config.d/99-wifi-setup.conf
+
+    # Limpiar sysctl del proyecto (sin aplicar — se reescribe durante install)
+    rm -f /etc/sysctl.d/99-wifi-setup-forward.conf
+
+    log "INFO" "limpieza completada — procediendo con instalación limpia"
+fi
+
+# Mantenemos set -e activo. Solo los `read` se toleran con `|| true`.
+
+# ===========================================================================
+# BANNER
+# ===========================================================================
+echo ""
+echo -e "${C_BOLD}${C_CYAN}╔══════════════════════════════════════════╗${C_RESET}"
+echo -e "${C_BOLD}${C_CYAN}║          wifi-setup  installer           ║${C_RESET}"
+echo -e "${C_BOLD}${C_CYAN}╚══════════════════════════════════════════╝${C_RESET}"
+echo ""
+
+# ===========================================================================
+# AUTO-DETECCIÓN DE CONTEXTO (no destructivo — solo lee)
+# Se hace ANTES de purgar la red para capturar subred/gw vivos.
+# ===========================================================================
+log "INFO" "auto-detectando contexto..."
+
+# --- Sesión SSH actual (para no cortar la ruta de acceso a ciegas) ---
+SSH_IFACE="$(detect_ssh_iface 2>/dev/null || true)"
+SSH_LOCAL_IP="$(detect_ssh_local_ip 2>/dev/null || true)"
+if [[ -n "${SSH_IFACE}" ]]; then
+    log "INFO" "sesión SSH entra por: ${SSH_IFACE} (ip local ${SSH_LOCAL_IP:-?})"
 else
-    ok "dhcpcd no estaba activo — sin handover necesario"
+    log "INFO" "no se detectó sesión SSH (consola local o vía tailscale) — continuo"
 fi
 
-# Stop other competing managers now that NM is firmly in control.
-for svc in wpa_supplicant systemd-networkd; do
-    systemctl disable --now "${svc}.service" >/dev/null 2>&1 || true
-done
-pkill -x wpa_supplicant 2>/dev/null || true
+# --- Modo: SERVIDOR por defecto (upstream USB + plan 1.2.3.2 + forward a 1.2.3.1) ---
+# Override opcional vía argumento: install.sh server | client
+INSTALL_MODE="${1:-server}"
+case "${INSTALL_MODE}" in
+    server|client) ;;
+    *) INSTALL_MODE="server" ;;
+esac
+log "INFO" "modo: ${INSTALL_MODE^^} (override: 'wifi install client' para cliente)"
 
-# ── 8. Final connectivity verification (real Internet) ───────────────────────
-info "verificando Internet real…"
-if has_internet "${SSH_IF}"; then
-    ok "Internet real confirmado"
+# --- Interfaz WiFi upstream (USB preferida, si no la primera WiFi) ---
+if UPSTREAM_IFACE="$(detect_usb_wifi 2>/dev/null)"; then
+    log "INFO" "WiFi USB detectada: ${UPSTREAM_IFACE}"
 else
-    warn "sin Internet real aún — NM puede tardar en reconectar; revisa wifi-status"
-    # Not fatal for SSH (link is up); do not roll back solely on this.
+    mapfile -t WIFI_LIST < <(detect_wifi_interfaces)
+    [[ "${#WIFI_LIST[@]}" -gt 0 ]] \
+        || die "no se encontró interfaz WiFi — conecta el adaptador USB y reintenta"
+    UPSTREAM_IFACE="${WIFI_LIST[0]}"
+    log "INFO" "WiFi upstream (autoseleccionada): ${UPSTREAM_IFACE}"
+fi
+WIFI_IFACE="${UPSTREAM_IFACE}"
+
+# Modelo dhcpcd puro: la IP la asigna el AP. No se detecta ni fuerza ninguna IP.
+
+# --- Interfaz plan / estática (auto) ---
+PLAN_IFACE=""
+STATIC_IFACE=""
+if [[ "${INSTALL_MODE}" == "server" ]]; then
+    PLAN_IFACE="$(detect_plan_interface 2>/dev/null || true)"
+    [[ -n "${PLAN_IFACE}" ]] \
+        || die "no se detectó interfaz plan (ethernet hacia cliente) — verifica: ip link show"
+    validate_interface "${PLAN_IFACE}"
+    log "INFO" "interfaz plan: ${PLAN_IFACE}"
+else
+    STATIC_IFACE="$(detect_plan_interface 2>/dev/null || true)"
+    [[ -n "${STATIC_IFACE}" ]] \
+        || die "no se detectó interfaz hacia servidor — verifica: ip link show"
+    validate_interface "${STATIC_IFACE}"
+    log "INFO" "interfaz estática: ${STATIC_IFACE}"
 fi
 
-# ── 9. Detect antennas + default preference ──────────────────────────────────
-usb="$(detect_iface usb)"; native="$(detect_iface native)"
-printf 'usb\n' > "${WS_PREF_FILE}"
-echo
-info "antenas: usb=${usb:-none}  native=${native:-none}"
-
-# ── 10. Install failover monitor (timer) — OFF by default ────────────────────
-# We install the units but do NOT enable the timer automatically. The failover
-# is opt-in: verify it behaves with `wifi-failover test`, then `wifi-failover on`.
-info "instalando monitor de failover (desactivado por defecto)…"
-cp -a "${SRC_DIR}/systemd/wifi-failover.service" /etc/systemd/system/
-cp -a "${SRC_DIR}/systemd/wifi-failover.timer"   /etc/systemd/system/
-systemctl daemon-reload
-ok "failover instalado pero APAGADO — actívalo cuando quieras con: wifi-failover on"
-echo "   (pruébalo antes sin riesgo con: wifi-failover test)"
-
-# ── 11. SUCCESS: confirm commit, disarm rollback ─────────────────────────────
-if ! ssh_path_alive; then
-    die "verificación final: SSH caído — NO desarmo el rollback (se restaurará solo)"
+# --- IPs de la red plan (fijas por diseño) ---
+if [[ "${INSTALL_MODE}" == "server" ]]; then
+    PLAN_IP="1.2.3.2";  PLAN_CIDR="1.2.3.2/24"
+    CLIENT_IP="1.2.3.1"; GATEWAY=""
+else
+    CLIENT_IP="1.2.3.1"; STATIC_CIDR="1.2.3.1/24"
+    GATEWAY="1.2.3.2";   PLAN_IP="1.2.3.2"; PLAN_CIDR=""
 fi
-SAFE_DONE=1
-disarm_rollback
-trap - ERR
 
-echo
-ok "instalación de red completa y verificada — enlace SSH intacto"
-
-# ── 12. Optional Tailscale (only INSTALL; user logs in later) ────────────────
-echo
-sep
-if [[ "${Q_TS,,}" == "s" || "${Q_TS,,}" == "si" ]]; then
-    if "${WS_BIN}/wifi-tailscale" install; then
-        ok "Tailscale instalado y habilitado"
-        echo "   inicia sesión tú mismo cuando quieras con:  sudo tailscale up --accept-dns=false"
-    else
-        warn "Tailscale no se completó — la red WiFi sigue OK. Reintenta: wifi-tailscale install"
+# ===========================================================================
+# GUARDA DE SEGURIDAD SSH
+# Si el SSH entra por una interfaz que se reconfigurará, el desacople vía
+# byobu mantiene vivo el proceso. Solo lo registramos.
+# ===========================================================================
+if [[ -n "${SSH_IFACE}" ]]; then
+    if [[ "${SSH_IFACE}" == "${UPSTREAM_IFACE}" ]]; then
+        log "WARN" "SSH entra por el upstream ${UPSTREAM_IFACE} — se reconfigurará vía dhcpcd."
+        log "WARN" "byobu mantiene vivo el proceso; reconecta a la IP del AP si cae."
+        log "WARN" "RECOMENDADO: reinstala entrando por la red plan (1.2.3.x) o Tailscale, no por la USB."
+    elif [[ "${INSTALL_MODE}" == "server" && "${SSH_IFACE}" == "${PLAN_IFACE}" ]]; then
+        log "INFO" "SSH entra por el plan ${PLAN_IFACE} (estable) — no se interrumpe al reconfigurar la USB."
     fi
-else
-    info "Tailscale omitido — instálalo luego con: wifi-tailscale install"
 fi
-sep
-echo "Comandos: wifi-add wifi-saved wifi-list wifi-connect wifi-status"
-echo "          wifi-prefer wifi-passwd wifi-showpass wifi-rm wifi-failover wifi-panic"
-echo "          wifi-tailscale <setup|status>"
-echo "wifi-connect <ssid>  ancla manual    |  wifi-connect --auto  vuelve a automático"
-sep
-echo "Failover: USB preferida → nativa, prueba Internet real cada 20s."
-log INFO "install: OK (usb=${usb:-none} native=${native:-none} ssid=${ssid} ssh_if=${SSH_IF:-local})"
+
+# ===========================================================================
+# CAPTURA DE CREDENCIALES Y MAC (solo en memoria, pase interactivo).
+# NO se escribe nada en la USB aquí. Todas las escrituras (wpa_supplicant,
+# MAC, IP fija, purga) ocurren YA DESACOPLADAS, para que un corte de SSH por
+# la propia USB no mate el proceso antes de protegerlo.
+# Lo capturado se pasa a la ventana byobu vía variables de entorno.
+# ===========================================================================
+WPA_CONF="/etc/wpa_supplicant/wpa_supplicant-${UPSTREAM_IFACE}.conf"
+WIFI_SSID="${WIFI_SSID:-}"
+WIFI_PSK_LINE="${WIFI_PSK_LINE:-}"
+CHOSEN_MAC="${CHOSEN_MAC:-}"
+
+if true; then  # captura siempre (ya corremos dentro de byobu)
+    echo ""
+    # --- Credenciales WiFi: solo si no hay config previa ---
+    if [[ -f "${WPA_CONF}" ]]; then
+        log "INFO" "config WiFi existente en ${UPSTREAM_IFACE} — se conserva (sin preguntar)"
+    else
+        log "INFO" "no hay config WiFi previa — se requieren credenciales"
+        read -r -p "SSID de la red WiFi [cursed]: " WIFI_SSID || true
+        WIFI_SSID="${WIFI_SSID:-cursed}"
+        while true; do
+            read -r -s -p "Contraseña WPA (mín 8 caracteres): " WIFI_PASS || true
+            echo
+            [[ "${#WIFI_PASS}" -ge 8 ]] && break
+            echo "  error: mínimo 8 caracteres"
+        done
+        WIFI_PSK_LINE="$(wpa_passphrase "${WIFI_SSID}" "${WIFI_PASS}" 2>/dev/null \
+            | grep -E '^\s+psk=' | grep -v '#' | tr -d '\t ' || true)"
+        unset WIFI_PASS
+        [[ -n "${WIFI_PSK_LINE}" ]] || die "wpa_passphrase no generó PSK — verifica la contraseña"
+    fi
+
+    # --- MAC: sugerir Windows-like (ENTER) o escribir una propia ---
+    MAC_FILE="${STATE_DIR}/mac-${UPSTREAM_IFACE}.mac"
+    if [[ -f "${MAC_FILE}" ]]; then
+        CHOSEN_MAC="$(cat "${MAC_FILE}")"
+        log "INFO" "MAC ya definida para ${UPSTREAM_IFACE}: ${CHOSEN_MAC} — se conserva"
+    else
+        SUGGESTED_MAC="$(suggest_windows_mac)"
+        echo ""
+        echo "  ── MAC de la interfaz upstream (${UPSTREAM_IFACE}) ─────────────────"
+        echo "  Sugerida (aspecto Windows, fija y persistente): ${SUGGESTED_MAC}"
+        echo "  ENTER = aceptar la sugerida   |   o escribe la tuya (AA:BB:CC:DD:EE:FF)"
+        echo ""
+        read -r -p "MAC [${SUGGESTED_MAC}]: " MAC_INPUT || true
+        MAC_INPUT="${MAC_INPUT:-${SUGGESTED_MAC}}"
+        while ! CHOSEN_MAC="$(validate_mac "${MAC_INPUT}")"; do
+            echo "  error: formato inválido — usa AA:BB:CC:DD:EE:FF"
+            read -r -p "MAC [${SUGGESTED_MAC}]: " MAC_INPUT || true
+            MAC_INPUT="${MAC_INPUT:-${SUGGESTED_MAC}}"
+        done
+        log "INFO" "MAC elegida para ${UPSTREAM_IFACE}: ${CHOSEN_MAC}"
+    fi
+fi
+
+# ===========================================================================
+# SUPERVIVENCIA SSH: desacoplar AHORA, antes de tocar la USB.
+# Pasamos credenciales y MAC al unit por entorno. Si ya estamos desacoplados
+# (flag), esta función retorna y seguimos hacia las escrituras de red.
+# ===========================================================================
+# --- Credenciales capturadas arriba; escribir config si aplica ---
+# Escribir config WiFi si vino credencial nueva y aún no existe el archivo
+if [[ -n "${WIFI_PSK_LINE}" ]] && [[ ! -f "${WPA_CONF}" ]]; then
+    configure_wpa "${UPSTREAM_IFACE}" "${WIFI_SSID}" "${WIFI_PSK_LINE}"
+fi
+# Persistir la MAC elegida (fuente de verdad para la IP fija)
+if [[ -n "${CHOSEN_MAC}" ]]; then
+    MAC_FILE="${STATE_DIR}/mac-${UPSTREAM_IFACE}.mac"
+    mkdir -p "${STATE_DIR}"
+    echo "${CHOSEN_MAC}" > "${MAC_FILE}"
+    chmod 600 "${MAC_FILE}"
+fi
+
+
+# ===========================================================================
+# INSTALAR DEPENDENCIAS
+# ===========================================================================
+echo ""
+if [[ "${INSTALL_MODE}" == "server" ]]; then
+    install_deps_server
+else
+    install_deps_client
+fi
+
+# ===========================================================================
+# LIMPIAR STACK PREVIO
+# ===========================================================================
+echo ""
+log "INFO" "limpiando stack de red previo..."
+purge_network_stack
+
+# ===========================================================================
+# INSTALAR ARCHIVOS
+# ===========================================================================
+log "INFO" "instalando archivos en ${INSTALL_DIR}..."
+require_dirs
+cp -a "${SCRIPT_DIR}/../bin/." "${INSTALL_DIR}/bin/"
+cp -a "${SCRIPT_DIR}/../lib/." "${INSTALL_DIR}/lib/"
+cp -a "${SCRIPT_DIR}/../scripts/." "${INSTALL_DIR}/scripts/"
+chmod +x "${INSTALL_DIR}"/bin/*
+chmod +x "${INSTALL_DIR}"/scripts/*.sh
+
+ln -sf "${INSTALL_DIR}/bin/wifi" "/usr/local/bin/wifi"
+
+# ===========================================================================
+# CONFIGURAR SSH (antes de tocar la red — seguridad primero)
+# ===========================================================================
+echo ""
+configure_ssh
+
+# ===========================================================================
+# LEVANTAR WiFi + DHCP (upstream)
+# ===========================================================================
+echo ""
+log "INFO" "levantando interfaz WiFi ${UPSTREAM_IFACE}..."
+enable_wpa_service "${UPSTREAM_IFACE}"
+
+# systemd-networkd se usa SOLO para el plan (enp4s0 estático). El upstream
+# USB se gestiona con dhcpcd (subred/gateway reales del AP) + MAC .link.
+systemctl unmask systemd-networkd 2>/dev/null || true
+systemctl enable systemd-networkd
+
+# Upstream: MAC persistente .link + dhcpcd toma el lease real del AP.
+# Sin restart de networkd (eso cortaba el SSH). No se fuerza ninguna IP.
+if setup_and_verify_upstream "${UPSTREAM_IFACE}" "${CHOSEN_MAC:-}"; then
+    IP_CHECK="$(ip -o -4 addr show "${UPSTREAM_IFACE}" 2>/dev/null | awk '{print $4}' | head -1 || true)"
+    log "INFO" "${UPSTREAM_IFACE} → IP: ${IP_CHECK:-?} (del AP, con internet)"
+else
+    log "WARN" "upstream sin internet — continúa el setup, revisa WiFi"
+fi
+
+# ===========================================================================
+# MODO SERVIDOR: IP plan + forwarding + NAT
+# ===========================================================================
+if [[ "${INSTALL_MODE}" == "server" ]]; then
+    echo ""
+    log "INFO" "configurando IP plan y forwarding..."
+
+    apply_static_ip "${PLAN_IFACE}" "${PLAN_CIDR}"
+    write_networkd_static "${PLAN_IFACE}" "${PLAN_CIDR}" ""
+    enable_ip_forward
+    apply_nat "${UPSTREAM_IFACE}" "${PLAN_IFACE}"
+
+    # Instalar servicio systemd de persistencia
+    cat > /etc/systemd/system/wifi-setup-forward.service <<EOF
+[Unit]
+Description=wifi-setup: IP estática plan + NAT forwarding
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '\
+    ip addr flush dev ${PLAN_IFACE} 2>/dev/null || true; \
+    ip link set ${PLAN_IFACE} up; \
+    ip addr add ${PLAN_CIDR} dev ${PLAN_IFACE} 2>/dev/null || true; \
+    sysctl -w net.ipv4.ip_forward=1; \
+    iptables -t nat -C POSTROUTING -o ${UPSTREAM_IFACE} -j MASQUERADE 2>/dev/null || \
+        iptables -t nat -A POSTROUTING -o ${UPSTREAM_IFACE} -j MASQUERADE; \
+    iptables -C FORWARD -i ${PLAN_IFACE} -o ${UPSTREAM_IFACE} -j ACCEPT 2>/dev/null || \
+        iptables -A FORWARD -i ${PLAN_IFACE} -o ${UPSTREAM_IFACE} -j ACCEPT; \
+    iptables -C FORWARD -i ${UPSTREAM_IFACE} -o ${PLAN_IFACE} -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || \
+        iptables -A FORWARD -i ${UPSTREAM_IFACE} -o ${PLAN_IFACE} -m state --state RELATED,ESTABLISHED -j ACCEPT \
+'
+ExecStop=/bin/bash -c '\
+    iptables -t nat -D POSTROUTING -o ${UPSTREAM_IFACE} -j MASQUERADE 2>/dev/null || true; \
+    iptables -D FORWARD -i ${PLAN_IFACE} -o ${UPSTREAM_IFACE} -j ACCEPT 2>/dev/null || true; \
+    iptables -D FORWARD -i ${UPSTREAM_IFACE} -o ${PLAN_IFACE} -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true \
+'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable wifi-setup-forward
+    systemctl restart wifi-setup-forward
+    log "INFO" "wifi-setup-forward activo y persistente"
+fi
+
+# ===========================================================================
+# MODO CLIENTE: IP estática + ruta default
+# ===========================================================================
+if [[ "${INSTALL_MODE}" == "client" ]]; then
+    echo ""
+    log "INFO" "configurando IP estática cliente..."
+
+    apply_static_ip "${STATIC_IFACE}" "${STATIC_CIDR}" "${GATEWAY}"
+    write_networkd_static "${STATIC_IFACE}" "${STATIC_CIDR}" "${GATEWAY}"
+
+    cat > /etc/systemd/system/wifi-setup-client.service <<EOF
+[Unit]
+Description=wifi-setup: IP estática cliente plan
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '\
+    ip addr flush dev ${STATIC_IFACE} 2>/dev/null || true; \
+    ip link set ${STATIC_IFACE} up; \
+    ip addr add ${STATIC_CIDR} dev ${STATIC_IFACE} 2>/dev/null || true; \
+    ip route del default 2>/dev/null || true; \
+    ip route add default via ${GATEWAY} dev ${STATIC_IFACE} \
+'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable wifi-setup-client
+    systemctl restart wifi-setup-client
+    log "INFO" "wifi-setup-client activo y persistente"
+fi
+
+# ===========================================================================
+# TAILSCALE
+# ===========================================================================
+echo ""
+install_tailscale
+configure_tailscale_inactive
+
+# ===========================================================================
+# GUARDAR ESTADO
+# ===========================================================================
+mkdir -p "${STATE_DIR}"
+UPSTREAM_MAC=""
+if [[ -f "${STATE_DIR}/mac-${UPSTREAM_IFACE}.mac" ]]; then
+    UPSTREAM_MAC="$(cat "${STATE_DIR}/mac-${UPSTREAM_IFACE}.mac")"
+fi
+cat > "${STATE_DIR}/install.state" <<EOF
+# wifi-setup install state — generado automáticamente
+INSTALL_MODE="${INSTALL_MODE}"
+UPSTREAM_IFACE="${UPSTREAM_IFACE}"
+WIFI_IFACE="${WIFI_IFACE}"
+PLAN_IFACE="${PLAN_IFACE:-}"
+PLAN_IP="${PLAN_IP:-}"
+PLAN_CIDR="${PLAN_CIDR:-}"
+CLIENT_IP="${CLIENT_IP:-}"
+STATIC_IFACE="${STATIC_IFACE:-}"
+STATIC_CIDR="${STATIC_CIDR:-}"
+GATEWAY="${GATEWAY:-}"
+UPSTREAM_MAC="${UPSTREAM_MAC}"
+EOF
+chmod 600 "${STATE_DIR}/install.state"
+
+# ===========================================================================
+# VERIFICACIÓN FINAL
+# ===========================================================================
+echo ""
+log "INFO" "ejecutando verificación final..."
+sleep 2
+bash "${SCRIPT_DIR}/checks.sh" "${INSTALL_MODE}" || true
+
+# ===========================================================================
+# COMANDOS TAILSCALE
+# ===========================================================================
+source "${SCRIPT_DIR}/../lib/tailscale.sh"
+print_tailscale_commands "${INSTALL_MODE}"
+
+echo -e "${C_GREEN}${C_BOLD}  Instalación completada.${C_RESET}"
+echo -e "${C_GREEN}  Log    : ${LOG_DIR}/wifi-setup.log${C_RESET}"
+echo -e "${C_GREEN}  Comando: wifi <subcomando> — ejecuta 'wifi help' para ver opciones${C_RESET}"
+echo ""
