@@ -302,11 +302,11 @@ purge_network_stack
 # ===========================================================================
 log "INFO" "instalando archivos en ${INSTALL_DIR}..."
 require_dirs
-cp -a "${SCRIPT_DIR}/../bin/." "${INSTALL_DIR}/bin/"
+cp -a "${SCRIPT_DIR}/bin/." "${INSTALL_DIR}/bin/"
 cp -a "${SCRIPT_DIR}/lib/." "${INSTALL_DIR}/lib/"
-cp -a "${SCRIPT_DIR}/." "${INSTALL_DIR}/scripts/"
+cp -a "${SCRIPT_DIR}/"*.sh "${INSTALL_DIR}/"
 chmod +x "${INSTALL_DIR}"/bin/*
-chmod +x "${INSTALL_DIR}"/scripts/*.sh
+chmod +x "${INSTALL_DIR}"/*.sh
 
 ln -sf "${INSTALL_DIR}/bin/wifi" "/usr/local/bin/wifi"
 
