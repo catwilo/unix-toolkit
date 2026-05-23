@@ -1,0 +1,23 @@
+[Unit]
+Description=AICLI Resource Sentinel
+After=aicli-pod.service
+
+[Container]
+Pod=aicli-pod
+Image=localhost/aicli-sentinel:latest
+Volume=/proc:/proc:ro
+Volume=/sys/fs/cgroup:/sys/fs/cgroup
+Volume=%h/.local/share/aicli:/data:rw
+Volume=/tmp/aicli:/tmp/aicli:rw
+PidMode=host
+Environment=SENTINEL_INTERVAL_IDLE=10s
+Environment=SENTINEL_INTERVAL_ACTIVE=3s
+Environment=SENTINEL_MAX_HOST_PCT=0.70
+Environment=SENTINEL_MIN_HOST_FREE_MB=512
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,3 @@
+[Pod]
+PodName=aicli
+Network=aicli.network

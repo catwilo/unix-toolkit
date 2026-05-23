@@ -1,0 +1,535 @@
+#!/usr/bin/env bash
+# mac-updates — gestión de VM QEMU Debian en macOS via tmux.
+# Headless por defecto. GUI: mac-updates gui (requiere X11/XQuartz).
+# Interno: _vm-start llamado exclusivamente por la sesión tmux.
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT_DIR/lib/ui/output.sh"
+source "$ROOT_DIR/lib/core/env.sh"
+source "$ROOT_DIR/lib/core/checks.sh"
+
+TMUX_SESSION="mac-vm"
+LOCK_FILE="$MAC_UPDATES_ROOT/vm/start.lock"
+
+# ── Helpers de host ───────────────────────────────────────────────────────────
+_host_cpus()   { sysctl -n hw.logicalcpu 2>/dev/null || echo 4; }
+_host_mem_gb() {
+  echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 4294967296) / 1024 / 1024 / 1024 ))
+}
+
+# ── Profile ───────────────────────────────────────────────────────────────────
+_PROFILE_FILE="$MAC_UPDATES_ROOT/vm/current-profile"
+_current_profile() { cat "$_PROFILE_FILE" 2>/dev/null || echo "minimal"; }
+_save_profile()    { mkdir -p "$(dirname "$_PROFILE_FILE")"; echo "$1" > "$_PROFILE_FILE"; }
+
+_boost_resources() {
+  local cpus mem_gb
+  cpus=$(( $(_host_cpus) - 2 )); (( cpus < 1 )) && cpus=1
+  mem_gb=$(( $(_host_mem_gb) - 3 )); (( mem_gb < 1 )) && mem_gb=1
+  echo "$cpus ${mem_gb}G"
+}
+
+_profile_resources() {
+  local prof="$1" cpus mem
+  case "$prof" in
+    boost)    read -r cpus mem <<< "$(_boost_resources)" ;;
+    balanced) cpus=$(( $(_host_cpus) / 2 )); (( cpus < 1 )) && cpus=1
+              mem="$(( $(_host_mem_gb) / 2 ))G" ;;
+    minimal)  cpus=1; mem="512M" ;;
+    *)
+      print_error "Profile desconocido '${prof}' — usa: minimal | balanced | boost"
+      exit 1 ;;
+  esac
+  echo "$cpus $mem"
+}
+
+# ── Estado VM ─────────────────────────────────────────────────────────────────
+_tmux_alive()   { tmux has-session -t "$TMUX_SESSION" 2>/dev/null; }
+_pid_alive()    { [[ -f "$VM_PIDFILE" ]] && kill -0 "$(cat "$VM_PIDFILE")" 2>/dev/null; }
+_vm_running()   { _tmux_alive && _pid_alive; }
+
+# ── Guard para comandos que necesitan VM corriendo ────────────────────────────
+case "${1:-}" in
+  start|stop|status|health|recover|logs|boost|profile|passwd|\
+  gui|tmux-attach|tmux-status|tmux-logs|tmux-stop|\
+  uninstall|_vm-start|_install-sshl|help|-h|--help|"") : ;;
+  *) require_vm_running ;;
+esac
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INTERNO: _vm-start  — solo llamado por la sesión tmux, nunca directamente
+# ═══════════════════════════════════════════════════════════════════════════════
+if [[ "${1:-}" == "_vm-start" ]]; then
+  [[ -f "$VM_DISK" ]] || {
+    print_error "Disco no encontrado: ${VM_DISK} — re-ejecuta install.sh"
+    exit 1
+  }
+
+  _PROF="$(_current_profile)"
+  read -r _CPUS _MEM <<< "$(_profile_resources "$_PROF")"
+
+  # Trap limpio: si tmux muere o el proceso recibe señal, QEMU hace shutdown
+  trap 'echo "system_powerdown" | socat - "UNIX-CONNECT:${VM_MONITOR}" 2>/dev/null || true' \
+    SIGTERM SIGINT
+
+  if [[ "${_GUI:-0}" == "1" ]]; then
+    _DISPLAY=(
+      -display cocoa,zoom-to-fit=on
+      -vga std
+      -usb -device usb-tablet
+      -audiodev coreaudio,id=snd,out.mixing-engine=on,out.voices=1,out.frequency=44100
+      -device ich9-intel-hda
+      -device hda-output,audiodev=snd
+    )
+  else
+    _DISPLAY=(-nographic)
+  fi
+
+  exec qemu-system-x86_64 \
+    -name "Mac Updates" \
+    -machine q35,accel=hvf \
+    -cpu host \
+    -smp "$_CPUS" \
+    -m "$_MEM" \
+    -drive file="$VM_DISK",format=qcow2,if=virtio,cache=writeback \
+    -netdev user,id=net0,hostfwd=tcp::"${SSH_PORT}"-:22 \
+    -device virtio-net-pci,netdev=net0 \
+    -monitor unix:"$VM_MONITOR",server,nowait \
+    -pidfile "$VM_PIDFILE" \
+    "${_DISPLAY[@]}"
+fi
+
+# ── Función interna de arranque ───────────────────────────────────────────────
+_do_start() {
+  local gui="${1:-0}"
+
+  # Lockfile: evita dos start simultáneos
+  if ! mkdir "$LOCK_FILE" 2>/dev/null; then
+    print_warning "Otro proceso de arranque en curso — espera o elimina: ${LOCK_FILE}"
+    exit 1
+  fi
+  trap 'rmdir "$LOCK_FILE" 2>/dev/null || true' EXIT
+
+  command -v tmux >/dev/null 2>&1 || {
+    print_error "tmux no encontrado — instala: nix profile add nixpkgs#tmux"
+    exit 1
+  }
+
+  # Limpiar sesión tmux huérfana
+  if _tmux_alive && ! _pid_alive; then
+    print_warning "Sesión tmux huérfana detectada — limpiando..."
+    tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+    rm -f "$VM_PIDFILE"
+    sleep 1
+  fi
+
+  [[ ! -f "$_PROFILE_FILE" ]] && _save_profile "minimal"
+
+  _PROF="$(_current_profile)"
+  read -r _CPUS _MEM <<< "$(_profile_resources "$_PROF")"
+
+  mkdir -p "$MAC_UPDATES_ROOT/vm" "$MAC_UPDATES_ROOT/logs"
+  rm -f "$VM_PIDFILE"
+
+  local _self
+  _self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+  print_info "Iniciando VM (sesión tmux: '${TMUX_SESSION}')..."
+  print_info "Profile: ${_PROF} | ${_CPUS} CPUs | ${_MEM}"
+
+  tmux new-session -d -s "$TMUX_SESSION" -x 220 -y 50 \
+    "exec bash -c '_GUI=${gui} \"${_self}\" _vm-start >> \"${LOG_OUT}\" 2>> \"${LOG_ERR}\"'"
+
+  # Esperar pidfile (máx 20s) — usa stderr directo, no /dev/tty (compatible con launchd)
+  local _w=0 _ok=0
+  while (( _w < 20 )); do
+    sleep 1; (( _w++ ))
+    if _pid_alive; then _ok=1; break; fi
+    if ! _tmux_alive; then
+      print_error "Sesión tmux terminó inesperadamente"
+      print_info  "Revisa logs: mac-updates logs err"
+      exit 1
+    fi
+  done
+
+  rmdir "$LOCK_FILE" 2>/dev/null || true
+  trap - EXIT
+
+  if [[ $_ok -eq 1 ]]; then
+    local _pid; _pid=$(cat "$VM_PIDFILE")
+    printf "\n"
+    printf "  ${_GREEN}[OK]${_RESET} VM arrancada\n"
+    printf "       PID      : %s\n"       "$_pid"
+    printf "       Profile  : %s (%s CPUs / %s)\n" "$_PROF" "$_CPUS" "$_MEM"
+    printf "       SSH      : ssh %s@localhost -p %s\n" "$DEBIAN_USER" "$SSH_PORT"
+    printf "       Sesión   : mac-updates tmux-attach\n"
+    printf "\n"
+  else
+    print_error "VM no respondió en 20s"
+    print_info  "Revisa: mac-updates logs err"
+    exit 1
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Comandos públicos
+# ═══════════════════════════════════════════════════════════════════════════════
+case "${1:-}" in
+
+  # ── start ─────────────────────────────────────────────────────────────────
+  start)
+    if _vm_running; then
+      local _pid; _pid=$(cat "$VM_PIDFILE" 2>/dev/null || echo "?")
+      printf "\n"
+      printf "  ${_GREEN}[OK]${_RESET} VM ya está corriendo\n"
+      printf "       PID      : %s\n"       "$_pid"
+      printf "       Profile  : %s\n"       "$(_current_profile)"
+      printf "       SSH      : ssh %s@localhost -p %s\n" "$DEBIAN_USER" "$SSH_PORT"
+      printf "       Sesión   : mac-updates tmux-attach\n"
+      printf "\n"
+      exit 0
+    fi
+    _do_start 0
+    ;;
+
+  # ── gui ───────────────────────────────────────────────────────────────────
+  gui)
+    # Verificar X11/XQuartz antes de intentar abrir ventana
+    if ! pgrep -x "Xquartz" >/dev/null 2>&1 && ! pgrep -x "X11" >/dev/null 2>&1; then
+      print_warning "XQuartz no detectado en ejecución"
+      print_info    "Abre XQuartz primero: open -a XQuartz"
+      print_info    "O instala: brew install --cask xquartz"
+    fi
+    if _vm_running; then
+      print_warning "La VM ya está corriendo en modo headless"
+      print_info    "Para abrir GUI: mac-updates stop && mac-updates gui"
+      exit 1
+    fi
+    _do_start 1
+    ;;
+
+  # ── stop ──────────────────────────────────────────────────────────────────
+  stop)
+    if ! _pid_alive; then
+      print_warning "La VM no está corriendo"
+      _tmux_alive && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+      rm -f "$VM_PIDFILE"
+      exit 0
+    fi
+    print_info "Apagando VM..."
+    if [[ -S "$VM_MONITOR" ]]; then
+      echo "system_powerdown" | socat - "UNIX-CONNECT:${VM_MONITOR}" 2>/dev/null || {
+        print_warning "socat no disponible — usando SIGTERM"
+        kill -TERM "$(cat "$VM_PIDFILE")" 2>/dev/null || true
+      }
+    else
+      print_warning "Monitor no encontrado — usando SIGTERM"
+      kill -TERM "$(cat "$VM_PIDFILE")" 2>/dev/null || true
+    fi
+    local _w=0
+    while (( _w < 30 )); do
+      sleep 1; (( _w++ ))
+      _pid_alive || break
+    done
+    if _pid_alive; then
+      print_warning "Timeout 30s — forzando SIGKILL..."
+      kill -KILL "$(cat "$VM_PIDFILE")" 2>/dev/null || true
+      sleep 1
+    fi
+    rm -f "$VM_PIDFILE"
+    _tmux_alive && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+    print_success "VM apagada"
+    ;;
+
+  # ── status ────────────────────────────────────────────────────────────────
+  status)
+    print_header "mac-updates v${MAC_UPDATES_VERSION}"
+    local _pid _prof _cpus _mem
+    _pid=$(cat "$VM_PIDFILE" 2>/dev/null || echo "—")
+    _prof="$(_current_profile)"
+    read -r _cpus _mem <<< "$(_profile_resources "$_prof")"
+    printf "  %-12s: %s\n" "VM PID"  "$_pid"
+    printf "  %-12s: %s (%s CPUs / %s)\n" "Profile" "$_prof" "$_cpus" "$_mem"
+    printf "  %-12s: %s\n" "Disco"   "$VM_DISK"
+    printf "  %-12s: ssh %s@localhost -p %s\n" "SSH" "$DEBIAN_USER" "$SSH_PORT"
+    printf "  %-12s: %s CPUs / %sG RAM\n" "Host" "$(_host_cpus)" "$(_host_mem_gb)"
+    printf "  %-12s: " "tmux"
+    _tmux_alive \
+      && printf "${_GREEN}✓${_RESET} sesión '%s' activa\n" "$TMUX_SESSION" \
+      || printf "${_RED}✗${_RESET} sin sesión activa\n"
+    print_header "Health"
+    bash "$ROOT_DIR/healthchecks/vm-health.sh" || true
+    ;;
+
+  # ── health ────────────────────────────────────────────────────────────────
+  health)
+    bash "$ROOT_DIR/healthchecks/vm-health.sh"
+    ;;
+
+  # ── recover ───────────────────────────────────────────────────────────────
+  recover)
+    bash "$ROOT_DIR/scripts/recover.sh"
+    ;;
+
+  # ── boost ─────────────────────────────────────────────────────────────────
+  boost)
+    local _action="${2:-on}"
+    case "$_action" in
+      on)
+        read -r _bcpus _bmem <<< "$(_boost_resources)"
+        [[ "$(_current_profile)" == "boost" ]] && {
+          print_success "Boost ya activo (${_bcpus} CPUs / ${_bmem})"
+          exit 0
+        }
+        print_info "Activando boost (${_bcpus} CPUs / ${_bmem})"
+        _save_profile "boost"
+        if _vm_running; then
+          print_info "Reiniciando VM..."
+          "$0" stop; sleep 2; _do_start 0
+        else
+          print_success "Boost guardado — activo en el próximo start"
+        fi
+        ;;
+      off)
+        [[ "$(_current_profile)" == "minimal" ]] && {
+          print_success "Ya en minimal (1 CPU / 512M)"
+          exit 0
+        }
+        print_info "Volviendo a minimal..."
+        _save_profile "minimal"
+        if _vm_running; then
+          print_info "Reiniciando VM..."
+          "$0" stop; sleep 2; _do_start 0
+        else
+          print_success "Minimal guardado — activo en el próximo start"
+        fi
+        ;;
+      *)
+        print_error "Uso: mac-updates boost [on|off]"
+        exit 1
+        ;;
+    esac
+    ;;
+
+  # ── profile ───────────────────────────────────────────────────────────────
+  profile)
+    local _prof="${2:-minimal}"
+    read -r _cpus _mem <<< "$(_profile_resources "$_prof")"
+    [[ "$(_current_profile)" == "$_prof" ]] && {
+      print_success "Ya en profile '${_prof}' (${_cpus} CPUs / ${_mem})"
+      exit 0
+    }
+    _save_profile "$_prof"
+    print_success "Profile '${_prof}' guardado (${_cpus} CPUs / ${_mem})"
+    if _vm_running; then
+      print_info "Reiniciando VM para aplicar..."
+      "$0" stop; sleep 2; _do_start 0
+    fi
+    ;;
+
+  # ── logs ──────────────────────────────────────────────────────────────────
+  logs)
+    case "${2:-out}" in
+      err) tail -f "$LOG_ERR" ;;
+      all) tail -f "$LOG_OUT" "$LOG_ERR" ;;
+      *)   tail -f "$LOG_OUT" ;;
+    esac
+    ;;
+
+  # ── tmux-attach ───────────────────────────────────────────────────────────
+  tmux-attach)
+    _tmux_alive || {
+      print_error "Sin sesión tmux activa — inicia con: mac-updates start"
+      exit 1
+    }
+    print_info "Conectando... (Ctrl-b d para salir sin matar la VM)"
+    exec tmux attach-session -t "$TMUX_SESSION"
+    ;;
+
+  # ── tmux-status ───────────────────────────────────────────────────────────
+  tmux-status)
+    print_header "Sesión tmux '${TMUX_SESSION}'"
+    if _tmux_alive; then
+      tmux list-sessions -F \
+        "  Sesión   : #{session_name}   Ventanas : #{session_windows}"
+      _pid_alive \
+        && print_success "QEMU corriendo (PID $(cat "$VM_PIDFILE"))" \
+        || print_warning "Sesión activa pero QEMU sin PID válido"
+    else
+      print_warning "Sin sesión tmux '${TMUX_SESSION}'"
+    fi
+    ;;
+
+  # ── tmux-logs ─────────────────────────────────────────────────────────────
+  tmux-logs)
+    _tmux_alive || print_warning "Sin sesión tmux activa — mostrando último log:"
+    case "${2:-out}" in
+      err) tail -f "$LOG_ERR" ;;
+      all) tail -f "$LOG_OUT" "$LOG_ERR" ;;
+      *)   tail -f "$LOG_OUT" ;;
+    esac
+    ;;
+
+  # ── tmux-stop ─────────────────────────────────────────────────────────────
+  tmux-stop)
+    _tmux_alive || { print_warning "Sin sesión tmux '${TMUX_SESSION}'"; exit 0; }
+    print_warning "Esto mata QEMU abruptamente. Usa 'stop' para apagado limpio."
+    printf "  ¿Continuar? [s/N] "
+    read -r _resp
+    [[ "${_resp,,}" =~ ^s$ ]] || { print_info "Cancelado."; exit 0; }
+    tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+    rm -f "$VM_PIDFILE"
+    print_success "Sesión eliminada"
+    ;;
+
+  # ── passwd ────────────────────────────────────────────────────────────────
+  passwd)
+    source "$ROOT_DIR/lib/core/secrets.sh"
+    secrets_prompt_and_store
+    ;;
+
+  # ── uninstall ─────────────────────────────────────────────────────────────
+  uninstall)
+    print_header "Desinstalar mac-updates v${MAC_UPDATES_VERSION}"
+    print_warning "Elimina: launchd agent, runtime, Keychain, entradas de ~/.zshrc"
+    print_warning "Los discos qcow2 NO se tocan."
+    printf "  Continuar? [y/N] "; read -r _confirm
+    [[ "$_confirm" =~ ^[Yy]$ ]] || { print_info "Cancelado."; exit 0; }
+
+    "$0" stop 2>/dev/null || true
+
+    launchctl unload "$PLIST_PATH" 2>/dev/null || true
+    rm -f "$PLIST_PATH"
+    print_info "launchd agent eliminado"
+
+    rm -rf "$MAC_UPDATES_ROOT/vm" "$MAC_UPDATES_ROOT/logs"
+    print_info "Runtime eliminado"
+
+    source "$ROOT_DIR/lib/core/secrets.sh"
+    secrets_delete
+
+    # Limpiar .zshrc
+    local _zshrc="$HOME/.zshrc"
+    if [[ -f "$_zshrc" ]]; then
+      python3 - "$_zshrc" << 'PYEOF'
+import sys
+path = sys.argv[1]
+lines = open(path).readlines()
+markers = {"# mac-updates: PATH", "# mac-updates: sshl"}
+out, skip, i = [], False, 0
+while i < len(lines):
+    line = lines[i].rstrip('\n')
+    if line in markers:
+        if out and out[-1].strip() == '':
+            out.pop()
+        skip = True
+    if skip:
+        if line == '}' or (line.startswith('export PATH=') and '# mac-updates' not in line and skip):
+            skip = False
+            i += 1
+            continue
+        elif line.startswith('export PATH='):
+            skip = False
+            i += 1
+            continue
+    else:
+        out.append(lines[i])
+    i += 1
+open(path, 'w').writelines(out)
+PYEOF
+      print_info "Entradas de ~/.zshrc eliminadas"
+    fi
+
+    print_success "Desinstalación completa — discos qcow2 intactos"
+    ;;
+
+  # ── _install-sshl ─────────────────────────────────────────────────────────
+  _install-sshl)
+    local _zshrc="$HOME/.zshrc"
+    local _marker="# mac-updates: sshl"
+
+    if grep -q "$_marker" "$_zshrc" 2>/dev/null; then
+      python3 - "$_zshrc" "$_marker" << 'PYEOF'
+import sys
+path, marker = sys.argv[1], sys.argv[2]
+lines = open(path).readlines()
+out, skip, i = [], False, 0
+while i < len(lines):
+    line = lines[i].rstrip('\n')
+    if line == marker:
+        skip = True
+        if out and out[-1].strip() == '':
+            out.pop()
+    if skip:
+        if line == '}':
+            skip = False
+    else:
+        out.append(lines[i])
+    i += 1
+open(path, 'w').writelines(out)
+PYEOF
+      print_info "sshl anterior eliminado — reinstalando..."
+    fi
+
+    cat >> "$_zshrc" << ZSHBLOCK
+
+${_marker}
+sshl() {
+  mac-updates boost on
+  local _exit=0
+  trap 'mac-updates boost off 2>/dev/null; trap - EXIT INT TERM' EXIT INT TERM
+  ssh ${DEBIAN_USER}@localhost -p ${SSH_PORT} "\$@" || _exit=\$?
+  mac-updates boost off 2>/dev/null || true
+  trap - EXIT INT TERM
+  return \$_exit
+}
+ZSHBLOCK
+    print_success "sshl instalado en ~/.zshrc"
+    print_info    "Conexión  → boost on  (máximo seguro)"
+    print_info    "Cierre    → boost off → minimal (trap automático)"
+    ;;
+
+  # ── help ──────────────────────────────────────────────────────────────────
+  help|-h|--help|*)
+    cat << USAGE
+
+mac-updates v${MAC_UPDATES_VERSION}
+
+  CONTROL
+  ──────────────────────────────────────────────────────
+  start              Iniciar VM headless (tmux, desacoplado)
+  gui                Iniciar VM con ventana X11/i3
+  stop               Apagar VM limpiamente via monitor QEMU
+  status             PID · profile · tmux · SSH · health
+  health             Healthcheck: proceso + puerto SSH
+  recover            Mata + reinicia con backoff exponencial
+  logs [out|err|all] Tail de logs (default: out)
+
+  RECURSOS
+  ──────────────────────────────────────────────────────
+  boost [on|off]     Máximo seguro / volver a minimal
+                     Funciona desde Mac o dentro de Debian via SSH
+  profile <modo>     minimal | balanced | boost
+                       minimal  = 1 CPU / 512M   (default siempre)
+                       balanced = mitad del host
+                       boost    = host - 2 CPUs / host - 3G RAM
+
+  TMUX
+  ──────────────────────────────────────────────────────
+  tmux-attach        Reconectar a la consola (Ctrl-b d para salir)
+  tmux-status        Estado de la sesión tmux
+  tmux-logs          Ver logs sin reconectar
+  tmux-stop          Eliminar sesión (mata QEMU abruptamente)
+
+  SISTEMA
+  ──────────────────────────────────────────────────────
+  passwd             Actualiza password en Keychain
+  uninstall          Elimina runtime + .zshrc (discos intactos)
+
+  sshl               SSH con boost automático al conectar/desconectar
+                     Instalar: mac-updates _install-sshl
+
+USAGE
+    ;;
+esac

@@ -1,0 +1,114 @@
+name: aicli
+
+networks:
+  internal:
+    driver: bridge
+    internal: true  # no outbound internet from internal services
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${AICLI_DATA_DIR:-${HOME}/.local/share/aicli}
+  config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind,ro
+      device: ${AICLI_CONFIG_DIR:-${HOME}/.config/aicli}
+  ipc:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /tmp/aicli
+
+services:
+
+  resource-sentinel:
+    build:
+      context: ../containers/sentinel
+      dockerfile: Containerfile
+    image: localhost/aicli-sentinel:latest
+    restart: unless-stopped
+    pid: host                  # needs /proc visibility of host processes
+    volumes:
+      - ipc:/tmp/aicli
+      - /proc:/proc:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup  # cgroup v2 write access for limit adjustment
+    environment:
+      SENTINEL_INTERVAL_IDLE: "10s"
+      SENTINEL_INTERVAL_ACTIVE: "3s"
+      SENTINEL_MAX_HOST_PCT: "0.70"
+      SENTINEL_MIN_HOST_FREE_MB: "512"
+    networks: [internal]
+    # No resource limits on the sentinel itself — it is the arbiter
+
+  orchestrator:
+    build:
+      context: ../containers/orchestrator
+      dockerfile: Containerfile
+    image: localhost/aicli-orchestrator:latest
+    restart: unless-stopped
+    depends_on:
+      - resource-sentinel
+      - memory-engine
+    volumes:
+      - ipc:/tmp/aicli
+      - data:/data
+      - config:/config:ro
+    environment:
+      SENTINEL_SOCK: /tmp/aicli/sentinel.sock
+      MEMORY_SOCK: /tmp/aicli/memory.sock
+      ORCHESTRATOR_SOCK: /tmp/aicli/orchestrator.sock
+      DATA_DIR: /data
+    deploy:
+      resources:
+        limits:
+          memory: 256M   # BASE — sentinel may raise this dynamically
+          cpus: "0.5"
+    networks: [internal]
+
+  memory-engine:
+    build:
+      context: ../containers/memory-engine
+      dockerfile: Containerfile
+    image: localhost/aicli-memory-engine:latest
+    restart: unless-stopped
+    volumes:
+      - ipc:/tmp/aicli
+      - data:/data
+    environment:
+      DB_PATH: /data/memory/aicli.db
+      MEMORY_SOCK: /tmp/aicli/memory.sock
+      SNAPSHOT_DIR: /data/snapshots
+    deploy:
+      resources:
+        limits:
+          memory: 512M   # BASE — sentinel may raise to ~2GB on high-RAM systems
+          cpus: "1.0"
+    networks: [internal]
+
+  context-compressor:
+    build:
+      context: ../containers/compressor
+      dockerfile: Containerfile
+    image: localhost/aicli-compressor:latest
+    restart: unless-stopped
+    volumes:
+      - ipc:/tmp/aicli
+    environment:
+      COMPRESSOR_SOCK: /tmp/aicli/compressor.sock
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    networks: [internal]
+
+  # browser-worker is NOT defined here.
+  # The orchestrator spawns workers dynamically via `podman run`,
+  # with resource limits calculated by resource-sentinel at spawn time.
+  # See: containers/orchestrator/internal/session/spawn.go
