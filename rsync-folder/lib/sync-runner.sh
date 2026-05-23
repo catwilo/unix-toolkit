@@ -19,7 +19,7 @@
 
 CONF_DIR="$1"
 PROFILE_NAME="$2"
-DIRECTION="${3:-push}"
+DIRECTION="${3:-both}"
 
 [[ -z "$CONF_DIR" || -z "$PROFILE_NAME" ]] && {
   printf 'Uso: sync-runner.sh <conf_dir> <profile_name> [push|pull]\n' >&2
@@ -58,7 +58,10 @@ if ! flock -n 200; then
 fi
 
 # ── Calcular src/dst según dirección ──────────────────────────────────────────
-if [[ "$DIRECTION" == "pull" ]]; then
+if [[ "$DIRECTION" == "both" ]]; then
+  bash "$0" "$1" "$2" push && bash "$0" "$1" "$2" pull
+  exit $?
+elif [[ "$DIRECTION" == "pull" ]]; then
   _SRC="$DESTINATION"
   _DST="$SOURCE"
 else

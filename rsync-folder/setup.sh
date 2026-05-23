@@ -974,7 +974,7 @@ _cmd_help() {
     tail [perfil]               Seguir el log en tiempo real
 
   ${_C_CYAN}Sincronización${_C_RESET}
-    sync [push|pull] [perfil]   Forzar sincronización manual
+    sync [both|push|pull] [perfil]  Forzar sincronización (default: both)
 
   ${_C_CYAN}Configuración${_C_RESET}
     debounce show               Mostrar el debounce actual del perfil activo
@@ -1025,7 +1025,7 @@ HELPEOF
 case "${1:-help}" in
   watch)      _cmd_watch    "${2:-}" ;;
   watch-bg)   _cmd_watch_bg "${2:-}" ;;
-  sync)       _cmd_sync     "${2:-push}" "${3:-}" ;;
+  sync)       _cmd_sync     "${2:-both}" "${3:-}" ;;
   status)     _cmd_status   "${2:-}" ;;
   check)      _cmd_check    "${2:-}" ;;
   logs)       _cmd_logs     "${2:-30}" "${3:-}" ;;
