@@ -302,9 +302,14 @@ purge_network_stack
 # ===========================================================================
 log "INFO" "instalando archivos en ${INSTALL_DIR}..."
 require_dirs
-cp -a "${SCRIPT_DIR}/bin/." "${INSTALL_DIR}/bin/"
-cp -a "${SCRIPT_DIR}/lib/." "${INSTALL_DIR}/lib/"
-cp -a "${SCRIPT_DIR}/"*.sh "${INSTALL_DIR}/"
+if [[ "$(realpath "${SCRIPT_DIR}")" != "$(realpath "${INSTALL_DIR}")" ]]; then
+    cp -a "${SCRIPT_DIR}/bin/." "${INSTALL_DIR}/bin/"
+    cp -a "${SCRIPT_DIR}/lib/." "${INSTALL_DIR}/lib/"
+    cp -a "${SCRIPT_DIR}/"*.sh "${INSTALL_DIR}/"
+    log "INFO" "archivos copiados desde ${SCRIPT_DIR}"
+else
+    log "INFO" "corriendo desde ${INSTALL_DIR} — copia omitida (ya en sitio)"
+fi
 chmod +x "${INSTALL_DIR}"/bin/*
 chmod +x "${INSTALL_DIR}"/*.sh
 
