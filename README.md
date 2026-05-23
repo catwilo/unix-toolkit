@@ -161,17 +161,50 @@ A guided tool for capturing WPA2 handshakes in a lab setting, used to study how 
 
 ---
 
+## rwxdir-scan — find world-writable-and-executable paths
+
+Scans the filesystem for paths carrying full read-write-execute permissions — the kind of loose permissions that are easy to create by accident and can become a security risk. Useful for auditing a system and tightening it up.
+
+**Use**
+```sh
+./rwxdir/rwxdir-scan
+```
+
+---
+
+## sftp-folder — share a folder over SFTP
+
+Shares a local folder over SFTP with a single command, with locking to avoid conflicting sessions. Handy for quick, secure file access between machines without setting up a permanent server.
+
+**Use**
+```sh
+./sftp-folder/sftp-folder.sh
+```
+
+---
+
+## neko-gba — scaffold a project structure
+
+Creates a complete project structure under `~/neko-gba` in one step, so a new project starts from a consistent layout instead of being assembled by hand.
+
+**Use**
+```sh
+./neko-gba/neko-gba-setup.sh
+```
+
+---
+
 ## Smaller utilities
 
-Single-purpose helpers kept here for convenience:
+Single-purpose helpers, grouped by theme into their own folders:
 
-- **VM control** — `a.on`, `a.off`, `a.foff`: start, graceful stop, and force-stop a local VM.
-- **Display & input** — `setscreen`, `xrandr-Virtual.sh`, `reset-mouse.sh`, `wacom`, `set-i3-gaps.sh`.
-- **Audio** — `vol`, `toggle-vol`, `toggle-mic`.
-- **Desktop** — `fehbg` (wallpaper), `deadd.sh` / `notifydeadd` (notifications), `choose-font-alacritty.sh`, workspace movers.
-- **Files & text** — `fixsuffix.sh` (strip filename suffixes), `mv-depth.sh`, `rwxdir-scan`, `sftp-folder.sh`.
-- **System** — `rpi-optimize.sh`, `reset-iwd.service.sh`, `setup-mpd-termux.sh`, `zsh_plugins_setup.sh`, `run-java.sh`.
-- **Misc** — `xcolor` (pick a screen color to clipboard), `press_e.sh`, `dicnum.go` / `dicalphnum.go` (dictionary generators), `game-of-life.py`.
+- **`audio/`** — volume and microphone toggles (`vol`, `toggle-vol`, `toggle-mic`).
+- **`display/`** — screen, input, and window-manager helpers (`setscreen`, `xrandr-Virtual.sh`, `reset-mouse.sh`, `wacom`, `set-i3-gaps.sh`, `fehbg`).
+- **`vm/`** — local VM control: start, graceful stop, force-stop (`a.on`, `a.off`, `a.foff`).
+- **`desktop/`** — notifications, fonts, workspace movers (`deadd.sh`, `notifydeadd`, `choose-font-alacritty.sh`, `moveWorkspace.sh`, `renameWorkspace.sh`, `press_e.sh`, `xcolor`).
+- **`files/`** — filename and path helpers (`fixsuffix.sh`, `mv-depth.sh`).
+- **`system/`** — host setup and maintenance (`rpi-optimize.sh`, `reset-iwd.service.sh`, `setup-mpd-termux.sh`, `zsh_plugins_setup.sh`, `run-java.sh`, `lan-connection-lan2lan`).
+- **`misc/`** — assorted: `nmapAgresiveFasterOut.sh`, `xev-awk`, `game-of-life.py`.
 
 ---
 
