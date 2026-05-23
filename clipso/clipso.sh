@@ -44,9 +44,19 @@ die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
 SSH_PORT=22
 
-while getopts ":p:" opt; do
+while getopts ":p:h" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
+        h)
+            printf 'clipso — copy local files, remote files, or stdin to clipboard\n\n'
+            printf 'usage:\n'
+            printf '  clipso <file>                 copy a local file\n'
+            printf '  clipso user@host:/path/file   copy a remote file over SSH\n'
+            printf '  clipso -p <port> user@host:/f remote with a custom SSH port\n'
+            printf '  clipso -                       read stdin\n'
+            printf '  echo hello | clipso            read piped stdin\n'
+            exit 0
+            ;;
         :) die "option -p requires a port number" ;;
         *) die "unknown option: -$OPTARG" ;;
     esac
