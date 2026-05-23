@@ -98,34 +98,6 @@ if [ ! -t 0 ] && [ -z "$TARGET" ]; then IS_STDIN=true; fi
 # stdin: explicit dash
 if [ "$TARGET" = "-" ]; then IS_STDIN=true; fi
 
-# noemap alias resolution: alias:/path → user@host:/path
-_noemap_db() {
-    local db=""
-    for _d in "${NOEMAP_BASE:-}" "$HOME/dev/noemap" "$HOME/.local/share/noemap"; do
-        [[ -f "${_d}/state/devices.db" ]] && { db="${_d}/state/devices.db"; break; }
-    done
-    printf '%s' "$db"
-}
-_resolve_alias() {
-    local alias="$1" db
-    db="$(_noemap_db)"
-    [[ -z "$db" ]] && return 1
-    awk -F'|' -v a="$alias" '/^[[:space:]]*$/{next}/^#/{next}$1==a{print $3"|"$2"|"$4;exit}' "$db"
-}
-if [ "$IS_STDIN" = false ] && [[ "$TARGET" =~ ^([^@:/]+):(.+)$ ]]; then
-    _alias="${BASH_REMATCH[1]}"
-    _apath="${BASH_REMATCH[2]}"
-    _aresolved="$(_resolve_alias "$_alias" 2>/dev/null || true)"
-    if [[ -n "$_aresolved" ]]; then
-        IS_REMOTE=true
-        REMOTE_USER="${_aresolved%%|*}"; _rest="${_aresolved#*|}"
-        REMOTE_HOST="${_rest%%|*}"; _aport="${_rest##*|}"
-        REMOTE_PATH="$_apath"
-        SSH_PORT="${_aport:-$SSH_PORT}"
-        info "alias '$_alias' → ${REMOTE_USER}@${REMOTE_HOST}:${SSH_PORT}"
-    fi
-fi
-
 # remote: user@host:/path
 if [ "$IS_STDIN" = false ] && [[ "$TARGET" =~ ^([^@]+)@([^:]+):(.+)$ ]]; then
     IS_REMOTE=true
