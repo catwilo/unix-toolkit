@@ -176,7 +176,7 @@ discover_hosts() {
 
         if [ ! -s "$_arp_tmp" ]; then
             log INFO "ARP ping returned nothing — trying TCP-SYN ping"
-            nmap -sn -PS22,80 -n --host-timeout 3s "$SUBNET" 2>/dev/null \
+            nmap -sn -PS22,8022,2222,80 -n --host-timeout 3s "$SUBNET" 2>/dev/null \
                 | awk '/Nmap scan report/ {ip=$NF} /Host is up/ {print ip}' \
                 > "$_arp_tmp" || true
         fi

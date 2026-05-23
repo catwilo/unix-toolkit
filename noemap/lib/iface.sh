@@ -12,19 +12,27 @@
 #   2. Fall back to ifconfig — available on older Termux/BSD-style envs.
 #   Both paths skip loopback, docker, veth, bridge, tun, wireguard, tailscale.
 
-_IFACE_SKIP_PATTERN="^(lo|docker|veth|br-|dummy|tailscale|tun|wg|virbr|vmnet)"
+_IFACE_SKIP_PATTERN="^(lo|docker|veth|br-|dummy|tailscale|tun|wg|virbr|vmnet|ccmni|rmnet|pdp)"
 
 # _iface_via_ifconfig — falls back to ifconfig for older envs.
 # Returns "IFACE|IP|" (empty prefix — cannot be reliably extracted).
 _iface_via_ifconfig() {
     ifconfig 2>/dev/null \
     | awk '
-        /^[a-zA-Z0-9]/ {
-            iface = $1
-            sub(/:$/, "", iface)
-        }
+        /^[a-zA-Z0-9]/ { iface=$1; sub(/:$/,"",iface) }
         /inet / && $2 != "127.0.0.1" {
-            print iface "|" $2 "|"
+            ip=""; mask=""
+            for(i=1;i<=NF;i++){
+                if($i=="inet")  ip=$(i+1)
+                if($i=="netmask") mask=$(i+1)
+            }
+            if(ip=="") next
+            pfx=0
+            if(mask!=""){
+                n=split(mask,o,".")
+                for(i=1;i<=n;i++){v=o[i];while(v>0){pfx+=and(v,1);v=int(v/2)}}
+            }
+            print iface "|" ip "|" pfx
         }
     ' \
     | grep -Ev "$_IFACE_SKIP_PATTERN" \
@@ -107,13 +115,13 @@ detect_iface() {
     fi
 
     if [ -z "$_result" ] && has_cmd ip; then
-        _dev="$(_iface_from_default_route)"
+        _dev="$(_iface_from_default_route)" || _dev=""
         [ -n "$_dev" ] && _result="$(_iface_addr_prefix "$_dev")"
     fi
 
     if [ -z "$_result" ]; then
-        _cands="$(_list_iface_candidates)"
-        _n="$(printf '%s\n' "$_cands" | grep -c .)"
+        _cands="$(_list_iface_candidates)" || _cands=""
+        _n="$(printf '%s\n' "$_cands" | grep -c .)" || _n=0
         if [ "$_n" -gt 1 ]; then
             printf '  [?] multiple interfaces:\n' >&2
             printf '%s\n' "$_cands" | nl -w2 -s') ' >&2

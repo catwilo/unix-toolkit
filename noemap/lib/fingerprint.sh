@@ -112,9 +112,10 @@ _detect_type() {
         esac
     fi
 
-    # Ambiguous (bare OpenSSH banner, no deep result): generic unix.
+    # Ambiguous: bare OpenSSH = unix; empty banner on port 22 = mac-likely.
     case "$_banner" in
         *[Oo]pen[Ss][Ss][Hh]*) printf 'unix-ssh'; return ;;
+        "") [ "$_ssh_port" = "22" ] && { printf 'mac-likely'; return; } ;;
     esac
     printf 'linux-ssh'
 }

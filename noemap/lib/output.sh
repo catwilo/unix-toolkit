@@ -100,39 +100,16 @@ render_output() {
        awk -F'|' '/^[[:space:]]*$/{next}/^#/{next} NF>=2{found=1;exit} END{exit !found}' \
        "$_devdb" 2>/dev/null; then
 
-        printf '  CONNECT\n\n'
-
-        while IFS='|' read -r _ca _cip _cuser _cport _rest; do
-            case "$_ca" in ''|'#'*) continue ;; esac
-            [ -n "$_ca" ] && [ -n "$_cip" ] || continue
-
-            _cport="${_cport:-22}"
-
-            _ctype=""
-            if [ -f "$_hosts_db" ]; then
-                _ctype="$(awk -F'|' -v ip="$_cip" '
-                    /^[[:space:]]*$/ { next }
-                    /^#/             { next }
-                    $1 == ip         { print $2; exit }
-                ' "$_hosts_db" 2>/dev/null)"
-            fi
-
-            case "$_ctype" in
-                android-ssh) _suggest="getprop ro.product.model" ;;
-                windows)     _suggest="ver" ;;
-                router)      _suggest="cat /etc/openwrt_release 2>/dev/null || uname -a" ;;
-                *)           _suggest="uname -a" ;;
-            esac
-
-            printf '  -- %s  (%s)  port %s --\n' "$_ca" "$_cip" "$_cport"
-            printf '  shell        nssh %s\n'                    "$_ca"
-            printf '  cmd          nssh %s %s\n'                 "$_ca" "$_suggest"
-            printf '  copy from    nscp %s:/remote/path ./\n'   "$_ca"
-            printf '  copy to      nscp ./file %s:/remote/\n'   "$_ca"
-            printf '  sync to      nrsync ./dir/ %s:~/backup/\n' "$_ca"
-            printf '  clipboard    nclip %s:/remote/file\n'      "$_ca"
-            printf '\n'
-        done < "$_devdb"
+        _ex="$(awk -F'|' '/^[[:space:]]*$/{next}/^#/{next}NF>=2{print $1;exit}' "$_devdb" 2>/dev/null)"
+        _ex="${_ex:-<alias>}"
+        printf '  CONNECT  (replace %s with any alias above)\n\n' "$_ex"
+        printf '  shell        nssh %s\n'                    "$_ex"
+        printf '  cmd          nssh %s uname -a\n'           "$_ex"
+        printf '  copy from    nscp %s:/remote/path ./\n'    "$_ex"
+        printf '  copy to      nscp ./file %s:/remote/\n'    "$_ex"
+        printf '  sync to      nrsync ./dir/ %s:~/backup/\n' "$_ex"
+        printf '  clipboard    nclip %s:/remote/file\n'       "$_ex"
+        printf '\n'
     fi
 }
 
@@ -230,7 +207,7 @@ prompt_new_hosts() {
         fi
 
         # User prompt — default suggestion is lowercase system username
-        _default_user="$(id -un 2>/dev/null | tr '[:upper:]' '[:lower:]' || printf 'user')"
+        _default_user="u"
         _reg_user=""
         while [ -z "$_reg_user" ]; do
             printf '  User [%s]: ' "$_default_user"
