@@ -193,9 +193,14 @@ detect_network() {
     fi
 
     if [ -z "$GW_IP" ]; then
-        _prefix3="$(printf '%s\n' "$MY_IP" | cut -d. -f1-3)"
-        GW_IP="${_prefix3}.1"
-        log WARN "could not detect gateway, assuming $GW_IP"
+        if [ -n "${PREFIX:-}" ]; then
+            GW_IP="$MY_IP"
+            log WARN "could not detect gateway (Android/no-root) — using self IP: $GW_IP"
+        else
+            _prefix3="$(printf '%s\n' "$MY_IP" | cut -d. -f1-3)"
+            GW_IP="${_prefix3}.1"
+            log WARN "could not detect gateway, assuming $GW_IP"
+        fi
     fi
 
     log INFO "subnet: $SUBNET  gateway: $GW_IP"
