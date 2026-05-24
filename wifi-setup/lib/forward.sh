@@ -204,7 +204,13 @@ apply_persistent_mac_link() {
     fi
     [[ -z "${perm}" ]] && perm=$(cat "/sys/class/net/${iface}/address" 2>/dev/null)
 
-    cat > "${net_dir}/10-wifi-setup-${iface}.link" <<EOF
+    local fixed_name
+    if readlink -f "/sys/class/net/${iface}/device" 2>/dev/null | grep -q "/usb"; then
+        fixed_name="wlx"
+    else
+        fixed_name="wlan0"
+    fi
+    cat > "${net_dir}/10-wifi-setup-${fixed_name}.link" <<EOF
 # wifi-setup — MAC persistente Windows-like (aplicada por udev)
 # Generado automáticamente — no editar a mano
 [Match]
@@ -212,7 +218,7 @@ PermanentMACAddress=${perm}
 
 [Link]
 MACAddress=${mac}
-NamePolicy=keep kernel database onboard slot path
+Name=${fixed_name}
 EOF
     log "INFO" "MAC link escrito: ${iface} perm=${perm} -> ${mac}"
 
@@ -256,7 +262,10 @@ setup_upstream_dhcpcd() {
     fi
 
     # 4. Matar dhcpcd zombies que defiendan IPs viejas
-    pkill -f "dhcpcd.*BPF ARP.*${iface}" 2>/dev/null || true
+    dhcpcd -k "${iface}" 2>/dev/null || true
+    ip addr flush dev "${iface}" 2>/dev/null || true
+    sleep 1
+    dhcpcd "${iface}" 2>/dev/null || true
 
     log "INFO" "upstream ${iface} configurado vía dhcpcd (subred/gateway reales del AP)"
 }

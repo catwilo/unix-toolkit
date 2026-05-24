@@ -262,6 +262,23 @@ copy_osc52() {
 
     ok "copied via OSC52"
 }
+# pbcopy-forward: write to a unix socket the client (Mac) exposes via SSH
+# RemoteForward; the client listener pipes it into pbcopy. Robust when OSC52
+# is unavailable (e.g. macOS Terminal.app). Socket path is a shared convention.
+CLIP_SOCK="${CLIP_FORWARD_SOCK:-$HOME/.local/share/noemap/clip.sock}"
+clip_forward_available() { [ -S "$CLIP_SOCK" ]; }
+copy_pbcopy_forward() {
+    if has_cmd nc; then
+        if safe_timeout 5s nc -U "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
+            ok "mirrored to client clipboard (pbcopy-forward)"; return 0
+        fi
+    elif has_cmd socat; then
+        if safe_timeout 5s socat - "UNIX-CONNECT:$CLIP_SOCK" < "$TMP" 2>/dev/null; then
+            ok "mirrored to client clipboard (pbcopy-forward)"; return 0
+        fi
+    fi
+    return 1
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # dispatch
@@ -279,7 +296,12 @@ esac
 # backend already WAS osc52 (headless server), to avoid emitting it twice
 if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
     info "ssh session — mirroring to client clipboard"
-    copy_osc52
+    # prefer pbcopy-forward socket (robust, e.g. macOS Terminal.app); else OSC52
+    if clip_forward_available && copy_pbcopy_forward; then
+        :
+    else
+        copy_osc52
+    fi
 fi
 
 ok "done — ${BYTES} bytes copied"
