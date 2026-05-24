@@ -56,7 +56,7 @@ _copy() {
     else log WARN "source not found, skipping: $1"; fi
 }
 
-for _b in bin/noemap bin/nssh bin/nscp bin/nrsync bin/ndevs bin/nclip; do _copy "$_b"; done
+for _b in "$SCRIPT_DIR"/bin/*; do [ -f "$_b" ] || continue; _name="$(basename "$_b")"; _copy "bin/$_name"; done
 for _l in lib/util.sh lib/lock.sh lib/iface.sh lib/cache.sh lib/scan.sh \
           lib/fingerprint.sh lib/output.sh lib/devices.sh; do _copy "$_l"; done
 

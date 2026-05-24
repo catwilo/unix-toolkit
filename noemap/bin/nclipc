@@ -73,10 +73,10 @@ _tmp="$(mktemp "${TMPDIR:-/tmp}/nclipc.XXXXXX")"
 trap 'rm -f "$_tmp"' EXIT INT TERM
 
 if [ -f "$CFG" ]; then
-    ssh -F "$CFG" -p "$_port" -o ConnectTimeout=10 -o BatchMode=yes \
+    ssh -F "$CFG" -p "$_port" -o ConnectTimeout=10 \
         "${_user}@${_ip}" "$_cmd" > "$_tmp" 2>&1
 else
-    ssh -p "$_port" -o ConnectTimeout=10 -o BatchMode=yes \
+    ssh -p "$_port" -o ConnectTimeout=10 \
         "${_user}@${_ip}" "$_cmd" > "$_tmp" 2>&1
 fi || { log ERROR "SSH command failed on \"$_alias\""; cat "$_tmp" >&2; exit 1; }
 

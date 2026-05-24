@@ -110,14 +110,14 @@ _ssh_cat() {
         ssh -F "$CFG" \
             -p "$_port" \
             -o ConnectTimeout=5 \
-            -o BatchMode=yes \
+            \
             "${_user}@${_ip}" \
             "cat ${_safe_path}"
     else
         ssh \
             -p "$_port" \
             -o ConnectTimeout=5 \
-            -o BatchMode=yes \
+            \
             "${_user}@${_ip}" \
             "cat ${_safe_path}"
     fi
