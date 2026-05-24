@@ -287,7 +287,8 @@ fi
 # --- Credenciales capturadas arriba; escribir config si aplica ---
 # Escribir config WiFi si vino credencial nueva y aún no existe el archivo
 if [[ -n "${WIFI_PSK_LINE}" ]] && [[ ! -f "${WPA_CONF}" ]]; then
-    configure_wpa "${UPSTREAM_IFACE}" "${WIFI_SSID}" "${WIFI_PSK_LINE}"
+    WIFI_BSSID="$(iwconfig "${UPSTREAM_IFACE}" 2>/dev/null | awk "/Access Point/{print $6}" | grep -v Not)"
+    configure_wpa "${UPSTREAM_IFACE}" "${WIFI_SSID}" "${WIFI_PSK_LINE}" "${WIFI_BSSID:-}"
 fi
 # Persistir la MAC elegida (fuente de verdad para la IP fija)
 if [[ -n "${CHOSEN_MAC}" ]]; then
@@ -392,7 +393,8 @@ ExecStart=/bin/bash -c '\
     iptables -C FORWARD -i ${PLAN_IFACE} -o ${UPSTREAM_IFACE} -j ACCEPT 2>/dev/null || \
         iptables -A FORWARD -i ${PLAN_IFACE} -o ${UPSTREAM_IFACE} -j ACCEPT; \
     iptables -C FORWARD -i ${UPSTREAM_IFACE} -o ${PLAN_IFACE} -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || \
-        iptables -A FORWARD -i ${UPSTREAM_IFACE} -o ${PLAN_IFACE} -m state --state RELATED,ESTABLISHED -j ACCEPT \
+        iptables -A FORWARD -i ${UPSTREAM_IFACE} -o ${PLAN_IFACE} -m state --state RELATED,ESTABLISHED -j ACCEPT; \
+    iw dev ${UPSTREAM_IFACE} set power_save off 2>/dev/null || true \
 '
 ExecStop=/bin/bash -c '\
     iptables -t nat -D POSTROUTING -o ${UPSTREAM_IFACE} -j MASQUERADE 2>/dev/null || true; \

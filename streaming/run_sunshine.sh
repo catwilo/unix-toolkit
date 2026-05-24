@@ -64,6 +64,10 @@ _resolve_sunshine_bin() {
     return 1
 }
 SUNSHINE_BIN="${SUNSHINE_BIN:-$(_resolve_sunshine_bin || echo sunshine)}"
+# Si SUNSHINE_BIN apunta al wrapper, forzar resolución real
+if [[ "${SUNSHINE_BIN}" == "${HOME}/.local/bin/"* ]] || [[ "${SUNSHINE_BIN}" == "sunshine" ]]; then
+    SUNSHINE_BIN="$(_resolve_sunshine_bin || echo /usr/bin/sunshine)"
+fi
 
 LIBVA_DRIVER_NAME="${LIBVA_DRIVER_NAME:-iHD}"
 LIBVA_DRIVERS_PATH="${LIBVA_DRIVERS_PATH:-/usr/lib/x86_64-linux-gnu/dri}"

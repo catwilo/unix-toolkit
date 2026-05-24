@@ -134,16 +134,19 @@ wd_restart_sunshine() {
     pkill -TERM sunshine 2>/dev/null || true; sleep 2
     pkill -KILL sunshine 2>/dev/null || true; sleep 1
 
-    local env_str="export DISPLAY=\${DISPLAY_NUM}; export XAUTHORITY=\${REAL_HOME}/.Xauthority; \
-export LIBVA_DRIVER_NAME=\${LIBVA_DRIVER_NAME}; export LIBVA_DRIVERS_PATH=\${LIBVA_DRIVERS_PATH}"
+    DISPLAY="\${DISPLAY_NUM}" \
+    XAUTHORITY="\${REAL_HOME}/.Xauthority" \
+    LIBVA_DRIVER_NAME="\${LIBVA_DRIVER_NAME}" \
+    LIBVA_DRIVERS_PATH="\${LIBVA_DRIVERS_PATH}" \
+        "\${SUNSHINE_BIN}" >> "\${SUNSHINE_LOG}" 2>&1 &
 
-    byobu send-keys -t "\$PANE_SUNSHINE" \
-        "\${env_str}; echo '[sunshine] Reiniciando...'; \${SUNSHINE_BIN} 2>&1 | tee -a \${SUNSHINE_LOG}" \
-        Enter 2>/dev/null || true
     sleep 3
     local _sunpid; _sunpid=\$(pgrep -x sunshine 2>/dev/null | head -1 || true)
     if [[ -n "\$_sunpid" ]]; then
         ok "[WD] Sunshine recuperado (PID \${_sunpid})."
+        byobu send-keys -t "\$PANE_SUNSHINE" \
+            "echo '[sunshine] Recuperado PID \${_sunpid} — tail -f \${SUNSHINE_LOG}'" \
+            Enter 2>/dev/null || true
         return 0
     else
         warn "[WD] Sunshine no arrancó."

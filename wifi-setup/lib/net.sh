@@ -127,7 +127,7 @@ purge_network_stack() {
 # Configurar wpa_supplicant para una interfaz
 # ---------------------------------------------------------------------------
 configure_wpa() {
-    local iface="$1" ssid="$2" psk_line="$3"
+    local iface="$1" ssid="$2" psk_line="$3" bssid="${4:-}"
     local wpa_conf="/etc/wpa_supplicant/wpa_supplicant-${iface}.conf"
 
     backup_file "${wpa_conf}"
@@ -141,6 +141,7 @@ scan_cur_freq=1
 
 network={
     ssid="${ssid}"
+    ${bssid:+bssid=${bssid}}
     ${psk_line}
     key_mgmt=WPA-PSK
     proto=RSN
