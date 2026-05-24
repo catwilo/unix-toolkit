@@ -33,7 +33,7 @@ else
     RED='' YELLOW='' GREEN='' CYAN='' RESET=''
 fi
 
-info() { printf "${CYAN}[INFO]${RESET}  %s\n" "$*" >&2; }
+info() { :; }
 ok()   { printf "${GREEN}[OK]${RESET}    %s\n" "$*" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
@@ -213,7 +213,7 @@ copy_termux() {
     require_cmd termux-clipboard-set
     # reads stdin directly — no probe write (that would corrupt clipboard on failure)
     if safe_timeout 5s termux-clipboard-set < "$TMP" 2>/dev/null; then
-        ok "copied to Android clipboard"
+        CLIP_BACKEND="Android clipboard"
     else
         die "termux-clipboard-set failed — confirm Termux:API app is installed and running"
     fi
@@ -222,7 +222,7 @@ copy_termux() {
 copy_wayland() {
     require_cmd wl-copy
     if safe_timeout 5s wl-copy < "$TMP" 2>/dev/null; then
-        ok "copied to Wayland clipboard"
+        CLIP_BACKEND="Wayland clipboard"
     else
         warn "wl-copy failed — falling back to OSC52"
         copy_osc52
@@ -232,7 +232,7 @@ copy_wayland() {
 copy_x11() {
     require_cmd xclip
     if safe_timeout 5s xclip -selection clipboard < "$TMP" 2>/dev/null; then
-        ok "copied to X11 clipboard"
+        CLIP_BACKEND="X11 clipboard"
     else
         warn "xclip failed — falling back to OSC52"
         copy_osc52
@@ -260,7 +260,7 @@ copy_osc52() {
         printf '\033]52;c;%s\a' "$encoded"
     fi
 
-    ok "copied via OSC52"
+    CLIP_BACKEND="OSC52"
 }
 # pbcopy-forward: write to a unix socket the client (Mac) exposes via SSH
 # RemoteForward; the client listener pipes it into pbcopy. Robust when OSC52
@@ -304,4 +304,5 @@ if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
     fi
 fi
 
-ok "done — ${BYTES} bytes copied"
+cat "$TMP"
+ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
