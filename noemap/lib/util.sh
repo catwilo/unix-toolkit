@@ -142,6 +142,10 @@ ensure_dirs() {
     # the first SSH connection or OpenSSH refuses to write the file.
     mkdir -p "$HOME/.local/share/noemap"
     chmod 700 "$HOME/.local/share/noemap"
+    # seed devices.db from template on fresh installs (template is versioned)
+    if [ ! -f "$BASE/state/devices.db" ] && [ -f "$BASE/state/devices.db.example" ]; then
+        cp "$BASE/state/devices.db.example" "$BASE/state/devices.db"
+    fi
 }
 
 # ---------------------------------------------------------------------------
