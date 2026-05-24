@@ -166,7 +166,7 @@ fi
 # validation
 # ─────────────────────────────────────────────────────────────────────────────
 
-[ -s "$TMP" ] || die "empty input — nothing to copy"
+[ -s "$TMP" ] || { printf "VOID" > "$TMP"; }
 
 BYTES="$(wc -c < "$TMP" | tr -d ' ')"
 MAX_BYTES=$((10 * 1024 * 1024))   # 10 MB
