@@ -120,6 +120,55 @@ RC_BLOCK
 fi
 
 # ---------------------------------------------------------------------------
+# clipso — install by default from ~/scripts/clipso/clipso.sh
+# ---------------------------------------------------------------------------
+CLIPSO_SCRIPT="${HOME}/scripts/clipso/clipso.sh"
+CLIPSO_INSTALL="${HOME}/scripts/clipso/install.sh"
+if [ -f "$CLIPSO_INSTALL" ]; then
+    log INFO "installing clipso..."
+    sh "$CLIPSO_INSTALL"
+elif [ -f "$CLIPSO_SCRIPT" ]; then
+    log WARN "clipso install.sh not found — add manually: $CLIPSO_INSTALL"
+else
+    log WARN "clipso not found at $CLIPSO_SCRIPT — clipboard features unavailable"
+fi
+
+# ---------------------------------------------------------------------------
+# Termux client setup — wire RemoteForward for clipboard forward
+# ---------------------------------------------------------------------------
+if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/bin" ]; then
+    # Running on Termux (client) — configure client-setup for all known devices
+    if [ -f "$BASE/state/devices.db" ]; then
+        while IFS="|" read -r _alias _ip _user _port || [ -n "$_alias" ]; do
+            case "$_alias" in "#"*|"") continue ;; esac
+            [ -n "$_user" ] && [ -n "$_ip" ] || continue
+            _port="${_port:-22}"
+            _srv_sock="/home/${_user}/.local/share/noemap/clip.sock"
+            _loc_sock="${HOME}/.noemap-clip.sock"
+            _beg="# >>> noemap-clip ${_alias} >>>"
+            _end="# <<< noemap-clip ${_alias} <<<"
+            _rc="${HOME}/.ssh/config"
+            touch "$_rc"; chmod 600 "$_rc"
+            _tmp="$(mktemp "${TMPDIR:-/tmp}/noemap-ssh.XXXXXX")"
+            awk -v b="$_beg" -v e="$_end"                 '$0==b{s=1} s&&$0==e{s=0;next} !s{print}' "$_rc" > "$_tmp"
+            {
+                cat "$_tmp"
+                printf '%s
+' "$_beg"
+                printf 'Host %s
+' "$_alias"
+                printf '    RemoteForward %s %s
+' "$_srv_sock" "$_loc_sock"
+                printf '%s
+' "$_end"
+            } > "$_rc"
+            rm -f "$_tmp"
+            log INFO "RemoteForward wired for alias: ${_alias}"
+        done < "$BASE/state/devices.db"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 printf '\n'
