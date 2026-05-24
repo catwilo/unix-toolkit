@@ -287,6 +287,7 @@ discover_hosts        # Phase 0: validate registered + Phase 1/2: find new
 [ -n "${HOST_LIST:-}" ] || {
     log WARN "no hosts found -- nothing to fingerprint"
     render_output
+    render_registered_devices
     exit 0
 }
 
@@ -294,6 +295,9 @@ fingerprint_hosts
 
 save_cache
 render_output
-prompt_new_hosts      # post-display: ask alias+user for unregistered hosts
+prompt_new_hosts
+render_connect
+render_active_hosts
+render_registered_devices
 
 log OK "noemap completed"
