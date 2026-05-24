@@ -317,6 +317,14 @@ log "INFO" "limpiando stack de red previo..."
 purge_network_stack
 
 # ===========================================================================
+# DNS ESTABLE: resolv.conf.head garantiza 1.1.1.1 aunque dhcpcd regenere
+# ===========================================================================
+if [[ ! -f /etc/resolv.conf.head ]] || ! grep -q "1.1.1.1" /etc/resolv.conf.head 2>/dev/null; then
+    printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf.head
+    log "INFO" "resolv.conf.head configurado con DNS estable (1.1.1.1 / 8.8.8.8)"
+fi
+
+# ===========================================================================
 # INSTALAR ARCHIVOS
 # ===========================================================================
 log "INFO" "instalando archivos en ${INSTALL_DIR}..."
