@@ -126,7 +126,7 @@ CLIPSO_SCRIPT="${HOME}/scripts/clipso/clipso.sh"
 CLIPSO_INSTALL="${HOME}/scripts/clipso/install.sh"
 if [ -f "$CLIPSO_INSTALL" ]; then
     log INFO "installing clipso..."
-    sh "$CLIPSO_INSTALL"
+    bash "$CLIPSO_INSTALL"
 elif [ -f "$CLIPSO_SCRIPT" ]; then
     log WARN "clipso install.sh not found — add manually: $CLIPSO_INSTALL"
 else
