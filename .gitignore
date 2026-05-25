@@ -1,7 +1,6 @@
-# ignore everything — only track explicit files
-*
-!.gitignore
-!README.md
-!ai.md
-!freelancer.md
-!bootstrap.sh
+# runtime / OS clutter
+.DS_Store
+*.swp
+*~
+state/
+tmp/
