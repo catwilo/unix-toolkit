@@ -95,6 +95,13 @@ Rules:
 - One concern per commit — never bundle unrelated changes
 - Message must let another AI reconstruct intent without session context
 
+## PRIVACY
+Before emitting any command that outputs file contents, env vars, or config:
+- Strip or mask: IPs, MACs, tokens, passwords, API keys, usernames, hostnames, paths with real names
+- Never request full file dumps of: .env, *secret*, *token*, *key*, *password*, *credential*, known_hosts, .ssh/*
+- For audits: grep for patterns only — never cat raw sensitive files
+- If output pasted by user contains private data: acknowledge, do not repeat it, suggest redaction
+
 ## ERRORS
 When a mistake cost a turn and was clarified in session: suggest adding it to ai.md as an abstract, reusable rule. Keep rules project-agnostic. Never add session-specific details.
 
