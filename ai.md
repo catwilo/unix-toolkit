@@ -107,6 +107,18 @@ Before emitting any command that outputs file contents, env vars, or config:
 ## ERRORS
 When a mistake cost a turn and was clarified in session: suggest adding it to ai.md as an abstract, reusable rule. Keep rules project-agnostic. Never add session-specific details.
 
+## PATCH DISCIPLINE
+Before writing any python3 patch:
+1. grep -n the EXACT target line first — never reconstruct from memory or prior context
+2. Copy old string character-for-character from grep output — no paraphrasing
+3. assert count==1 must pass; if it fails, re-read before retrying — never guess at escaping
+4. Always pipe the python3 block through clipso: `{ python3 - << 'PYEOF' ... PYEOF } 2>&1 | clipso`
+
+## PATH DISCIPLINE
+Never hardcode absolute paths. Always derive from live state:
+- Use `realpath ~/project/file` or `$HOME/...` — never `/root/...` or `/home/user/...`
+- If unsure of path: `find ~ -name filename` first, then use the result
+
 ## STACK (this user)
 - Platform: Termux(Android,no-root,ARM64) → SSH → Debian → byobu; macOS client
 - Clipboard: always `{ cmd; } 2>&1 | clipso` — never append 2>&1 | clipso only to last command in a chain
