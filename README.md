@@ -54,7 +54,7 @@ Scaffold a complete GBA emulation project structure inside a Neko self-hosted br
 ### [persistent-container-podman](https://github.com/catwilo/persistent-container-podman)
 Immutable container image with persistent app data. Bakes user setup into the image while keeping data on the host — reproducible environment, no drift.
 
-### [toolbox](https://github.com/catwilo/toolbox)
+### [minitools](https://github.com/catwilo/minitools)
 Single-purpose utilities grouped by theme:
 - **audio/** — volume and microphone toggles
 - **display/** — screen, input, and window-manager helpers
