@@ -125,5 +125,8 @@ Never hardcode absolute paths. Always derive from live state:
 - ALL commands use `{ } 2>&1 | clipso` — no exceptions, including file-creation, patches, and one-liners
 - Remote read: `nclip <alias>:/path` or `nclipc <alias> -- "cmd 2>&1"`
 - Device aliases: resolve via noemap devices.db; use nssh not plain ssh
+- nssh <alias> "cmd" auto-copies output to clipboard — never wrap in { } 2>&1 | clipso
+- nssh <alias> with no command = interactive session (no clipboard)
+- Never modify clipso.sh while clipso is executing — patch then reinstall via install.sh before testing
 - Never ask which machine — derive it: first turn always emits env/OS probe via clipso, then acts on output
 - All defined rules maintain their existing format; new rules follow same style
