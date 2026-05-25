@@ -301,7 +301,6 @@ do_copy() {
             copy_osc52
         fi
     fi
-    ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
 }
 
 paginate() {
@@ -334,5 +333,9 @@ if (( BYTES > PAGER_LIMIT )); then
     paginate
 else
     do_copy
-    cat "$TMP"
+    printf "\n"
+    awk -v cyan="${CYAN}" -v reset="${RESET}" \
+        'BEGIN{OFS=""} {printf "%s%4d%s  %s\n", cyan, NR, reset, $0}' "$TMP"
+    printf "\n"
+    ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
 fi
