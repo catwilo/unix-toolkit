@@ -1,9 +1,0 @@
-{
-  "$schema": "https://developer.microsoft.com/json-schemas/spfx/library-component-manifest.schema.json",
-  "id": "00000000-0000-0000-0000-000000000006",
-  "alias": "FixtureLibraryComponent",
-  "componentType": "Library",
-  "version": "*",
-  "manifestVersion": 2,
-  "requiresCustomScript": false
-}
