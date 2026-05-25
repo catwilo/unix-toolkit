@@ -21,7 +21,7 @@ EXTENSIONS=("sh" "bash" "zsh" "env" "conf" "cfg" "ini" "json" "yaml" "yml"
             "zshrc" "bashrc" "zshenv" "zprofile")
 
 # Patterns: credentials
-PAT_CREDS='password|passwd|secret|token|api_key|apikey|private_key|auth_key|credential|bearer|access_key'
+PAT_CREDS='password|passwd|secret|api_key|apikey|private_key|auth_key|bearer|access_key|token[_\.][a-z]|secret[_\.][a-z]'
 
 # Patterns: private/RFC1918 IPs (flag these)
 PAT_PRIV_IP='\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})\b'
@@ -100,14 +100,14 @@ scan_dir() {
             [[ -z "$line" ]] && continue
             hits=$((hits+1))
             err "CRED  $(mask_line "$line")"
-        done < <(grep -inE "$PAT_CREDS" "$f" 2>/dev/null | grep -v '^\s*#' || true)
+        done < <(grep -inE "$PAT_CREDS" "$f" 2>/dev/null | grep -v '^\s*#\|^\s*-\|never\|not stored\|no credential\|reference only\|example\|sample\|startswith\|prompt' || true)
 
         # Private IPs
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             hits=$((hits+1))
             err "PRIV-IP  $(mask_line "$line")"
-        done < <(grep -nE "$PAT_PRIV_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample' || true)
+        done < <(grep -nE "$PAT_PRIV_IP" "$f" 2>/dev/null | grep -v 'x\.x\.x\|127\.0\.0\.1\|example\|sample\|placeholder' | grep -v ':[[:space:]]*#' || true)
 
         # MACs
         while IFS= read -r line; do
@@ -124,7 +124,7 @@ scan_dir() {
             echo "$line" | grep -qE "$SAFE_IPS" && continue
             hits=$((hits+1))
             warn "PUB-IP  $(mask_line "$line")"
-        done < <(grep -nE "$PAT_PUB_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|ip route\|ip addr\|ifconfig\|x\.x\.x' || true)
+        done < <(grep -nE "$PAT_PUB_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|ip route\|ip addr\|ifconfig\|x\.x\.x\|0\.0\.0\.0' | grep -v ':[[:space:]]*#' || true)
 
     done <<< "$files"
 

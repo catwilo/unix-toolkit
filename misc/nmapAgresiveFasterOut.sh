@@ -1,4 +1,4 @@
-nmap -sn -PR -n -T5 --max-retries 0 --host-timeout 20s 192.168.1.0/24
+nmap -sn -PR -n -T5 --max-retries 0 --host-timeout 20s 192.168.x.0/24  # replace with your subnet
 
 # nmap: herramienta de escaneo de red usada aquí para detectar hosts vivos.
 # -sn: "ping scan". No escanea puertos; solo detecta hosts activos.

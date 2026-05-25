@@ -150,7 +150,25 @@ fi
 
 if [ "$IS_STDIN" = true ]; then
     info "reading from stdin"
-    cat > "$TMP"
+    if [ -w /dev/tty ]; then
+        # spinner on /dev/tty; cat reads stdin synchronously first
+        _spin_idle() {
+            local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
+            while true; do
+                printf "\r${CYAN}%s${RESET} running..." "${s:$((i % ${#s})):1}" >/dev/tty
+                sleep 0.1
+                i=$((i + 1))
+            done
+        }
+        _spin_idle &
+        SPIN_PID=$!
+        cat > "$TMP"
+        kill "$SPIN_PID" 2>/dev/null || true
+        wait "$SPIN_PID" 2>/dev/null || true
+        printf "\r\033[K" >/dev/tty
+    else
+        cat > "$TMP"
+    fi
 
 elif [ "$IS_REMOTE" = true ]; then
     require_cmd ssh

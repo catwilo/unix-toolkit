@@ -34,8 +34,8 @@ Format (pipe-delimited, one per line):
   ALIAS|IP|USER|PORT
 
 Example:
-  deb|192.168.1.42|alice|22
-  raspi|192.168.1.55|pi|22
+  deb|192.168.x.x|alice|22
+  raspi|192.168.x.x|pi|22
 
 Lines beginning with '#' are comments. noemap auto-adds a "deb" entry
 for the first linux-ssh host it detects (TTL=64 + port 22 open).
