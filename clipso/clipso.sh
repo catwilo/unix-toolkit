@@ -34,6 +34,14 @@ else
 fi
 
 info() { :; }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# config
+# ─────────────────────────────────────────────────────────────────────────────
+
+CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
+[ -f "$CLIPSO_CFG" ] && source "$CLIPSO_CFG"
+CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
 ok()   { printf "${GREEN}[OK]${RESET}    %s\n" "$*" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
@@ -44,9 +52,20 @@ die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
 SSH_PORT=22
 
-while getopts ":p:h" opt; do
+while getopts ":p:nh" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
+        n)
+            if [ "${CLIPSO_NUMBERS:-1}" = "1" ]; then
+                CLIPSO_NUMBERS=0; msg="line numbers OFF"
+            else
+                CLIPSO_NUMBERS=1; msg="line numbers ON"
+            fi
+            mkdir -p "$(dirname "$CLIPSO_CFG")"
+            printf 'CLIPSO_NUMBERS=%s
+' "$CLIPSO_NUMBERS" > "$CLIPSO_CFG"
+            ok "saved: $msg ($CLIPSO_CFG)"; exit 0
+            ;;
         h)
             printf 'clipso — copy local files, remote files, or stdin to clipboard\n\n'
             printf 'usage:\n'
@@ -334,8 +353,12 @@ if (( BYTES > PAGER_LIMIT )); then
 else
     do_copy
     printf "\n"
-    awk -v cyan="${CYAN}" -v reset="${RESET}" \
-        'BEGIN{OFS=""} {printf "%s%4d%s  %s\n", cyan, NR, reset, $0}' "$TMP"
+    if [ "${CLIPSO_NUMBERS:-1}" = "1" ]; then
+        awk -v cyan="${CYAN}" -v reset="${RESET}" \
+            'BEGIN{OFS=""} {printf "%s%4d%s  %s\n", cyan, NR, reset, $0}' "$TMP"
+    else
+        cat "$TMP"
+    fi
     printf "\n"
     ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
 fi
