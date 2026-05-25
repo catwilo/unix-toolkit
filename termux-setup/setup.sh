@@ -3,7 +3,6 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── Load core first, then modules ─────────────────────────────────────────────
 source "$HERE/lib/core.sh"
 source "$HERE/lib/detect.sh"
 source "$HERE/lib/pkg.sh"
@@ -11,27 +10,46 @@ source "$HERE/lib/links.sh"
 source "$HERE/lib/plugins.sh"
 source "$HERE/lib/mpd.sh"
 
-# ── Config ────────────────────────────────────────────────────────────────────
 CUSTOM_TERMUX_REPO="${CUSTOM_TERMUX_REPO:-https://github.com/catwilo/custom_termux.git}"
 CUSTOM_TERMUX_DIR="${CUSTOM_TERMUX_DIR:-$HOME/custom_termux}"
+NVIM_SETUP="$HERE/../nvim-setup/setup.sh"
 
-# ── Arg parsing ───────────────────────────────────────────────────────────────
+usage() {
+  printf "%s\n" \
+    "Uso: setup.sh [opciones]" \
+    "" \
+    "  --all          Instala todo: core + nvim + mpd" \
+    "  --only=STAGE   Stage: pkg | links | nvim | mpd" \
+    "  --dry-run      Simula sin ejecutar cambios" \
+    "  --help, -h     Muestra esta ayuda" \
+    "" \
+    "Stages core (siempre en instalacion completa):" \
+    "  pkg            Instala paquetes" \
+    "  links          Clona dotfiles y enlaza a HOME" \
+    "  shell          Establece zsh como shell" \
+    "" \
+    "Stages opcionales:" \
+    "  nvim           LSP servers y plugins neovim" \
+    "  mpd            MPD (Termux: PulseAudio / Debian: ALSA)" \
+    "" \
+    "Variables de entorno:" \
+    "  CUSTOM_TERMUX_REPO  URL repo dotfiles" \
+    "  CUSTOM_TERMUX_DIR   Directorio destino clone" \
+    "  DRY_RUN=1           Equivalente a --dry-run"
+  exit 0
+}
+
 ONLY=""
+OPT_ALL=0
 for arg in "$@"; do
   case "$arg" in
+    --all)      OPT_ALL=1 ;;
     --only=*)   ONLY="${arg#--only=}" ;;
     --dry-run)  DRY_RUN=1 ;;
-    --help|-h)
-      echo "Uso: setup.sh [--only=pkg|links|mpd] [--dry-run]"
-      exit 0 ;;
+    --help|-h)  usage ;;
     *) die "Argumento desconocido: $arg" ;;
   esac
 done
-
-# ── Stages ────────────────────────────────────────────────────────────────────
-stage_platform() {
-  init_platform
-}
 
 stage_clone() {
   step "Repositorio custom_termux"
@@ -46,24 +64,26 @@ stage_clone() {
 
 stage_pkg() {
   step "Instalando paquetes"
-  local env_file="$HERE/packages/${PLATFORM}.env"
-  require_file "$env_file"
-  pkg_install_file "$env_file"
-
-  # starship: no apt package on debian
+  pkg_install_file "$HERE/packages/${PLATFORM}.env"
   if [ "$PLATFORM" = "debian" ] && ! command -v starship >/dev/null 2>&1; then
-    info "Instalando starship via script oficial..."
+    info "Instalando starship..."
     run curl -sS https://starship.rs/install.sh | run sh -s -- -y
   fi
 }
 
 stage_links() {
+  stage_clone
   link_dotfiles
   verify_plugins
 }
 
-stage_mpd() {
-  setup_mpd
+stage_nvim() {
+  step "Setup neovim"
+  if [ ! -f "$NVIM_SETUP" ]; then
+    warn "nvim-setup no encontrado en $NVIM_SETUP — omitiendo"
+    return 0
+  fi
+  run bash "$NVIM_SETUP"
 }
 
 stage_shell() {
@@ -80,20 +100,26 @@ stage_shell() {
   fi
 }
 
-# ── Entrypoint ────────────────────────────────────────────────────────────────
-stage_platform
+stage_core() {
+  stage_pkg
+  stage_links
+  stage_shell
+}
+
+init_platform
 
 case "${ONLY}" in
-  pkg)   stage_pkg   ;;
-  links) stage_clone; stage_links ;;
-  mpd)   stage_mpd   ;;
+  pkg)   stage_pkg ;;
+  links) stage_links ;;
+  nvim)  stage_nvim ;;
+  mpd)   setup_mpd ;;
   "")
-    stage_clone
-    stage_pkg
-    stage_links
-    stage_mpd
-    stage_shell
-    printf "\n${G}${B}  Setup completo.${Z}\n"
+    stage_core
+    if [ "$OPT_ALL" = "1" ]; then
+      stage_nvim
+      setup_mpd
+    fi
+    printf "\n  Setup completo.\n"
     ;;
-  *) die "Valor inválido para --only: $ONLY" ;;
+  *) die "Stage invalido: $ONLY" ;;
 esac
