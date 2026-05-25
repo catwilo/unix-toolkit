@@ -1,0 +1,27 @@
+
+[0;36m[INFO][0m audit-privacy — 2026-05-25 11:39:01
+────────────────────────────────────────────────
+[0;36m[INFO][0m Scanning: aicli
+[0;31m[ERR][0m  CRED  65:  orchestrator/    Go  — IPC router, session lifecycle, token monitor
+[0;31m[ERR][0m  CRED  88:- Credentials are never stored in YAML — Playwright handles auth via persistent Chrome profiles
+[0;31m[ERR][0m  CRED  89:- Secrets never appear in environment variables or logs
+[0;31m[ERR][0m  CRED  2:# Copy from config.example.yaml and edit — passwords are NEVER stored here.
+[0;31m[ERR][0m  CRED  9:    email: user@gmail.com       # Reference only — no credential stored here
+[0;31m[ERR][0m  CRED  24:  max_inject_tokens: 8000       # Max tokens of memory injected per session start
+[0;31m[ERR][0m  CRED  35:  async send(payload: string): Promise<{ text: string; tokenEst: number; limitHit: boolean }> {
+[0;31m[ERR][0m  CRED  56:    return { text, tokenEst: Math.ceil(text.length / 4), limitHit };
+[0;31m[ERR][0m  CRED  38:  async send(payload: string): Promise<{ text: string; tokenEst: number; limitHit: boolean }> {
+[0;31m[ERR][0m  CRED  97:      return { text: "", tokenEst: 0, limitHit: true };
+[0;31m[ERR][0m  CRED  100:      return { text: "", tokenEst: 0, limitHit: true };
+[0;31m[ERR][0m  CRED  104:    const tokenEst = Math.ceil(text.length / 4);
+[0;31m[ERR][0m  CRED  105:    return { text, tokenEst, limitHit };
+[0;31m[ERR][0m  CRED  35:  async send(payload: string): Promise<{ text: string; tokenEst: number; limitHit: boolean }> {
+[0;31m[ERR][0m  CRED  57:    return { text, tokenEst: Math.ceil(text.length / 4), limitHit };
+[0;31m[ERR][0m  CRED  5:  send(payload: string): Promise<{ text: string; tokenEst: number; limitHit: boolean }>;
+[0;31m[ERR][0m  CRED  16:  | { event: "response";    text: string;  tokenEst: number }
+[0;31m[ERR][0m  CRED  18:  | { event: "limit";       type: "rate" | "token" | "timeout" }
+[0;31m[ERR][0m  CRED  74:        const { text, tokenEst, limitHit } = await adapter.send(cmd.payload ?? "");
+[0;31m[ERR][0m  CRED  76:          send({ event: "limit", type: "token" });
+[0;31m[ERR][0m  CRED  78:          send({ event: "response", text, tokenEst });
+[0;31m[ERR][0m  CRED  28:# Read sentinel for token pressure indicator
+
