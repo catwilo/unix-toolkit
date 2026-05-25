@@ -170,6 +170,7 @@ fi
 
 BYTES="$(wc -c < "$TMP" | tr -d ' ')"
 MAX_BYTES=$((10 * 1024 * 1024))   # 10 MB
+PAGER_LIMIT=$((900 * 1024))        # 900 KB — paged copy threshold
 
 if (( BYTES > MAX_BYTES )); then
     die "payload too large: ${BYTES} bytes (limit: 10 MB)"
@@ -284,25 +285,53 @@ copy_pbcopy_forward() {
 # dispatch
 # ─────────────────────────────────────────────────────────────────────────────
 
-case "$CLIP_ENV" in
-    termux)  copy_termux  ;;
-    wayland) copy_wayland ;;
-    x11)     copy_x11     ;;
-    osc52)   copy_osc52   ;;
-    *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
-esac
-
-# under SSH, also mirror to the client clipboard via OSC52 — unless the local
-# backend already WAS osc52 (headless server), to avoid emitting it twice
-if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
-    info "ssh session — mirroring to client clipboard"
-    # prefer pbcopy-forward socket (robust, e.g. macOS Terminal.app); else OSC52
-    if clip_forward_available && copy_pbcopy_forward; then
-        :
-    else
-        copy_osc52
+do_copy() {
+    case "$CLIP_ENV" in
+        termux)  copy_termux  ;;
+        wayland) copy_wayland ;;
+        x11)     copy_x11     ;;
+        osc52)   copy_osc52   ;;
+        *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
+    esac
+    if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
+        info "ssh session — mirroring to client clipboard"
+        if clip_forward_available && copy_pbcopy_forward; then
+            :
+        else
+            copy_osc52
+        fi
     fi
-fi
+    ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
+}
 
-cat "$TMP"
-ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
+paginate() {
+    local chunk_dir
+    chunk_dir="$(mktemp -d "${TMPDIR:-/tmp}/clipso-pages.XXXXXX")"
+    trap 'rm -rf "$chunk_dir"; rm -f "$TMP" "$TMPERR"' EXIT INT TERM
+    split -b "${PAGER_LIMIT}" "$TMP" "${chunk_dir}/page_"
+    local pages=()
+    mapfile -t pages < <(find "$chunk_dir" -name "page_*" | sort)
+    local total="${#pages[@]}"
+    local i=0
+    for chunk in "${pages[@]}"; do
+        i=$((i+1))
+        cp "$chunk" "$TMP"
+        BYTES="$(wc -c < "$TMP" | tr -d ' ')"
+        do_copy
+        if (( i < total )); then
+            printf "${CYAN}[%d/%d]${RESET} %d bytes — any key: next  q: abort\n" "$i" "$total" "$BYTES" >&2
+            local key
+            read -n1 -s -r key < /dev/tty || true
+            [[ "${key,,}" == "q" ]] && { warn "aborted at ${i}/${total}"; rm -rf "$chunk_dir"; exit 0; }
+        else
+            ok "[${i}/${total}] all chunks copied"
+        fi
+    done
+    rm -rf "$chunk_dir"
+}
+
+if (( BYTES > PAGER_LIMIT )); then
+    paginate
+else
+    do_copy
+fi
