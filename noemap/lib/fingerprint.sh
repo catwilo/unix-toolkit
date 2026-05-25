@@ -60,8 +60,14 @@ _detect_ssh_port() {
 # ---------------------------------------------------------------------------
 _get_ssh_banner() {
     _bip="$1"; _bport="$2"
+    # Fiable y nativo: leer la cadena de identificacion del protocolo SSH
+    # directo del socket (bash /dev/tcp). El servidor la envia al conectar.
+    # Linux trae sufijo de distro (OpenSSH_x Debian-...); macOS va bare.
+    _b="$(timeout 4 bash -c 'exec 3<>/dev/tcp/'"$_bip"'/'"$_bport"' && head -1 <&3' 2>/dev/null)"
+    [ -n "$_b" ] && { printf '%s' "$_b"; return 0; }
+    # Fallback: nmap si el socket directo fallo
     has_cmd nmap || return 0
-    nmap -Pn -n -sV --version-intensity 0 \
+    nmap -Pn -n -sV --version-intensity 5 \
         --host-timeout 5s -p "$_bport" "$_bip" 2>/dev/null \
     | awk '/open.*ssh/{ print; exit }'
 }
@@ -123,9 +129,10 @@ _detect_type() {
         esac
     fi
 
-    # Empty banner on port 22 (filtered greeting) is often macOS too.
+    # Empty/unreadable banner: do NOT assume macOS — could be filtered,
+    # refused, or a non-SSH host. Classify as unknown.
     case "$_banner" in
-        "") [ "$_ssh_port" = "22" ] && { printf 'mac'; return; } ;;
+        "") printf 'unknown'; return ;;
     esac
     printf 'linux-ssh'
 }

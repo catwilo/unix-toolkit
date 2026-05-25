@@ -61,10 +61,20 @@ case "${1:-}" in
         ;;
 esac
 
+# Collect optional --exclude=PATTERN flags before the two positional args.
+_excludes=""
+while [ $# -gt 2 ] || { [ $# -gt 0 ] && case "$1" in --exclude=*) true;; *) false;; esac; }; do
+    case "$1" in
+        --exclude=*) _excludes="$_excludes --exclude=${1#--exclude=}"; shift ;;
+        *) break ;;
+    esac
+done
 [ $# -eq 2 ] || {
-    printf 'usage: nrsync <src> <dst>\n' >&2
+    printf 'usage: nrsync [--exclude=PATTERN ...] <src> <dst>\n' >&2
     exit 1
 }
+# Always omit VCS metadata and noemap runtime from transfers.
+_default_excludes="--exclude=.git --exclude=logs --exclude=tmp --exclude=state/cache.env --exclude=state/hosts.db --exclude=state/known_hosts --exclude=state/devices.db"
 
 _src="$(resolve_scp_target "$1" "$DB")"
 _dst="$(resolve_scp_target "$2" "$DB")"
@@ -78,28 +88,45 @@ else
     _ssh_cmd="ssh -o ControlMaster=no"
 fi
 
-# --mkpath requires rsync >= 3.2.3; detect at runtime for compatibility.
-_mkpath_flag=""
-_rsync_ver="$(rsync --version 2>/dev/null | awk 'NR==1{print $3}')"
-_rsync_major="$(printf '%s\n' "$_rsync_ver" | cut -d. -f1)"
-_rsync_minor="$(printf '%s\n' "$_rsync_ver" | cut -d. -f2)"
-_rsync_patch="$(printf '%s\n' "$_rsync_ver" | cut -d. -f3)"
-if [ "${_rsync_major:-0}" -gt 3 ] || \
-   { [ "${_rsync_major:-0}" -eq 3 ] && [ "${_rsync_minor:-0}" -gt 2 ]; } || \
-   { [ "${_rsync_major:-0}" -eq 3 ] && [ "${_rsync_minor:-0}" -eq 2 ] && \
-     [ "${_rsync_patch:-0}" -ge 3 ]; }; then
-    _mkpath_flag="--mkpath"
+# Detect REMOTE rsync flavour to pick a compatible option set.
+# macOS ships openrsync (protocol 29) which lacks GNU-only flags like
+# --mkpath/--info=progress2/--checksum/--safe-links. Probe the remote side.
+_remote_alias=""
+case "$2" in *:*) _remote_alias="${2%%:*}" ;; esac
+_remote_is_openrsync=0
+_remote_path=""
+if [ -n "$_remote_alias" ]; then
+    _rinfo="$(nssh "$_remote_alias" 'rsync --version 2>&1 | head -1' 2>/dev/null || true)"
+    case "$_rinfo" in *openrsync*) _remote_is_openrsync=1 ;; esac
+    # destination path after the colon (for pre-mkdir, replaces --mkpath)
+    _remote_path="${2#*:}"
+fi
+
+# Portable base options shared by GNU rsync and openrsync.
+set -- -a --partial --delay-updates --timeout=10 --progress
+
+if [ "$_remote_is_openrsync" -eq 1 ]; then
+    # openrsync: no --mkpath -> create destination dir first via nssh.
+    case "$_remote_path" in
+        */) nssh "$_remote_alias" "mkdir -p '"'"'$_remote_path'"'"'" >/dev/null 2>&1 || true ;;
+        *)  _rdir="$(dirname "$_remote_path")"; nssh "$_remote_alias" "mkdir -p '"'"'$_rdir'"'"'" >/dev/null 2>&1 || true ;;
+    esac
+else
+    # GNU rsync: richer, safer set.
+    set -- "$@" --safe-links --checksum --info=progress2
+    _rsync_ver="$(rsync --version 2>/dev/null | awk 'NR==1{print $3}')"
+    _rmaj="$(printf '%s' "$_rsync_ver" | cut -d. -f1)"
+    _rmin="$(printf '%s' "$_rsync_ver" | cut -d. -f2)"
+    _rpat="$(printf '%s' "$_rsync_ver" | cut -d. -f3)"
+    if [ "${_rmaj:-0}" -gt 3 ] || { [ "${_rmaj:-0}" -eq 3 ] && [ "${_rmin:-0}" -gt 2 ]; } ||        { [ "${_rmaj:-0}" -eq 3 ] && [ "${_rmin:-0}" -eq 2 ] && [ "${_rpat:-0}" -ge 3 ]; }; then
+        set -- "$@" --mkpath
+    fi
 fi
 
 # shellcheck disable=SC2086
 exec rsync \
-    -a \
-    --partial \
-    --delay-updates \
-    --safe-links \
-    --checksum \
-    ${_mkpath_flag} \
-    --timeout=10 \
-    --info=progress2 \
+    "$@" \
+    ${_default_excludes} \
+    ${_excludes} \
     -e "$_ssh_cmd" \
     "$_src" "$_dst"

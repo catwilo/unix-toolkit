@@ -28,9 +28,18 @@ _iface_via_ifconfig() {
             }
             if(ip=="") next
             pfx=0
-            if(mask!=""){
+            if(mask ~ /^0[xX]/){
+                # macOS hex netmask e.g. 0xffffff00 -> count set bits
+                h=substr(mask,3); v=0
+                for(k=1;k<=length(h);k++){
+                    c=tolower(substr(h,k,1))
+                    d=index("0123456789abcdef",c)-1
+                    v=v*16+d
+                }
+                while(v>0){pfx+=v%2;v=int(v/2)}
+            } else if(mask!=""){
                 n=split(mask,o,".")
-                for(i=1;i<=n;i++){v=o[i];while(v>0){pfx+=and(v,1);v=int(v/2)}}
+                for(i=1;i<=n;i++){vv=o[i];while(vv>0){pfx+=vv%2;vv=int(vv/2)}}
             }
             print iface "|" ip "|" pfx
         }
