@@ -100,7 +100,7 @@ scan_dir() {
             [[ -z "$line" ]] && continue
             hits=$((hits+1))
             err "CRED  $(mask_line "$line")"
-        done < <(grep -inE "$PAT_CREDS" "$f" 2>/dev/null | grep -v '^\s*#\|^\s*-\|never\|not stored\|no credential\|reference only\|example\|sample\|startswith\|prompt' | grep -v ':[[:space:]]*#' || true)
+        done < <(grep -inE "$PAT_CREDS" "$f" 2>/dev/null | grep -v '^\s*#\|^\s*-\|never\|not stored\|no credential\|reference only\|example\|sample\|startswith\|prompt\|PasswordAuthentication\|PermitEmptyPasswords\|PermitRootLogin\|wifi-passwd\|wifi-showpass' | grep -v ':[[:space:]]*#' || true)
 
         # Private IPs
         while IFS= read -r line; do
@@ -114,7 +114,7 @@ scan_dir() {
             [[ -z "$line" ]] && continue
             hits=$((hits+1))
             warn "MAC  $(mask_line "$line")"
-        done < <(grep -nE "$PAT_MAC" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample' || true)
+        done < <(grep -nE "$PAT_MAC" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|formato\|format\|xx:xx\|AA:BB\|FF:FF' || true)
 
         # Public IPs (skip safe ones)
         while IFS= read -r line; do
@@ -124,7 +124,7 @@ scan_dir() {
             echo "$line" | grep -qE "$SAFE_IPS" && continue
             hits=$((hits+1))
             warn "PUB-IP  $(mask_line "$line")"
-        done < <(grep -nE "$PAT_PUB_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|ip route\|ip addr\|ifconfig\|x\.x\.x\|0\.0\.0\.0\|127\.0\.0\.1\|"version"' | grep -v ':[[:space:]]*#' || true)
+        done < <(grep -nE "$PAT_PUB_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|ip route\|ip addr\|ifconfig\|x\.x\.x\|0\.0\.0\.0\|127\.0\.0\.1\|"version"\|1\.2\.3\.' | grep -v ':[[:space:]]*#' || true)
 
     done <<< "$files"
 
