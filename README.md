@@ -1,4 +1,4 @@
-# catwilo/scripts — portfolio index
+# catwilo/unix-toolkit — portfolio index
 
 A collection of command-line tools built to solve real problems on Linux, Termux (Android), and macOS. Each one started from a concrete need, runs in production on my own machines, and is written to be portable, safe to re-run, and clear to maintain.
 
