@@ -4,8 +4,6 @@
 # usage:
 #   bash install.sh          install
 #   bash install.sh verify   verify only (no changes)
-#
-# Compatible: Termux (no-root), Debian, Raspbian, macOS
 
 set -Eeuo pipefail
 
@@ -16,10 +14,8 @@ else
 fi
 ok()   { printf "${GREEN}[OK]${RESET}    %s\n" "$*" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
-info() { printf "${CYAN}[INFO]${RESET}  %s\n" "$*" >&2; }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
-# -- Resolve script dir (symlink-safe, macOS+Linux+Termux) --------------------
 _self="$0"
 case "$_self" in */*) ;; *) _self="$(command -v "$_self")" ;; esac
 if _real="$(readlink -f "$_self" 2>/dev/null)" && [ -n "$_real" ]; then
@@ -31,61 +27,56 @@ else
     done
 fi
 SCRIPT_DIR="$(cd "$(dirname "$_self")" && pwd -P)"
-TOOL="$SCRIPT_DIR/audit-privacy.sh"
+AUDIT_SH="$SCRIPT_DIR/audit-privacy.sh"
 
-[ -f "$TOOL" ] || die "audit-privacy.sh not found at $TOOL"
-[ -x "$TOOL" ] || chmod +x "$TOOL"
+[ -f "$AUDIT_SH" ] || die "audit-privacy.sh not found at $AUDIT_SH"
+[ -x "$AUDIT_SH" ] || chmod +x "$AUDIT_SH"
 
-# -- Resolve bin dir (no-root friendly) ---------------------------------------
-_bin_dir() {
-    for d in "$HOME/.local/bin" "$HOME/bin" "$PREFIX/bin"; do
-        [ -d "$d" ] && { echo "$d"; return; }
-    done
-    # fallback: create ~/.local/bin
-    mkdir -p "$HOME/.local/bin"
-    echo "$HOME/.local/bin"
-}
-
-BIN_DIR="$(_bin_dir)"
-LINK="$BIN_DIR/audit-privacy"
-
-# -- Verify -------------------------------------------------------------------
 _do_verify() {
     local found target
     found="$(command -v audit-privacy 2>/dev/null || true)"
     [ -n "$found" ] || { warn "audit-privacy not in PATH — source your shell rc"; return 1; }
     target="$(readlink -f "$found" 2>/dev/null || echo "$found")"
-    [ "$target" = "$TOOL" ] || { warn "audit-privacy -> $target (expected $TOOL)"; return 1; }
-    ok "audit-privacy -> $TOOL"
+    [ "$target" = "$AUDIT_SH" ] || { warn "audit-privacy → $target (expected $AUDIT_SH)"; return 1; }
+    ok "audit-privacy → $found"
 }
 
-if [ "${1:-}" = "verify" ]; then
-    _do_verify
-    exit $?
+if [ "${1:-}" = verify ]; then _do_verify; exit $?; fi
+
+if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/bin" ]; then
+    BINDIR="${PREFIX}/bin"
+elif [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
+    BINDIR="$HOME/.local/bin"
+else
+    die "no writable bin dir found"
 fi
 
-# -- Install ------------------------------------------------------------------
-info "installing audit-privacy -> $LINK"
+ln -sf "$AUDIT_SH" "$BINDIR/audit-privacy"
+ok "linked audit-privacy → $BINDIR/audit-privacy"
 
-# Remove stale link if pointing elsewhere
-if [ -L "$LINK" ]; then
-    old="$(readlink -f "$LINK" 2>/dev/null || true)"
-    [ "$old" = "$TOOL" ] && { ok "already installed"; _do_verify; exit 0; }
-    rm "$LINK"
-fi
-[ -e "$LINK" ] && die "$LINK exists and is not a symlink — remove manually"
+_BEG='# >>> audit-privacy >>>'
+_END='# <<< audit-privacy <<<'
 
-ln -s "$TOOL" "$LINK"
-ok "symlink created: $LINK -> $TOOL"
+_wire_rc() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    local tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/audit-privacy-rc.XXXXXX")"
+    awk -v b="$_BEG" -v e="$_END" '
+        $0==b {skip=1} skip && $0==e {skip=0; next} !skip {print}
+    ' "$rc" > "$tmp"
+    {
+        cat "$tmp"
+        printf '%s\n' "$_BEG"
+        printf 'case ":$PATH:" in *":%s:"*) ;; *) export PATH="%s:$PATH";; esac\n' "$BINDIR" "$BINDIR"
+        printf '%s\n' "$_END"
+    } > "$rc"
+    rm -f "$tmp"
+    ok "wired $rc"
+}
 
-# -- PATH hint ----------------------------------------------------------------
-case ":${PATH}:" in
-    *":$BIN_DIR:"*) ;;
-    *)
-        warn "$BIN_DIR not in PATH"
-        info "add to your shell rc:  export PATH=\"$BIN_DIR:\$PATH\""
-        ;;
-esac
+_wire_rc "$HOME/.zshrc"
+[ -f "$HOME/.bashrc" ] && _wire_rc "$HOME/.bashrc"
 
-_do_verify
-ok "done — run: audit-privacy [dir...]"
+ok "done — reload shell:"
+printf '  source ~/.zshrc\n'
