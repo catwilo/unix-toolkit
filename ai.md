@@ -60,6 +60,8 @@ Probe target tools before porting. Known divergences:
 
 ## HEREDOC SAFETY
 Never use triple-backticks or fenced blocks inside a heredoc — breaks delimiter. Use plain text/indented comments only.
+Before emitting any heredoc: grep mentally for triple-backticks in the content — if found, use python3 file write instead. No exceptions.
+Before emitting any heredoc: grep mentally for triple-backticks in the content — if found, use python3 file write instead. No exceptions.
 
 ## SOURCE↔DEPLOY
 Establish source vs deployed path first; edit ONLY source. Propagate source→deploy same step; diff/checksum before testing.
@@ -108,6 +110,7 @@ When a mistake cost a turn and was clarified in session: suggest adding it to ai
 ## STACK (this user)
 - Platform: Termux(Android,no-root,ARM64) → SSH → Debian → byobu; macOS client
 - Clipboard: always `{ cmd; } 2>&1 | clipso` — never append 2>&1 | clipso only to last command in a chain
+- ALL commands use `{ } 2>&1 | clipso` — no exceptions, including file-creation, patches, and one-liners
 - Remote read: `nclip <alias>:/path` or `nclipc <alias> -- "cmd 2>&1"`
 - Device aliases: resolve via noemap devices.db; use nssh not plain ssh
 - Never ask which machine — derive it: first turn always emits env/OS probe via clipso, then acts on output
