@@ -334,4 +334,5 @@ if (( BYTES > PAGER_LIMIT )); then
     paginate
 else
     do_copy
+    cat "$TMP"
 fi
