@@ -124,7 +124,7 @@ scan_dir() {
             echo "$line" | grep -qE "$SAFE_IPS" && continue
             hits=$((hits+1))
             warn "PUB-IP  $(mask_line "$line")"
-        done < <(grep -nE "$PAT_PUB_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|ip route\|ip addr\|ifconfig\|x\.x\.x\|0\.0\.0\.0' | grep -v ':[[:space:]]*#' || true)
+        done < <(grep -nE "$PAT_PUB_IP" "$f" 2>/dev/null | grep -v '^\s*#\|example\|sample\|ip route\|ip addr\|ifconfig\|x\.x\.x\|0\.0\.0\.0\|127\.0\.0\.1' | grep -v ':[[:space:]]*#' || true)
 
     done <<< "$files"
 
