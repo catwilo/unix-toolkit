@@ -119,6 +119,13 @@ Never hardcode absolute paths. Always derive from live state:
 - Use `realpath ~/project/file` or `$HOME/...` — never `/root/...` or `/home/user/...`
 - If unsure of path: `find ~ -name filename` first, then use the result
 
+## GIT MULTI-MACHINE DISCIPLINE
+When same repo is pushed from two machines (Termux + Debian):
+- Always pull --rebase before pushing from second machine
+- If rebase conflicts: rebase --abort, then push --force-with-lease from the machine with correct state
+- Never split a destructive index operation (git rm --cached + whitelist) across machines — do it from ONE machine only, then pull on the other
+- After any force push: immediately pull on all other machines before continuing
+
 ## STACK (this user)
 - Platform: Termux(Android,no-root,ARM64) → SSH → Debian → byobu; macOS client
 - Clipboard: always `{ cmd; } 2>&1 | clipso` — never append 2>&1 | clipso only to last command in a chain
