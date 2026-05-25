@@ -1,6 +1,8 @@
-# runtime / OS clutter
-.DS_Store
+# Ignore project clones inside index (they are independent repos)
+# Only track root-level files
+*/
+!.gitignore
 *.swp
 *~
-state/
-tmp/
+.DS_Store
+audit-report.txt
