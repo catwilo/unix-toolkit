@@ -100,7 +100,7 @@ scan_dir() {
             [[ -z "$line" ]] && continue
             hits=$((hits+1))
             err "CRED  $(mask_line "$line")"
-        done < <(grep -inE "$PAT_CREDS" "$f" 2>/dev/null | grep -v '^\s*#\|^\s*-\|never\|not stored\|no credential\|reference only\|example\|sample\|startswith\|prompt' || true)
+        done < <(grep -inE "$PAT_CREDS" "$f" 2>/dev/null | grep -v '^\s*#\|^\s*-\|never\|not stored\|no credential\|reference only\|example\|sample\|startswith\|prompt' | grep -v ':[[:space:]]*#' || true)
 
         # Private IPs
         while IFS= read -r line; do

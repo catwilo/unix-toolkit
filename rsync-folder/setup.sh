@@ -7,7 +7,7 @@ set -euo pipefail
 # DEFAULTS
 # ─────────────────────────────────────────────
 _RF_DEFAULT_USER="u"
-_RF_DEFAULT_IP="10.26.35.70"
+_RF_DEFAULT_IP="192.168.x.x"
 _RF_DEFAULT_PATH="~/shared"
 
 # ─────────────────────────────────────────────
