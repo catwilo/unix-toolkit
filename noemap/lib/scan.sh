@@ -50,10 +50,28 @@ _nmap_ssh_probe() {
 # _nc_ssh_probe ip — checks if any SSH port is open via nc.
 # Prints the first open port number, or nothing.
 # ---------------------------------------------------------------------------
+# Connect-timeout flags for nc, resolved once and cached in _NC_CT_FLAGS.
+# BSD/macOS nc honours -G (connect timeout) for SYN to a dead host; -w alone
+# is ignored there and hangs until the kernel TCP timeout. Linux nc has no -G
+# and uses -w. Probe the actual binary instead of assuming.
+_nc_connect_flags() {
+    if [ -n "${_NC_CT_FLAGS+x}" ]; then
+        printf '%s' "$_NC_CT_FLAGS"
+        return 0
+    fi
+    if nc -h 2>&1 | grep -q -- '-G'; then
+        _NC_CT_FLAGS='-G 2 -w 2'
+    else
+        _NC_CT_FLAGS='-w 2'
+    fi
+    printf '%s' "$_NC_CT_FLAGS"
+}
 _nc_ssh_probe() {
     _h="$1"
+    _ct="$(_nc_connect_flags)"
     for _p in 22 8022 2222; do
-        if nc -z -w 2 "$_h" "$_p" >/dev/null 2>&1; then
+        # shellcheck disable=SC2086
+        if nc -z $_ct "$_h" "$_p" >/dev/null 2>&1; then
             printf '%s\n' "$_p"
             return 0
         fi
