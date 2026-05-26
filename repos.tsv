@@ -18,7 +18,6 @@ rsync-folder	util	rsync wrapper
 sftp-folder	util	sftp wrapper
 qemu-debian-mac	infra	QEMU Debian on Mac setup
 persistent-container-podman	infra	persistent podman containers
-termux-setup	cfg	Termux machine setup
 spfx-tool	tool	SPFx SharePoint development tool
 wifi-setup	infra,net	RTL wifi driver setup and deploy
 wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver — do not push to origin
