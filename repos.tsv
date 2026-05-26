@@ -1,32 +1,34 @@
-name	tag	description
-clipso	tool	clipboard universal OSC52+xclip+pbcopy
-noemap	tool	device alias manager for multi-machine setups
-maid-chan	tool	trash and zsh history manager
-nvim-setup	tool	neovim setup and config installer
-zsh-setup	tool	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
-dotconfig	tool	dotfiles for Debian and Mac
-mitsuwiki	tool	personal offline SPA wiki
-minitools	tool	small consolidated utility scripts
-aicli	tool	AI CLI tool
-audit-privacy	tool	privacy audit tool
+name	tags	description
+clipso	tool,cli	clipboard universal OSC52+xclip+pbcopy
+noemap	tool,net	device alias manager for multi-machine setups
+maid-chan	tool,cli	trash and zsh history manager
+nvim-setup	cfg	neovim setup and config installer
+zsh-setup	cfg	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
+dotconfig	cfg	dotfiles for Debian and Mac
+mitsuwiki	tool,web	personal offline SPA wiki
+minitools	util	small consolidated utility scripts
+aicli	tool,cli	AI CLI tool
+audit-privacy	sec	privacy audit tool
 wlab	tool	workbench and lab repo
 neko	tool	neko project
-neko-gba	tool	neko GBA project
-streaming	tool	streaming setup
-rwxdir	tool	directory permission tool
-rsync-folder	tool	rsync wrapper
-sftp-folder	tool	sftp wrapper
-qemu-debian-mac	tool	QEMU Debian on Mac setup
-persistent-container-podman	tool	persistent podman containers
-termux-setup	tool	Termux machine setup
+neko-gba	game	neko GBA project
+streaming	svc	streaming setup
+rwxdir	util	directory permission tool
+rsync-folder	util	rsync wrapper
+sftp-folder	util	sftp wrapper
+qemu-debian-mac	infra	QEMU Debian on Mac setup
+persistent-container-podman	infra	persistent podman containers
+termux-setup	cfg	Termux machine setup
 spfx-tool	tool	SPFx SharePoint development tool
-wifi-setup	tool	RTL wifi driver setup and deploy
-wifi-driver-rtl8188fu	tool	RTL8188FU vendor driver — do not push to origin
-toolbox	tool	audio/display/desktop/files/system/vm utilities
+wifi-setup	infra,net	RTL wifi driver setup and deploy
+wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver — do not push to origin
+toolbox	util	audio/display/desktop/files/system/vm utilities
+miko-task	tool,core	task manager + ctx owner
+unix-toolkit-tasks	data,priv	dstask DSTASK_DATA — private task store
 prestamos	client	Go+Docker loan management app with REST API and websockets
 prestamos-lc	client	Go+Redis+pgbouncer loan system LC version
 districarnesVera	client	Hugo web app for carnes Vera — login and inventory
-supbot-cli	client	Node.js WhatsApp CLI — send, inbox, contacts
-sibarita-site	client	Eleventy+Bootstrap site for sibarita restaurant
-microcemento-site	client	Eleventy+Bootstrap site for microcemento client
-correccionLatex	client	LaTeX university stats assignment correction — closed
+supbot-cli	client,bot	Node.js WhatsApp CLI — send, inbox, contacts
+sibarita-site	client,web	Eleventy+Bootstrap site for sibarita restaurant
+microcemento-site	client,web	Eleventy+Bootstrap site for microcemento client
+correccionLatex	client,arc	LaTeX university stats assignment correction — closed
