@@ -53,15 +53,21 @@ R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fi
 R6.2 LINT: shebang's interpreter. Var surviving reload → suspect inherited env (tmux/screen/login).
 R6.3 SCRIPTS: ANSI green=ok yellow=warn red=error cyan=info. No external deps unless decisively better. Visible progress; concise output.
 R6.4 DEAD-CODE: remove fully; grep dangling refs. Verify every called helper defined (phantom functions fail silently).
-R6.5 SESSION: check .ctx.md in project dir; create if absent. Track fixes/pending/last-known-good/open-issues. Update after each fix.
+R6.5 SESSION: two-level context system:
+- MACRO: ~/unix-toolkit/.ctx.md — global state, all machines, all repos, pending tasks, do-NOT list, last-known-good.
+- MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md — per-repo state: stack, confirmed fixes, pending, last-known-good, open issues.
+Both levels: check at session start; create if absent; update after each fix in the same turn as the fix.
+Never defer ctx updates to end of session.
 R6.6 SESSION-START (no context): first turn probe via clipso: `{ pwd; echo '---'; ls; echo '---'; git log --oneline -10 || echo 'no git'; } 2>&1 | clipso`, then wait.
+R6.8 AUTO-IMPROVE: when a mistake cost a turn OR a new pattern prevents a future error — fix ai.md in the SAME turn, not later. Same applies to .ctx.md (macro+micro). Pattern: detect issue → fix code/config → patch ai.md/ctx same commit. Never say "we should add this rule later".
+
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd_config; without it orphan socket blocks rebind silently (forward up but nc refuses). Cleanup: rm -f orphan on remote, relaunch forward. Listener/writer must agree on path (mismatch=silent no-op).
 
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
 R7.2 MESSAGE: feat|fix|refactor|chore|docs. Subject ≤60 chars, imperative, English, no period. One concern/commit. Message lets another AI reconstruct intent without session context.
 R7.3 MULTI-MACHINE: pull --rebase before push from second machine. Rebase conflict → abort, push --force-with-lease from machine with correct state. After force push → pull all other machines immediately. Never split destructive index op across machines.
-R7.4 REPO-MGMT (unix-toolkit): source of truth ~/unix-toolkit/repos.tsv (name/tag/description). Gestor ut (sync/status/push/run/list [tag]). Cold-start ut-setup.sh. Tags tool|client|archive (default excludes archive). ut sync=daily; ut-setup=first-run only. GitHub rename/delete/add → update repos.tsv + local remote + local dir same turn.
+R7.4 REPO-MGMT (unix-toolkit): source of truth ~/unix-toolkit/repos.tsv (name/tag/description). Gestor ut (sync/status/push/run/list [tag]). Cold-start ut-setup.sh. Tags tool|client|archive (default excludes archive). ut sync=daily; ut-setup=first-run only. GitHub rename/delete/add → update repos.tsv + local remote + local dir same turn. Bulk ops: { ut run 'cmd' [tag]; } 2>&1 | clipso — never call ut run without clipso wrapper.
 
 ## R8 — REMOTE
 R8.1 HEREDOC: no triple-backticks or fenced blocks inside (breaks delimiter). Plain/indented text only. If content has backticks → python3 file write.
@@ -71,10 +77,10 @@ R8.4 NO-REMOTE-HEREDOC: never nest heredoc (python3 -<<EOF|cat<<EOF) inside sing
 
 ## R9 — STACK (this user)
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) → SSH → Debian → byobu. macOS client.
-R9.2 CLIPBOARD: ALWAYS wrap whole chain { cmd; } 2>&1 | clipso. Never append 2>&1|clipso only to last command. No exceptions — includes python3 heredocs, patches, file writes, multi-line scripts. Pattern: { python3 - << 'PYEOF'
+R9.2 CLIPBOARD: ALWAYS wrap whole chain { cmd; } 2>&1 | clipso. Never append 2>&1|clipso only to last command. No exceptions — includes python3 heredocs, patches, file writes, multi-line scripts, and any command emitting output. Pattern: { python3 - << 'PYEOF'
 ...
 PYEOF
-} 2>&1 | clipso
+} 2>&1 | clipso. VIOLATION: emitting a bare command without { } 2>&1 | clipso wrapper when output is expected.
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap devices.db. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output (no manual clipso wrap). nssh <alias> with no command=interactive (no clipboard).
