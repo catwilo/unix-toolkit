@@ -39,9 +39,6 @@ Neovim setup and LSP configuration for terminal-first workflows. Reproducible in
 ### [termux-setup](https://github.com/catwilo/termux-setup)
 Termux environment bootstrap for Android — packages, zsh, plugins, dotfile links, and MPD. Includes zsh-setup (merged).
 
-### [setup-mac](https://github.com/catwilo/setup-mac)
-macOS environment setup — Homebrew, Nix, PATH management, and dotfile wiring.
-
 ### [wlab](https://github.com/catwilo/wlab)
 WPA2 handshake capture and wireless lab toolkit. For your own networks or networks you are explicitly authorized to test.
 

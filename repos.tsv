@@ -3,7 +3,7 @@ clipso	tool	clipboard universal OSC52+xclip+pbcopy
 noemap	tool	device alias manager for multi-machine setups
 maid-chan	tool	trash and zsh history manager
 nvim-setup	tool	neovim setup and config installer
-zsh-setup	tool	zsh plugins, symlinks and setup entrypoint
+zsh-setup	tool	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
 dotconfig	tool	dotfiles for Debian and Mac
 dotconfigtermux	tool	dotfiles for Termux
 mitsuwiki	tool	personal offline SPA wiki
@@ -20,7 +20,6 @@ sftp-folder	tool	sftp wrapper
 qemu-debian-mac	tool	QEMU Debian on Mac setup
 persistent-container-podman	tool	persistent podman containers
 termux-setup	tool	Termux machine setup
-setup-mac	tool	Mac machine setup
 spfx-tool	tool	SPFx SharePoint development tool
 wifi-setup	tool	RTL wifi driver setup and deploy
 wifi-driver-rtl8188fu	tool	RTL8188FU vendor driver — do not push to origin
