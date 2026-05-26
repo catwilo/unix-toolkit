@@ -71,7 +71,10 @@ R8.4 NO-REMOTE-HEREDOC: never nest heredoc (python3 -<<EOF|cat<<EOF) inside sing
 
 ## R9 — STACK (this user)
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) → SSH → Debian → byobu. macOS client.
-R9.2 CLIPBOARD: ALWAYS wrap whole chain { cmd; } 2>&1 | clipso. Never append 2>&1|clipso only to last command. No exceptions.
+R9.2 CLIPBOARD: ALWAYS wrap whole chain { cmd; } 2>&1 | clipso. Never append 2>&1|clipso only to last command. No exceptions — includes python3 heredocs, patches, file writes, multi-line scripts. Pattern: { python3 - << 'PYEOF'
+...
+PYEOF
+} 2>&1 | clipso
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap devices.db. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output (no manual clipso wrap). nssh <alias> with no command=interactive (no clipboard).
