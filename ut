@@ -108,9 +108,133 @@ cmd_run() {
     done
 }
 
+
+cmd_clone() {
+    _tag="${1:-}"
+    gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
+    mkdir -p "$DST"
+    errors=0
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        if [ -d "$target/.git" ]; then
+            info "$repo — already cloned, skipping"
+        else
+            info "$repo — cloning..."
+            git clone "https://github.com/$GITHUB_USER/$repo.git" "$target" \
+                && ok "$repo cloned" \
+                || { err "$repo — clone failed"; errors=$((errors+1)); }
+        fi
+    done
+    [ "$errors" -eq 0 ] && ok "all repos cloned" || { err "$errors repo(s) failed"; exit 1; }
+}
+
+cmd_health() {
+    _tag="${1:-}"
+    issues=0
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        if [ ! -d "$target/.git" ]; then
+            warn "$repo — not cloned"
+            issues=$((issues+1))
+            continue
+        fi
+        _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+        _behind=$(git -C "$target" rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+        _dirty=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
+        _stash=$(git -C "$target" stash list 2>/dev/null | wc -l | tr -d ' ')
+        _remote=$(git -C "$target" remote get-url origin 2>/dev/null || echo "none")
+        _reachable=0
+        git -C "$target" ls-remote --exit-code origin HEAD >/dev/null 2>&1 && _reachable=1
+        if [ "$_reachable" -eq 0 ]; then
+            err "$repo — remote unreachable: $_remote"
+            issues=$((issues+1))
+        elif [ "$_ahead" -gt 0 ] || [ "$_behind" -gt 0 ] || [ "$_dirty" -gt 0 ] || [ "$_stash" -gt 0 ]; then
+            warn "$repo — ahead:$_ahead behind:$_behind dirty:$_dirty stash:$_stash"
+            issues=$((issues+1))
+        fi
+    done
+    [ "$issues" -eq 0 ] && ok "all repos healthy"
+}
+
+cmd_diff() {
+    _tag="${1:-}"
+    _found=0
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        [ -d "$target/.git" ] || continue
+        _dirty=$(git -C "$target" status --short 2>/dev/null)
+        if [ -n "$_dirty" ]; then
+            bold "── $repo ──"
+            git -C "$target" diff --stat
+            _found=1
+        fi
+    done
+    [ "$_found" -eq 0 ] && ok "no uncommitted changes"
+}
+
+cmd_tag() {
+    # ut tag <repo> <+tag|-tag>
+    _repo="${1:-}"; _op="${2:-}"
+    [ -z "$_repo" ] || [ -z "$_op" ] && die "usage: ut tag <repo> <+tag|-tag>"
+    _addtag=""; _rmtag=""
+    case "$_op" in
+        +*) _addtag="${_op#+}" ;;
+        -*) _rmtag="${_op#-}" ;;
+        *)  die "op must start with + or -" ;;
+    esac
+    python3 - "$TSV" "$_repo" "$_addtag" "$_rmtag" << 'PYEOF'
+import sys
+tsv, repo, addtag, rmtag = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+lines = open(tsv).readlines()
+out = []
+found = False
+for line in lines:
+    parts = line.rstrip("\n").split("\t")
+    if len(parts) == 3 and parts[0] == repo:
+        tags = [t for t in parts[1].split(",") if t]
+        if addtag and addtag not in tags:
+            tags.append(addtag)
+        if rmtag and rmtag in tags:
+            tags.remove(rmtag)
+        parts[1] = ",".join(tags)
+        found = True
+        out.append("\t".join(parts) + "\n")
+    else:
+        out.append(line)
+if not found:
+    print(f"error: repo '{repo}' not found in repos.tsv"); sys.exit(1)
+open(tsv, "w").writelines(out)
+print(f"ok: {repo} tags updated")
+PYEOF
+}
+
+cmd_add() {
+    # ut add <repo> <tags> <description>
+    _repo="${1:-}"; _tags="${2:-}"; _desc="${3:-}"
+    [ -z "$_repo" ] || [ -z "$_tags" ] || [ -z "$_desc" ] && die "usage: ut add <repo> <tags> <description>"
+    grep -q "^$_repo	" "$TSV" && die "$_repo already in repos.tsv"
+    printf '%s\t%s\t%s\n' "$_repo" "$_tags" "$_desc" >> "$TSV"
+    ok "added: $_repo [$_tags]"
+}
+
+cmd_rm() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut rm <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
+    python3 - "$TSV" "$_repo" << 'PYEOF'
+import sys
+tsv, repo = sys.argv[1], sys.argv[2]
+lines = [l for l in open(tsv).readlines() if not l.startswith(repo + "\t")]
+open(tsv, "w").writelines(lines)
+print(f"ok: {repo} removed from repos.tsv")
+PYEOF
+    warn "local clone NOT removed — delete $DST/$_repo manually if needed"
+}
+
 # ── dispatch ─────────────────────────────────────────────────────────────────
 CMD="${1:-}"
-[ -z "$CMD" ] && { bold "ut — unix-toolkit repo manager"; echo "  sync [tag] | status [tag] | push [tag] | run <cmd> [tag] | list [tag]"; exit 0; }
+[ -z "$CMD" ] && { bold "ut — unix-toolkit repo manager"; echo "  sync|status|push|list|clone|health|diff [tag]
+  run <cmd> [tag] | tag <repo> <+t|-t> | add <repo> <tags> <desc> | rm <repo>"; exit 0; }
 shift
 
 case "$CMD" in
@@ -122,6 +246,21 @@ case "$CMD" in
         [ -z "${1:-}" ] && die "run requires a command"
         _runcmd="$1"; shift
         cmd_run "$_runcmd" "${1:-}"
+        ;;
+    clone)  cmd_clone  "${1:-}" ;;
+    health) cmd_health "${1:-}" ;;
+    diff)   cmd_diff   "${1:-}" ;;
+    tag)
+        [ -z "${1:-}" ] && die "tag requires <repo> <+tag|-tag>"
+        cmd_tag "$1" "${2:-}"
+        ;;
+    add)
+        [ -z "${1:-}" ] && die "add requires <repo> <tags> <description>"
+        cmd_add "$1" "${2:-}" "${3:-}"
+        ;;
+    rm)
+        [ -z "${1:-}" ] && die "rm requires <repo>"
+        cmd_rm "$1"
         ;;
     *) die "unknown command: $CMD" ;;
 esac
