@@ -1,0 +1,127 @@
+#!/bin/sh
+# ut — unix-toolkit repo manager
+# usage: ut <sync|status|push|run|list> [tag] [-- cmd]
+set -eu
+
+G='\033[32m'; Y='\033[33m'; R='\033[31m'; C='\033[36m'; B='\033[1m'; Z='\033[0m'
+ok()   { printf "${G}✓ %s${Z}\n" "$*"; }
+warn() { printf "${Y}⚠ %s${Z}\n" "$*"; }
+err()  { printf "${R}✗ %s${Z}\n" "$*" >&2; }
+info() { printf "${C}→ %s${Z}\n" "$*"; }
+bold() { printf "${B}%s${Z}\n" "$*"; }
+
+GITHUB_USER="catwilo"
+DST="${UNIX_TOOLKIT_TOOLS:-$HOME/unix-toolkit-tools}"
+TSV="$(dirname "$(realpath "$0")")/repos.tsv"
+
+die() { err "$*"; exit 1; }
+
+[ -f "$TSV" ] || die "repos.tsv not found at $TSV"
+
+# ── read repos from tsv, filter by tag ──────────────────────────────────────
+# by default: all except archive
+# if tag given: only that tag
+repos_for_tag() {
+    _tag="${1:-}"
+    tail -n +2 "$TSV" | while IFS='	' read -r name tag desc; do
+        [ -z "$name" ] && continue
+        if [ -n "$_tag" ]; then
+            [ "$tag" = "$_tag" ] && printf '%s\n' "$name"
+        else
+            [ "$tag" = "archive" ] || printf '%s\n' "$name"
+        fi
+    done
+}
+
+# ── subcommands ──────────────────────────────────────────────────────────────
+cmd_list() {
+    _tag="${1:-}"
+    bold "repos${_tag:+ [tag: $_tag]}:"
+    tail -n +2 "$TSV" | while IFS='	' read -r name tag desc; do
+        [ -z "$name" ] && continue
+        if [ -n "$_tag" ]; then
+            [ "$tag" = "$_tag" ] && printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tag" "$desc"
+        else
+            printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tag" "$desc"
+        fi
+    done
+}
+
+cmd_sync() {
+    _tag="${1:-}"
+    gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
+    mkdir -p "$DST"
+    errors=0
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        if [ -d "$target/.git" ]; then
+            info "$repo — pulling..."
+            git -C "$target" pull --rebase --autostash 2>/dev/null \
+                && ok "$repo updated" \
+                || { err "$repo — pull failed"; errors=$((errors+1)); }
+        else
+            info "$repo — cloning..."
+            git clone "https://github.com/$GITHUB_USER/$repo.git" "$target" \
+                && ok "$repo cloned" \
+                || { err "$repo — clone failed"; errors=$((errors+1)); }
+        fi
+    done
+    [ "$errors" -eq 0 ] && ok "all repos synced" || { err "$errors repo(s) failed"; exit 1; }
+}
+
+cmd_status() {
+    _tag="${1:-}"
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        [ -d "$target/.git" ] || { warn "$repo — not cloned"; continue; }
+        _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+        _dirty=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$_dirty" -gt 0 ] || [ "$_ahead" -gt 0 ]; then
+            warn "$repo — dirty:$_dirty ahead:$_ahead"
+        else
+            ok "$repo — clean"
+        fi
+    done
+}
+
+cmd_push() {
+    _tag="${1:-}"
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        [ -d "$target/.git" ] || continue
+        _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+        if [ "$_ahead" -gt 0 ]; then
+            info "$repo — pushing $_ahead commit(s)..."
+            git -C "$target" push && ok "$repo pushed" || err "$repo — push failed"
+        fi
+    done
+}
+
+cmd_run() {
+    _cmd="$1"; shift
+    _tag="${1:-}"
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        [ -d "$target/.git" ] || { warn "$repo — not cloned, skipping"; continue; }
+        bold "── $repo ──"
+        (cd "$target" && eval "$_cmd") || err "$repo — command failed"
+    done
+}
+
+# ── dispatch ─────────────────────────────────────────────────────────────────
+CMD="${1:-}"
+[ -z "$CMD" ] && { bold "ut — unix-toolkit repo manager"; echo "  sync [tag] | status [tag] | push [tag] | run <cmd> [tag] | list [tag]"; exit 0; }
+shift
+
+case "$CMD" in
+    sync)   cmd_sync   "${1:-}" ;;
+    status) cmd_status "${1:-}" ;;
+    push)   cmd_push   "${1:-}" ;;
+    list)   cmd_list   "${1:-}" ;;
+    run)
+        [ -z "${1:-}" ] && die "run requires a command"
+        _runcmd="$1"; shift
+        cmd_run "$_runcmd" "${1:-}"
+        ;;
+    *) die "unknown command: $CMD" ;;
+esac

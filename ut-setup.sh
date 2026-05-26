@@ -1,5 +1,5 @@
 #!/bin/sh
-# bootstrap.sh — clone/pull all catwilo repos into ~/unix-toolkit-tools
+# ut-setup.sh — first-run cold bootstrap; clones all catwilo repos into ~/unix-toolkit-tools
 # Safe to re-run: pulls existing, clones missing.
 # Requires: gh (authenticated), git
 set -eu
