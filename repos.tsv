@@ -5,7 +5,7 @@ maid-chan	tool	trash and zsh history manager
 nvim-setup	tool	neovim setup and config installer
 zsh-setup	tool	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
 dotconfig	tool	dotfiles for Debian and Mac
-dotconfigtermux	tool	dotfiles for Termux
+dotconfigtermux	archive	archived — merged into dotconfig
 mitsuwiki	tool	personal offline SPA wiki
 minitools	tool	small consolidated utility scripts
 aicli	tool	AI CLI tool
