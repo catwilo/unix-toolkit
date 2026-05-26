@@ -68,6 +68,8 @@ R6.8 AUTO-IMPROVE: when a mistake cost a turn OR a new pattern prevents a future
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd_config; without it orphan socket blocks rebind silently (forward up but nc refuses). Cleanup: rm -f orphan on remote, relaunch forward. Listener/writer must agree on path (mismatch=silent no-op).
 
 R6.9 BASH-SET-U-SUBSHELL: `VAR=$(cmd)` where cmd references an unset variable does NOT trigger set -e on the assignment — VAR silently stays unset. Subsequent `${VAR}` then triggers set -u. Always initialize variables (`VAR=""`) before command substitutions that may reference them. Pattern: initialize → assign → use.
+R6.10 DSTASK-GIT: dstask always creates and owns its .git in DSTASK_DATA. Never place DSTASK_DATA inside another repo — produces unregistered submodule, silent merge/sync failures. Dedicated standalone repo only. No exceptions.
+R6.11 PASSTHROUGH-DEAD-CODE: before creating any lib/*.sh or wrapper script, verify it adds real logic. A script that only calls another binary with the same args (pure pass-through) is dead code — eliminate it and call the binary directly. R6.4 applies.
 
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
