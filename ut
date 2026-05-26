@@ -23,12 +23,12 @@ die() { err "$*"; exit 1; }
 # if tag given: only that tag
 repos_for_tag() {
     _tag="${1:-}"
-    tail -n +2 "$TSV" | while IFS='	' read -r name tag desc; do
+    tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
         [ -z "$name" ] && continue
         if [ -n "$_tag" ]; then
-            [ "$tag" = "$_tag" ] && printf '%s\n' "$name"
+            case ",$tags," in *",$_tag,"*) printf '%s\n' "$name" ;; esac
         else
-            [ "$tag" = "archive" ] || printf '%s\n' "$name"
+            case ",$tags," in *",arc,"*) ;; *) printf '%s\n' "$name" ;; esac
         fi
     done
 }
@@ -37,12 +37,12 @@ repos_for_tag() {
 cmd_list() {
     _tag="${1:-}"
     bold "repos${_tag:+ [tag: $_tag]}:"
-    tail -n +2 "$TSV" | while IFS='	' read -r name tag desc; do
+    tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
         [ -z "$name" ] && continue
         if [ -n "$_tag" ]; then
-            [ "$tag" = "$_tag" ] && printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tag" "$desc"
+            case ",$tags," in *",$_tag,"*) printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tags" "$desc" ;; esac
         else
-            printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tag" "$desc"
+            printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tags" "$desc"
         fi
     done
 }
