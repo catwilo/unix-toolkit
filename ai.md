@@ -93,4 +93,4 @@ R9.5 NSSH: nssh <alias> "cmd" auto-copies output (no manual clipso wrap). nssh <
 R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinstall via install.sh → test.
 R9.7 MACHINE: never ask. Derive: first turn probe via clipso, act on output.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
-R9.9 DOTCONFIG-ARCH: dotconfig is the single source of dotfiles for ALL platforms (Termux/Debian/Mac). Never reference dotconfigtermux or custom_termux — both deleted. dotconfig/install.sh is the canonical link installer; all setup scripts delegate to it. zsh-setup is the canonical installer (pkg+plugins+links); termux-setup delegates to it or mirrors its structure.
+R9.9 DOTCONFIG-ARCH: dotconfig is the single source of dotfiles for ALL platforms (Termux/Debian/Mac). Never reference dotconfigtermux, custom_termux, or termux-setup — all deleted. dotconfig/install.sh is the canonical link installer. zsh-setup is the canonical installer for ALL platforms (pkg+plugins+links+shell); no platform-specific setup repos exist.
