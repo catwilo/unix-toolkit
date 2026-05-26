@@ -38,7 +38,11 @@ R4.7 NO-HARDCODE: IPs/ifaces/IDs/subnets/paths derive from live state each run. 
 R4.8 SOURCE↔DEPLOY: establish paths first; edit source only; propagate source→deploy same step; diff/checksum before test.
 R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 
+## R4 addendum
+R4.10 FILE-HYGIENE: when touching any config/dotfile/ctx/script: scan same turn for redundant blocks, dead variables, stale entries, duplicate PATH exports, and unreachable code. Remove or consolidate. Never leave a file dirtier than found. Apply minimal surgical changes — never rewrite unrelated sections.
+
 ## R5 — EXEC
+R5.9 UT-WORKFLOW: multi-repo push → `ut push`; remote pull → `nssh <alias> "~/.local/bin/ut sync"`. Never chain manual cd+git+push for multi-repo ops. ut is the canonical interface for all repo management.
 R5.1 FOREGROUND-DAEMON: nc -l, tail -f, servers → must (a) background (&) AND (b) exact kill command same turn. Probing daemons (sshd -d, nc -lU): wrap in `timeout Ns` + background + kill; prefer non-invasive check (ss/pgrep/one-shot client).
 R5.2 NO-CHAIN-BLOCKING: no blocking command before another via ; or &&.
 R5.3 LONG/NETWORK: show progress or detach. Prefer systemd/launchd over raw loops.
@@ -63,6 +67,8 @@ R6.8 AUTO-IMPROVE: when a mistake cost a turn OR a new pattern prevents a future
 
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd_config; without it orphan socket blocks rebind silently (forward up but nc refuses). Cleanup: rm -f orphan on remote, relaunch forward. Listener/writer must agree on path (mismatch=silent no-op).
 
+R6.9 BASH-SET-U-SUBSHELL: `VAR=$(cmd)` where cmd references an unset variable does NOT trigger set -e on the assignment — VAR silently stays unset. Subsequent `${VAR}` then triggers set -u. Always initialize variables (`VAR=""`) before command substitutions that may reference them. Pattern: initialize → assign → use.
+
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
 R7.2 MESSAGE: feat|fix|refactor|chore|docs. Subject ≤60 chars, imperative, English, no period. One concern/commit. Message lets another AI reconstruct intent without session context.
@@ -74,6 +80,8 @@ R8.1 HEREDOC: no triple-backticks or fenced blocks inside (breaks delimiter). Pl
 R8.2 PATCH: (1) grep -n EXACT target line; (2) copy old string char-for-char from grep; (3) assert count==1, re-read on fail; (4) anchor on ASCII-only unique lines (em-dash/UTF-8 breaks match).
 R8.3 VERIFY: patch+verify in one command where applicable (python3 patch && bash -n file && shellcheck -S error file). No multi-line sed in terminal.
 R8.4 NO-REMOTE-HEREDOC: never nest heredoc (python3 -<<EOF|cat<<EOF) inside single-quoted remote arg (nclipc d0 -- '...') — outer quote corrupts delimiter. For remote edits: (a) sed -i with grep-verified anchor, or (b) edit LOCAL then git push/pull or nscp, or (c) printf for short content. Reserve clipso-piped python3 heredocs for LOCAL execution only.
+
+R8.5 NSSH-PATH: nssh runs a non-interactive shell — .zshrc/.zprofile not sourced. ~/.local/bin not in PATH by default on remotes. Fix options in order of preference: (1) add `export PATH="$HOME/.local/bin:$PATH"` to ~/.zshenv (sourced always, non-interactive); (2) prefix command with `export PATH="$HOME/.local/bin:$PATH" &&`; (3) use full absolute path. Always verify PATH before relying on aliases/tools via nssh.
 
 ## R9 — STACK (this user)
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) → SSH → Debian → byobu. macOS client.
