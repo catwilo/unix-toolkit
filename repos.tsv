@@ -5,7 +5,6 @@ maid-chan	tool	trash and zsh history manager
 nvim-setup	tool	neovim setup and config installer
 zsh-setup	tool	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
 dotconfig	tool	dotfiles for Debian and Mac
-dotconfigtermux	archive	archived — merged into dotconfig
 mitsuwiki	tool	personal offline SPA wiki
 minitools	tool	small consolidated utility scripts
 aicli	tool	AI CLI tool
@@ -23,6 +22,7 @@ termux-setup	tool	Termux machine setup
 spfx-tool	tool	SPFx SharePoint development tool
 wifi-setup	tool	RTL wifi driver setup and deploy
 wifi-driver-rtl8188fu	tool	RTL8188FU vendor driver — do not push to origin
+toolbox	tool	audio/display/desktop/files/system/vm utilities
 prestamos	client	Go+Docker loan management app with REST API and websockets
 prestamos-lc	client	Go+Redis+pgbouncer loan system LC version
 districarnesVera	client	Hugo web app for carnes Vera — login and inventory
