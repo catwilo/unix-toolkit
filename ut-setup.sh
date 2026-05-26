@@ -18,6 +18,10 @@ gh auth status >/dev/null 2>&1 || { err "gh not authenticated — run: gh auth l
 mkdir -p "$DST"
 info "fetching repo list for $GITHUB_USER → $DST"
 
+SELF="$(cd "$(dirname "$0")" && pwd)"
+mkdir -p "$HOME/.local/bin"
+ln -sf "$SELF/ut" "$HOME/.local/bin/ut" && ok "ut symlink → ~/.local/bin/ut"
+
 errors=0
 gh repo list "$GITHUB_USER" --limit 100 --json name --jq '.[].name' \
 | grep -v "^${INDEX_REPO}$" \
