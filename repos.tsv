@@ -27,7 +27,7 @@ wifi-driver-rtl8188fu	tool	RTL8188FU vendor driver — do not push to origin
 prestamos	client	Go+Docker loan management app with REST API and websockets
 prestamos-lc	client	Go+Redis+pgbouncer loan system LC version
 districarnesVera	client	Hugo web app for carnes Vera — login and inventory
-supbot	client	Node.js WhatsApp CLI — send, inbox, contacts
+supbot-cli	client	Node.js WhatsApp CLI — send, inbox, contacts
 sibarita-site	client	Eleventy+Bootstrap site for sibarita restaurant
 microcemento-site	client	Eleventy+Bootstrap site for microcemento client
 correccionLatex	client	LaTeX university stats assignment correction — closed
