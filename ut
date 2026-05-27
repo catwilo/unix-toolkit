@@ -118,6 +118,9 @@ cmd_push() {
             git -C "$target" push && ok "$repo pushed" || err "$repo — push failed"
         fi
     done
+    # post-push status report
+    echo ""
+    cmd_status
 }
 
 cmd_run() {
