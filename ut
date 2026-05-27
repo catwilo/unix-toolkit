@@ -101,6 +101,14 @@ cmd_status() {
 
 cmd_push() {
     _tag="${1:-}"
+    _self="$(dirname "$(realpath "$0")")"
+    # push self (unix-toolkit) first
+    _ahead=$(git -C "$_self" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+    if [ "$_ahead" -gt 0 ]; then
+        info "unix-toolkit — pushing $_ahead commit(s)..."
+        git -C "$_self" push && ok "unix-toolkit pushed" || err "unix-toolkit — push failed"
+    fi
+    # push all tool repos
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
         [ -d "$target/.git" ] || continue
