@@ -49,6 +49,10 @@ cmd_list() {
 
 cmd_sync() {
     _tag="${1:-}"
+    info "unix-toolkit — self-update..."
+    git -C "$(dirname "$(realpath "$0")")" pull --rebase --autostash 2>/dev/null \
+        && ok "unix-toolkit updated" \
+        || warn "unix-toolkit self-update failed — continuing"
     gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
     mkdir -p "$DST"
     errors=0
