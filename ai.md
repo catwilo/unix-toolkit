@@ -86,7 +86,7 @@ R8.5 NSSH-PATH: nssh = non-interactive shell, rc files not sourced. Fix: (1) exp
 
 ## R9 — STACK
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(d0) + macOS(d1,partial). Primary: Termux. byobu on d0.
-R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no debate, no exceptions. File write: { cat > ~/path << 'EOF'\n...\nEOF\n} 2>&1 | clipso. Only carved-out exception: TTY-interactive commands (R9.10) which require bare execution. VIOLATION: any command emitted without clipso wrapper when not TTY-interactive.
+R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no debate, no exceptions. File write: { cat > ~/path << 'EOF'\n...\nEOF\n} 2>&1 | clipso. Carved-out exceptions: (1) TTY-interactive commands (R9.10) — bare execution; (2) nssh <alias> "cmd" — auto-copies output per R9.5, no clipso needed. VIOLATION: any command emitted without clipso wrapper outside these two cases.
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactive, no clipboard.
