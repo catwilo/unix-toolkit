@@ -61,7 +61,7 @@ cmd_sync() {
                 || { err "$repo — pull failed"; errors=$((errors+1)); }
         else
             info "$repo — cloning..."
-            git clone "https://github.com/$GITHUB_USER/$repo.git" "$target" \
+            git clone "git@github.com:$GITHUB_USER/$repo.git" "$target" \
                 && ok "$repo cloned" \
                 || { err "$repo — clone failed"; errors=$((errors+1)); }
         fi
@@ -71,17 +71,22 @@ cmd_sync() {
 
 cmd_status() {
     _tag="${1:-}"
+    _total=0; _issues=0
     repos_for_tag "$_tag" | while IFS= read -r repo; do
+        _total=$((_total+1))
         target="$DST/$repo"
-        [ -d "$target/.git" ] || { warn "$repo — not cloned"; continue; }
-        _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-        _dirty=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
-        if [ "$_dirty" -gt 0 ] || [ "$_ahead" -gt 0 ]; then
-            warn "$repo — dirty:$_dirty ahead:$_ahead"
-        else
-            ok "$repo — clean"
+        if [ ! -d "$target/.git" ]; then
+            warn "$repo — not cloned"; _issues=$((_issues+1)); continue
+        fi
+        _a=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+        _d=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$_d" -gt 0 ] || [ "$_a" -gt 0 ]; then
+            warn "$repo — dirty:$_d ahead:$_a"
+            _issues=$((_issues+1))
         fi
     done
+    _clean=$((_total - _issues))
+    bold "[$_total repos] ✓ $_clean clean  ⚡ $_issues with changes"
 }
 
 cmd_push() {
@@ -120,7 +125,7 @@ cmd_clone() {
             info "$repo — already cloned, skipping"
         else
             info "$repo — cloning..."
-            git clone "https://github.com/$GITHUB_USER/$repo.git" "$target" \
+            git clone "git@github.com:$GITHUB_USER/$repo.git" "$target" \
                 && ok "$repo cloned" \
                 || { err "$repo — clone failed"; errors=$((errors+1)); }
         fi
@@ -231,36 +236,22 @@ PYEOF
     warn "local clone NOT removed — delete $DST/$_repo manually if needed"
 }
 
-# ── dispatch ─────────────────────────────────────────────────────────────────
-CMD="${1:-}"
-[ -z "$CMD" ] && { bold "ut — unix-toolkit repo manager"; echo "  sync|status|push|list|clone|health|diff [tag]
-  run <cmd> [tag] | tag <repo> <+t|-t> | add <repo> <tags> <desc> | rm <repo>"; exit 0; }
-shift
 
-case "$CMD" in
-    sync)   cmd_sync   "${1:-}" ;;
-    status) cmd_status "${1:-}" ;;
-    push)   cmd_push   "${1:-}" ;;
-    list)   cmd_list   "${1:-}" ;;
-    run)
-        [ -z "${1:-}" ] && die "run requires a command"
-        _runcmd="$1"; shift
-        cmd_run "$_runcmd" "${1:-}"
-        ;;
-    clone)  cmd_clone  "${1:-}" ;;
-    health) cmd_health "${1:-}" ;;
-    diff)   cmd_diff   "${1:-}" ;;
-    tag)
-        [ -z "${1:-}" ] && die "tag requires <repo> <+tag|-tag>"
-        cmd_tag "$1" "${2:-}"
-        ;;
-    add)
-        [ -z "${1:-}" ] && die "add requires <repo> <tags> <description>"
-        cmd_add "$1" "${2:-}" "${3:-}"
-        ;;
-    rm)
-        [ -z "${1:-}" ] && die "rm requires <repo>"
-        cmd_rm "$1"
-        ;;
-    *) die "unknown command: $CMD" ;;
-esac
+cmd_machines() {
+    _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
+    _hosts="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/hosts.db"
+    [ -f "$_devices" ] || die "devices.db not found: $_devices"
+    [ -f "$_hosts" ]   || die "hosts.db not found: $_hosts"
+    while IFS='|' read -r alias ip user port; do
+        [ -z "$alias" ] && continue
+        _os=$(grep "^$ip|" "$_hosts" | cut -d'|' -f2)
+        _os="${_os:-unknown}"
+        bold "── $alias [$_os] ──"
+        if nssh "$alias" "ut status" 2>/dev/null; then
+            true
+        else
+            err "$alias — unreachable"
+        fi
+    done < "$_devices"
+}
+
