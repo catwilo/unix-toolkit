@@ -100,3 +100,6 @@ R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new 
 R9.13 REPO-LOCATION: unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolkit-tools/<name>/. Never confuse the two.
 R9.14 COMMIT-COMPLETENESS: structural changes (migrations, moves, bundle additions) incomplete until: (a) git status shows tracked, (b) committed, (c) push rc=0 confirmed. Always git status after structural changes.
 R9.15 SYMLINK-AUDIT: when deleting a repo, scan ALL symlinks on all machines pointing to it before deletion. Fix dangling symlinks same turn. Pattern: find $HOME -maxdepth 3 -type l | xargs ls -la 2>&1 | grep deleted_repo.
+
+R9.16 INSTALLER-CANON: every repo has exactly one installer named install.sh — never setup.sh or other names. install.sh is the source of truth for deploying that repo's artifacts (symlinks, configs, binaries). It must be idempotent and overwrite/fix any prior state.
+R9.17 INSTALLER-FIRST: never fix deployed artifacts manually except to confirm a fix works experimentally. Correct flow: (1) identify issue, (2) optionally confirm fix manually, (3) patch install.sh to apply the fix, (4) re-run install.sh to propagate. Manual fixes without updating install.sh are forbidden — next install run will revert them. Any manual fix not reflected in install.sh = incomplete fix.
