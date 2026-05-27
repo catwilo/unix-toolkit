@@ -53,6 +53,7 @@ R5.9 UT-WORKFLOW: multi-repo push → ut push; remote pull → nssh <alias> "~/.
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify expansion with grep after.
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
 R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. ut=repo ops, clipso=clipboard, nssh/noemap=remote, maid=cleanup.
+R5.13 LOCAL-FILE: local files → use clipso <file> directly. Never { cat <file>; } 2>&1 | clipso — clipso reads and displays files natively in one call.
 
 ## R6 — DEBUG
 R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fix across turns.
