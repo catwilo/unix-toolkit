@@ -93,6 +93,7 @@ R8.2 PATCH: (1) grep -n EXACT target; (2) copy char-for-char; (3) assert count==
 R8.3 VERIFY: patch+verify in one command (python3 patch && bash -n file && shellcheck -S error file).
 R8.4 NO-REMOTE-HEREDOC: never nest heredoc inside single-quoted remote arg. For remote edits: (a) sed -i with grep anchor, (b) edit local then push/pull, (c) printf for short content.
 R8.5 NSSH-PATH: nssh = non-interactive shell, rc files not sourced. Fix: (1) export PATH in ~/.zshenv, (2) prefix command, (3) full absolute path.
+R8.6 NSSH-ANSI: nssh output contains ANSI codes + line numbers. Never pipe directly into tools — strip first with grep -o or save to file.
 
 ## R9 — STACK
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(d0) + macOS(d1,partial). Primary: Termux. byobu on d0.
@@ -100,6 +101,7 @@ R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no deba
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactive, no clipboard.
+R9.19 DSTASK-BUILD: no linux-arm64 release exists. Compile on d0 (Go). Targets: linux-amd64(d0) linux-arm64(Termux) darwin-arm64(d1). Build: ~/build/dstask/. Distribute via nscp.
 R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinstall → test.
 R9.7 MACHINE: never ask. Derive from first-turn probe.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
