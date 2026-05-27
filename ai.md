@@ -101,7 +101,7 @@ R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no deba
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactive, no clipboard.
-R9.19 DSTASK-BUILD: no linux-arm64 release exists. Compile on d0 (Go). Targets: linux-amd64(d0) linux-arm64(Termux) darwin-arm64(d1). Build: ~/build/dstask/. Distribute via nscp.
+R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(d0) darwin-arm64(d1) — compile on d0 with /home/u/go/bin/go, build dir ~/build/dstask/. arm64/Termux: compile NATIVELY on Termux with Termux Go (pkg install golang) — Go cross-compiled binaries from d0 crash with SIGSYS faccessat2 on Android kernel 4.19 (requires ≥5.8). DSTASK_DATA=~/.dstask (default, no override).
 R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinstall → test.
 R9.7 MACHINE: never ask. Derive from first-turn probe.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
