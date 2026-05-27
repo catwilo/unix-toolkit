@@ -72,19 +72,25 @@ cmd_sync() {
 cmd_status() {
     _tag="${1:-}"
     _total=0; _issues=0
+    _tmp=$(mktemp)
+    printf "0 0\n" > "$_tmp"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
-        _total=$((_total+1))
+        read -r _t _i < "$_tmp"
+        _t=$((_t+1))
         target="$DST/$repo"
         if [ ! -d "$target/.git" ]; then
-            warn "$repo — not cloned"; _issues=$((_issues+1)); continue
+            warn "$repo — not cloned"; _i=$((_i+1))
+            printf "%s %s\n" "$_t" "$_i" > "$_tmp"; continue
         fi
         _a=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
         _d=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
         if [ "$_d" -gt 0 ] || [ "$_a" -gt 0 ]; then
             warn "$repo — dirty:$_d ahead:$_a"
-            _issues=$((_issues+1))
+            _i=$((_i+1))
         fi
+        printf "%s %s\n" "$_t" "$_i" > "$_tmp"
     done
+    read -r _total _issues < "$_tmp"; rm -f "$_tmp"
     _clean=$((_total - _issues))
     bold "[$_total repos] ✓ $_clean clean  ⚡ $_issues with changes"
 }
@@ -255,3 +261,22 @@ cmd_machines() {
     done < "$_devices"
 }
 
+
+CMD="${1:-}"; shift || true
+[ -z "$CMD" ] && { err "usage: ut <sync|status|push|run|list|clone|health|diff|tag|add|rm|machines> [args]"; exit 1; }
+
+case "$CMD" in
+    sync)     cmd_sync     "$@" ;;
+    status)   cmd_status   "$@" ;;
+    push)     cmd_push     "$@" ;;
+    run)      cmd_run      "$@" ;;
+    list)     cmd_list     "$@" ;;
+    clone)    cmd_clone    "$@" ;;
+    health)   cmd_health   "$@" ;;
+    diff)     cmd_diff     "$@" ;;
+    tag)      cmd_tag      "$@" ;;
+    add)      cmd_add      "$@" ;;
+    rm)       cmd_rm       "$@" ;;
+    machines) cmd_machines ;;
+    *) err "unknown command: $CMD"; exit 1 ;;
+esac
