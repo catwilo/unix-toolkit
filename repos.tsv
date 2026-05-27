@@ -4,7 +4,6 @@ noemap	tool,net	device alias manager for multi-machine setups
 maid-chan	tool,cli	trash and zsh history manager
 nvim-setup	cfg	neovim setup and config installer
 zsh-setup	cfg	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
-dotconfig	cfg	dotfiles for Debian and Mac
 mitsuwiki	tool,web	personal offline SPA wiki
 minitools	util	small consolidated utility scripts
 aicli	tool,cli	AI CLI tool

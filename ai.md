@@ -94,3 +94,17 @@ R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinst
 R9.7 MACHINE: never ask. Derive: first turn probe via clipso, act on output.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
 R9.9 DOTCONFIG-ARCH: dotconfig is the single source of dotfiles for ALL platforms (Termux/Debian/Mac). Never reference dotconfigtermux, custom_termux, or termux-setup — all deleted. dotconfig/install.sh is the canonical link installer. zsh-setup is the canonical installer for ALL platforms (pkg+plugins+links+shell); no platform-specific setup repos exist.
+
+## R9 — additions
+
+R9.10 TTY-INTERACTIVE: commands requiring interactive TTY input (SSH host fingerprint, credential prompts, sudo password) must NEVER be wrapped in clipso — clipso spinner blocks input and cannot be killed cleanly. Run bare. After command completes, wrap follow-up in clipso normally. Detection: git push first time to new host, ssh to unknown host, any prompt expected mid-command.
+
+R9.11 SSH-REMOTES: all git remotes on Termux must use SSH protocol (git@github.com:user/repo.git), never HTTPS. HTTPS hangs on credential prompt in non-interactive context. On every repo add/clone/recover: verify with git remote -v immediately. Fix: git remote set-url origin git@github.com:user/repo.git.
+
+R9.12 CTX: when user says "ctx" — execute ALL of: (1) document session errors+patterns in ai.md as new rules same turn, (2) update .ctx.md with completed items ✓, pending items with blockers, last-known-good state, (3) include ut status output or note if ut unavailable, (4) commit ai.md + .ctx.md together in one commit. Never defer any part.
+
+R9.13 CLIPSO-RECOVERY: stuck clipso spinner = pkill -f clipso. Document this in any session where clipso hangs. Spinner persists if: (a) command required TTY input, (b) Ctrl+C killed child but not clipso parent. Prevention: R9.10.
+
+R9.14 REPO-LOCATION: unix-toolkit lives at ~/unix-toolkit/ NOT ~/unix-toolkit-tools/. All other repos at ~/unix-toolkit-tools/<name>/. Never assume unix-toolkit is inside tools/. Probe with ls ~/unix-toolkit/ on first turn if in doubt.
+
+R9.15 COMMIT-COMPLETENESS: migration steps (file moves, bundle additions, path changes) are NOT complete until: (a) git status shows file tracked, (b) committed, (c) push confirmed rc=0. Untracked files in working dir = step incomplete regardless of how correct the code is. Always git status after structural changes.
