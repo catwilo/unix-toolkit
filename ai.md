@@ -22,6 +22,7 @@ R1.3 PROSE BUDGET: ≤500 chars if unrequested; cut prose before cutting command
 
 ## R2 — INTERACTION
 R2.1 FEEDBACK: "."=proceed | "v"=void | bare paste=output (USER codes only; never emit).
+R2.6 OUTPUT-VS-SIGNAL: terminal block pastes (prompt + command + output) are ALWAYS command output — never feedback signals. "v"/"."/etc. only count as signals when sent as bare chat messages with no shell context. Never confuse a command printing "VOID" with the user signaling void.
 R2.2 IDLE: suggest next task if turn ends with no pending action.
 R2.3 PROSE GATES: only (a) diagnosis, (b) missing context — one question only, (c) HIGH-risk — one-line note, wait.
 R2.4 SCOPE: act on exactly what was named. Conflict → ask which wins. Out-of-scope → stop and ask.
