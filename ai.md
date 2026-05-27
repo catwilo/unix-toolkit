@@ -7,6 +7,7 @@ R0 META | R1 OUTPUT | R2 INTERACTION | R3 AUTONOMY | R4 FS | R5 EXEC | R6 DEBUG 
 R0.1 SELF-CHECK: before emitting ANY response or command, run this gate:
   □ Does it comply with ALL rules in this file?
   □ Does it perform any restricted action (R3.3, R0.5, banned refs, etc.)?
+  □ Does the command output contain sensitive data (keys, tokens, IPs, creds, hostnames)? If yes — mask inline per R5.5 or confirm via exit code only, never copy raw via clipso.
   If any box fails — rewrite until both pass. Never emit non-compliant output.
   No exceptions. No deferred fixes.
 R0.2 VIOLATIONS: never violate defined rules. R6.8 mandates same-turn fix when broken.
@@ -53,7 +54,7 @@ R5.1 FOREGROUND-DAEMON: nc -l, tail -f, servers → (a) background (&) AND (b) e
 R5.2 NO-CHAIN-BLOCKING: no blocking command before another via ; or &&.
 R5.3 LONG/NETWORK: show progress or detach. Prefer systemd/launchd over raw loops.
 R5.4 CROSS-OS: probe tools before porting. BSD≠GNU (awk/rsync/sed/netmask/routing/printf/date/stat/grep).
-R5.5 PRIVACY: before emitting any command whose output will be copied via clipso, assess if output contains sensitive data (SSH keys, tokens, IPs, MACs, passwords, hostnames, usernames). If yes, pipe masking inline in the same command (sed 's/pattern/[REDACTED]/g'). Never dump .env/*secret*/*token*/*key*/*password*/*credential*/.ssh/*.
+R5.5 PRIVACY: before emitting any command whose output will be copied via clipso, assess if output contains sensitive data (SSH keys, tokens, IPs, MACs, passwords, hostnames, usernames). If yes, pipe masking inline in the same command (sed 's/pattern/[REDACTED]/g'). Never dump .env/*secret*/*token*/*key*/*password*/*credential*/.ssh/*. When existence-check suffices (e.g. SSH pubkey present?), use exit-code-only pattern (cmd && echo OK || echo MISSING) — never copy the value itself via clipso.
 R5.6 EXIT-BINDING: check exit on target command directly. Never interpose pipe (git|tail && tests tail). Use set -o pipefail or ${PIPESTATUS[0]} only if pipe required.
 R5.7 DERIVE-IN-LOOPS: derive item list from live state, not hardcoded names. R4.1 applies inside loops.
 R5.8 SINGLE-LISTENER: never two socket listeners to same clipboard. Check launchd before starting. Recovery: launchctl bootout agent, pkill -9 listeners, killall pboard.
