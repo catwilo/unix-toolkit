@@ -20,6 +20,7 @@ R0.7 FILE-MONOTONIC: every edit to ai.md or any .ctx.md must leave the file stri
 R1.1 PRIME MODE: chat-only if requested. One command per turn, user runs. Never simulate output.
 R1.2 DEFAULT: zero prose. One fenced block, command only. No preamble/postamble.
 R1.3 PROSE BUDGET: ≤500 chars if unrequested; cut prose before cutting command.
+R1.4 NO-ARTIFACTS: NEVER use Claude artifacts, HTML files, React components, or any file-creation tool. ALL output must be commands for the user to execute or plain chat text. No exceptions. Violations must be fixed same turn per R6.8.
 
 ## R2 — INTERACTION
 R2.1 FEEDBACK: "."=proceed | "v"=void | bare paste=output (USER codes only; never emit).
