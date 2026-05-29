@@ -45,10 +45,13 @@ R4.3 READ: one targeted read/turn (grep -n|sed -n 'X,Yp'|rg). No cat of large fi
 R4.4 LIST: find, not globs (glob fail aborts zsh).
 R4.5 EDIT: minimal change on confirmed problem; preserve conventions. Absolute paths from $HOME/live state.
 R4.6 WHOLE-FILE: never in-place overwrite. Write .new → verify (bash -n + shellcheck) → mv. No cat > overwrite.
+    ctx files (*.ctx.md): write .new + mv MUST happen in the SAME python3 block. Never emit write-.new without mv in same command — orphaned .new = silently stale ctx.
 R4.7 NO-HARDCODE: IPs/ifaces/IDs/paths derive from live state. Use $HOME or realpath ~/. Unsure → find first.
 R4.8 SOURCE↔DEPLOY: establish paths first; edit source only; propagate source→deploy same step; diff/checksum before test.
 R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 R4.10 FILE-HYGIENE: when touching config/dotfile/ctx/script: scan for redundant blocks, dead vars, stale entries, duplicate PATH exports, unreachable code. Remove/consolidate. Never leave file dirtier than found.
+
+R4.11 SCRIPT-MODE: after writing any executable script (via python3 or heredoc), chmod +x in the SAME command. After git commit of scripts, confirm mode 100755 in commit output — mode change 100644=>100755 absent = broken deploy. Pattern: write → chmod +x → git add → commit — never separate steps.
 
 ## R5 — EXEC
 R5.1 FOREGROUND-DAEMON: nc -l, tail -f, servers → (a) background (&) AND (b) exact kill command same turn. Probing: timeout Ns + background + kill; prefer ss/pgrep/one-shot client.
@@ -62,12 +65,16 @@ R5.8 SINGLE-LISTENER: never two socket listeners to same clipboard. Check launch
 R5.9 UT-WORKFLOW: multi-repo push → ut push; remote pull → nssh <alias> "~/.local/bin/ut sync". Never chain manual cd+git+push for multi-repo ops.
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify expansion with grep after.
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
+    Termux EXCEPTION: env -i test is INVALID on Termux — /usr/bin/env path differs, miko/tools not in PATH. Use fresh Termux tab outside byobu instead. Never use env -i to diagnose env issues on Termux.
 R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. ut=repo ops, clipso=clipboard, nssh/noemap=remote, maid=cleanup.
 R5.13 LOCAL-FILE: local files → use clipso <file> directly. Never { cat <file>; } 2>&1 | clipso — clipso reads and displays files natively in one call.
+
+R5.14 ENV-VAR-FALLBACK: every env var that may be unset must use ${VAR:-default} at point of use. Never assume exported. Critical vars: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars. Assuming a var is set because 'it should be exported' = latent bug that fails silently on fresh machines.
 
 ## R6 — DEBUG
 R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fix across turns.
 R6.2 LINT+RUN: run scripts with shebang interpreter. Var surviving reload → suspect inherited env.
+    Var survives reload AND grep finds nothing in dotfiles → inherited env from parent process (byobu/tmux). Fix: fresh Termux tab OUTSIDE byobu, not a new pane. Apply this diagnosis BEFORE exhausting grep turns.
 R6.3 SCRIPTS: ANSI green=ok yellow=warn red=error cyan=info. No external deps unless decisive. Visible progress; concise output.
 R6.4 DEAD-CODE: remove fully; grep dangling refs. Verify every called helper is defined.
 R6.5 SESSION: two-level context — LEER OBLIGATORIAMENTE ANTES DE CUALQUIER ACCIÓN:
@@ -95,6 +102,8 @@ R6.8 AUTO-IMPROVE: mistake cost a turn OR new pattern → fix ai.md + ctx.md sam
 R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var → VAR silently unset; ${VAR} triggers set -u. Pattern: initialize → assign → use.
 R6.10 DSTASK-GIT: dstask owns its .git in DSTASK_DATA. Never place DSTASK_DATA inside another repo.
 R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds real logic. Pure pass-through = dead code — eliminate.
+
+R6.12 CALLER-VERIFY: before shipping any lib function, verify it has ≥1 reachable caller in dispatcher or another lib. Unreachable from entry point = dead code (R6.11). bash -n passing does NOT mean function is correct — also verify: semantics, caller exists, output tested. Broken function with no test path must not ship even if syntactically valid.
 
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
