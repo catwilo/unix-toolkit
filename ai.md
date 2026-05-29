@@ -70,11 +70,26 @@ R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fi
 R6.2 LINT+RUN: run scripts with shebang interpreter. Var surviving reload → suspect inherited env.
 R6.3 SCRIPTS: ANSI green=ok yellow=warn red=error cyan=info. No external deps unless decisive. Visible progress; concise output.
 R6.4 DEAD-CODE: remove fully; grep dangling refs. Verify every called helper is defined.
-R6.5 SESSION: two-level context:
-- MACRO: ~/unix-toolkit/.ctx.md — global state, machines, repos, pending, do-NOT, last-known-good.
-- MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md — per-repo: stack, fixes, pending, last-known-good, issues.
-Both: check at session start; create if absent; update same turn as fix.
-R6.6 SESSION-START: first turn probe: { pwd; echo '---'; ls; echo '---'; git log --oneline -10 || echo 'no git'; } 2>&1 | clipso, then wait.
+R6.5 SESSION: two-level context — LEER OBLIGATORIAMENTE ANTES DE CUALQUIER ACCIÓN:
+- MACRO: ~/unix-toolkit/.ctx.md — estado global: máquinas, repos, bloques pendientes (G/D/E/F/P), do-NOT, last-known-good.
+- MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md — por repo: stack, fixes, pendientes, last-known-good.
+- OWNER: miko-task es dueño de TODOS los ctx. ut NO lee ni escribe ctx.
+- Al iniciar sesión: leer MACRO primero siempre. Leer MICRO de cada repo que se va a tocar.
+- Crear si no existe; actualizar en el mismo turno que el fix. Nunca acumular al final (R9.20).
+- Sin ctx disponible → emitir comando READ, esperar paste. NUNCA asumir estado desde el historial.
+- HARDSTOP: emitir cualquier comando que modifique estado de repo/tarea sin haber leído macro ctx = violación.
+R6.6 SESSION-START — ORDEN OBLIGATORIO, sin excepciones:
+  PASO 1 — LEER CTX ANTES DE TODO (primer comando siempre):
+    { cat ~/unix-toolkit/.ctx.md; } 2>&1 | clipso
+    Luego MICRO de cada repo involucrado en la tarea:
+    { cat ~/unix-toolkit-tools/<repo>/.ctx.md; } 2>&1 | clipso
+    Esperar paste del usuario. Leer y entender antes de continuar.
+  PASO 2 — PROBE (solo después de ctx leído y comprendido):
+    { pwd; echo '---'; ls; echo '---'; git log --oneline -10 || echo 'no git'; } 2>&1 | clipso
+  PASO 3 — Esperar confirmación del usuario. Solo entonces actuar.
+  Si el usuario abre sesión con una tarea sin haber pegado ctx: emitir PASO 1 primero, esperar paste, luego proceder.
+  NUNCA saltar PASO 1. NUNCA inferir estado desde historial de conversación — puede estar desactualizado.
+  El historial de chat NO reemplaza al ctx. El ctx en archivo es la única fuente de verdad.
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd. Orphan socket blocks rebind silently. Cleanup: rm -f orphan, relaunch.
 R6.8 AUTO-IMPROVE: mistake cost a turn OR new pattern → fix ai.md + ctx.md same turn, same commit. Never defer.
 R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var → VAR silently unset; ${VAR} triggers set -u. Pattern: initialize → assign → use.
