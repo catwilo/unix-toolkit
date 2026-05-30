@@ -66,7 +66,7 @@ R5.9 UT-WORKFLOW: multi-repo commit+push → miko sync [-m "msg"]; ut push is mi
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify expansion with grep after.
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
     Termux EXCEPTION: env -i test is INVALID on Termux — /usr/bin/env path differs, miko/tools not in PATH. Use fresh Termux tab outside byobu instead. Never use env -i to diagnose env issues on Termux.
-R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. ut=repo ops, clipso=clipboard, nssh/noemap/ndevs=remote+SSH mgmt, maid=trash+history, miko=task+ctx manager.
+R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. ut=repo ops, clipso=clipboard, nssh/noemap/ndevs=remote+SSH mgmt, maid=trash+history, miko=task+ctx manager. If a repo tool's behavior is unknown, run miko micro <repo> before improvising with raw commands.
 R5.13 LOCAL-FILE: local files → use clipso <file> directly. Never { cat <file>; } 2>&1 | clipso — clipso reads and displays files natively in one call.
 
 R5.14 ENV-VAR-FALLBACK: every env var that may be unset must use ${VAR:-default} at point of use. Never assume exported. Critical vars: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars. Assuming a var is set because 'it should be exported' = latent bug that fails silently on fresh machines.

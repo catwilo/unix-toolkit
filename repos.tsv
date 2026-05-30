@@ -32,3 +32,4 @@ correccionLatex	client,arc	LaTeX university stats assignment correction — clos
 aliceboard	tool,cli	single-finger shell-first keyboard layout
 unexpected-keyboard	git@github.com:catwilo/unexpected-keyboard.git	tool,kbd
 hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)
+deadd-setup	cfg,tool	deadd notification center config + scripts
