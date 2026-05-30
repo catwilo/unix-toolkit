@@ -20,7 +20,6 @@ persistent-container-podman	infra	persistent podman containers
 spfx-tool	tool	SPFx SharePoint development tool
 wifi-setup	infra,net	RTL wifi driver setup and deploy
 wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver — do not push to origin
-toolbox	util	audio/display/desktop/files/system/vm utilities
 miko-task	tool,core	task manager + ctx owner
 unix-toolkit-tasks	data,priv	dstask DSTASK_DATA — private task store
 prestamos	client	Go+Docker loan management app with REST API and websockets
