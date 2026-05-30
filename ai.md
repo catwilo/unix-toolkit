@@ -66,7 +66,7 @@ R5.9 UT-WORKFLOW: multi-repo push → ut push; remote pull → nssh <alias> "~/.
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify expansion with grep after.
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
     Termux EXCEPTION: env -i test is INVALID on Termux — /usr/bin/env path differs, miko/tools not in PATH. Use fresh Termux tab outside byobu instead. Never use env -i to diagnose env issues on Termux.
-R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. ut=repo ops, clipso=clipboard, nssh/noemap=remote, maid=cleanup.
+R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. ut=repo ops, clipso=clipboard, nssh/noemap/ndevs=remote+SSH mgmt, maid=trash+history, miko=task+ctx manager.
 R5.13 LOCAL-FILE: local files → use clipso <file> directly. Never { cat <file>; } 2>&1 | clipso — clipso reads and displays files natively in one call.
 
 R5.14 ENV-VAR-FALLBACK: every env var that may be unset must use ${VAR:-default} at point of use. Never assume exported. Critical vars: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars. Assuming a var is set because 'it should be exported' = latent bug that fails silently on fresh machines.
@@ -87,9 +87,9 @@ R6.5 SESSION: two-level context — LEER OBLIGATORIAMENTE ANTES DE CUALQUIER ACC
 - HARDSTOP: emitir cualquier comando que modifique estado de repo/tarea sin haber leído macro ctx = violación.
 R6.6 SESSION-START — ORDEN OBLIGATORIO, sin excepciones:
   PASO 1 — LEER CTX ANTES DE TODO (primer comando siempre):
-    { cat ~/unix-toolkit/.ctx.md; } 2>&1 | clipso
+    { miko macro; } 2>&1 | clipso
     Luego MICRO de cada repo involucrado en la tarea:
-    { cat ~/unix-toolkit-tools/<repo>/.ctx.md; } 2>&1 | clipso
+    { miko micro <repo>; } 2>&1 | clipso
     Esperar paste del usuario. Leer y entender antes de continuar.
   PASO 2 — PROBE (solo después de ctx leído y comprendido):
     { pwd; echo '---'; ls; echo '---'; git log --oneline -10 || echo 'no git'; } 2>&1 | clipso
@@ -133,7 +133,7 @@ R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
 R9.9 DOTFILE-ARCH: zsh-setup/dotfiles/ is canonical source for ALL platforms. dotconfig DELETED. Never reference dotconfigtermux, custom_termux, dotconfig, termux-setup — all deleted. zsh-setup is canonical installer for all platforms.
 R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH host fingerprint, credential prompt, sudo) must NOT be wrapped in clipso — spinner blocks input, cannot be killed cleanly. Run bare. Wrap follow-up normally. Recovery if stuck: pkill -f clipso.
 R9.11 SSH-REMOTES: all git remotes must use SSH protocol (git@github.com:...), never HTTPS. Verify with git remote -v on every repo add/clone/recover. Fix: git remote set-url origin git@github.com:user/repo.git.
-R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new rules in ai.md, (2) update .ctx.md — completed ✓, pending+blockers, last-known-good, (3) run ut status or note unavailable, (4) commit ai.md + .ctx.md in one commit. Never defer any part.
+R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new rules in ai.md, (2) update .ctx.md — completed ✓, pending+blockers, last-known-good, (3) run miko status (no push) or miko sync (full), (4) commit ai.md + .ctx.md in one commit. Never defer any part.
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed with a comment indicating target machine (# Termux | # d0 | # d1). Never emit a command without explicit machine label when ambiguity exists. If unsure where user currently is — ask before emitting. No exceptions.
 R9.20 CTX-FIRST: any time a task, fix, or decision changes project state (new rule, resolved item, architectural change, new pending), update ai.md + .ctx.md BEFORE proceeding to next step. Explicit and non-negotiable. Never batch context updates to end of session.
 R9.13 REPO-LOCATION: unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolkit-tools/<name>/. Never confuse the two.
@@ -143,3 +143,69 @@ R9.15 SYMLINK-AUDIT: when deleting a repo, scan ALL symlinks on all machines poi
 R9.16 INSTALLER-CANON: every repo has exactly one installer named install.sh — never setup.sh or other names. install.sh is the source of truth for deploying that repo's artifacts (symlinks, configs, binaries). It must be idempotent and overwrite/fix any prior state.
 R9.17 INSTALLER-FIRST: correct flow is ALWAYS: (1) patch install.sh, (2) re-run install.sh to propagate — never the reverse. Manual edits to deployed artifacts are forbidden even experimentally. If a rule is not being respected, restructure the flow so it is respected by default — never work around it. Any state not reproducible by running install.sh = broken state.
 R9.18 CLIPSO-PIPELINE-TTY: never use `read < /dev/tty` inside any function called within a clipso pipeline — stdin is captured by the spinner; the read blocks forever and cannot be killed with Ctrl+C. Pattern for interactive confirmation inside clipso-wrapped tools: gate on env var (e.g. CLIPSO_PRIVACY_CONFIRM=1) instead of prompting. Recovery if stuck: pkill -f clipso.sh from a new Termux tab.
+R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw dstask or cat ctx files.
+  ctx read:    { miko macro; } 2>&1 | clipso          # macro ctx
+               { miko micro <repo>; } 2>&1 | clipso   # micro ctx for repo
+  tasks:       miko next [repo]     show next tasks (auto-detects repo from cwd)
+               miko add "text"      add task (auto-detects repo from cwd)
+               miko done <id>       mark done
+               miko ctx [context]   get/set dstask context
+  sync:        miko sync [-m msg]   full sync: pull+push dstask+git
+               miko status          quick status, no push
+               miko check           pre-flight validation
+  pending:     miko pending [repo]  all pending (macro+micro if no arg)
+               miko -pM             macro pending blocks only
+               miko -pm [repo]      micro pending (all repos if no arg)
+  ctx ops:     miko lkg [repo]      update last-known-good in micro ctx
+               miko ctx-diff [repo] diff micro ctx since last commit
+
+R9.23 CLIPSO-REFERENCE: copies content to clipboard; auto-detects backend (Termux/Wayland/X11/OSC52).
+  MODES (R0.4 + R9.2 mandate wrapping; exceptions: R9.10 TTY-interactive and R9.5 nssh):
+    { cmd; } 2>&1 | clipso             stdin pipe — primary use
+    clipso <file>                      local file natively (R5.13 — never cat file | clipso)
+    clipso user@host:/path             remote file via SSH
+    clipso -p <port> user@host:/path   remote with custom SSH port
+    clipso -                           explicit stdin
+    clipso --paste / clipso -P         paste from mesh cache (~/.cache/clipso/last)
+    clipso -n                          toggle line numbers on/off (persists to ~/.config/clipso/config)
+    clipso -q                          quiet — suppress spinner
+  ENV VARS:
+    CLIPSO_PRIVACY=0      skip auto privacy check (R5.5 still requires pre-emit assessment)
+    CLIPSO_NO_SPINNER=1   disable spinner (nssh sets this automatically)
+    CLIPSO_FORWARD_LABEL  label for pbcopy-forward in OK line (nssh sets this)
+    CLIPSO_NUMBERS=0/1    line numbers; default 1; toggle with clipso -n (persists)
+  BEHAVIORS:
+    Privacy:  single-pass awk detects CRED/PRIV-IP/PUB-IP/MAC; censors flagged lines; shows masked in red
+    Spinner:  starts on first byte of stdin; blocks /dev/tty — reason R9.10 bans clipso on TTY-interactive
+    Empty:    writes literal "VOID" to clipboard when stdin is empty
+    Size:     hard limit 10 MB; pager mode at 900 KB (interactive per-chunk copy, q to abort)
+    Cache:    every copy cached at ~/.cache/clipso/last; retrieve anywhere with clipso --paste
+    SSH fwd:  when SSH_CONNECTION set, also writes to ~/.local/share/noemap/clip.sock (pbcopy-forward)
+
+R9.24 NOEMAP: full SSH device management suite. Aliases stored in $NOEMAP_BASE/state/devices.db.
+  DISCOVERY:
+    noemap [--deep] [--ports]   scan LAN for SSH hosts; validate registered; prompt to register new
+    noemap --deep               adds SSH banner grab to distinguish Termux vs Debian on port 22
+  CONNECT:
+    nssh <alias>                interactive SSH session (TTY-interactive per R9.10 — never wrap with clipso)
+    nssh <alias> "cmd"          run remote command — output auto-copied via clipso (R9.5; no extra wrap)
+  TRANSFER:
+    nscp <alias>:/path ./local/ copy remote->local (or reverse)
+    nrsync ./dir/ <alias>:/path rsync sync (archive, resume, checksum)
+    nclip <alias>:/path         copy remote file content to clipboard
+  DEVICE MANAGEMENT:
+    ndevs                            list registered devices
+    ndevs --edit/--rename/--remove/--update-ip/--resetall  manage devices
+    noemap client-setup              emit clipboard-forward setup script (pipe output to client shell)
+  RULE: never use raw ssh/scp/rsync when noemap tools exist. Never hardcode IPs/ports — always aliases.
+
+R9.25 MAID: file trash and zsh history manager. Replaces rm for all user-facing deletes.
+  TRASH:
+    maid trash <file...>   move to ~/.Maid-Trash/ (reversible; use instead of rm)
+    maid restore <name>    restore file to original path
+    maid list              list trash contents
+    maid empty             permanently delete all trash — confirm with user before emitting
+  HISTORY:
+    maid history dedup     deduplicate zsh history in-place
+    maid history search    interactive fzf search (TTY-interactive per R9.10 — never wrap with clipso)
+  RULE: never emit rm for user files — emit maid trash instead. maid empty only on explicit user confirmation.
