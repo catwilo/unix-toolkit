@@ -39,7 +39,7 @@ R3.5 DESTRUCTIVE: reversible or paired with rollback. Failure → revert last-kn
 R3.6 DAEMON-RESTART: never kill/restart sshd (or deps) unless config requires it. Validate (-t), let take effect naturally. If restart needed: verify real reachability (new SSH) — never infer from ss/netstat alone.
 
 ## R4 — FS
-R4.1 EXIST: confirm file/dir exists before operating.
+R4.1 EXIST: confirm file/dir exists before operating. Never use a path from memory or ctx without live verification — find/ls first.
 R4.2 MKDIR: mkdir -p before cp/mv.
 R4.3 READ: one targeted read/turn (grep -n|sed -n 'X,Yp'|rg). No cat of large files; no multi-range.
 R4.4 LIST: find, not globs (glob fail aborts zsh).
@@ -51,7 +51,7 @@ R4.8 SOURCE↔DEPLOY: establish paths first; edit source only; propagate source�
 R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 R4.10 FILE-HYGIENE: when touching config/dotfile/ctx/script: scan for redundant blocks, dead vars, stale entries, duplicate PATH exports, unreachable code. Remove/consolidate. Never leave file dirtier than found.
 
-R4.11 SCRIPT-MODE: after writing any executable script (via python3 or heredoc), chmod +x in the SAME command. After git commit of scripts, confirm mode 100755 in commit output — mode change 100644=>100755 absent = broken deploy. Pattern: write → chmod +x → git add → commit — never separate steps.
+R4.11 SCRIPT-MODE: after writing any executable script (via python3 or heredoc), chmod +x in the SAME command. chmod omitted = permission denied on next call — always same step, no exceptions. After git commit of scripts, confirm mode 100755 in commit output — mode change 100644=>100755 absent = broken deploy. Pattern: write → chmod +x → git add → commit — never separate steps.
 
 ## R5 — EXEC
 R5.1 FOREGROUND-DAEMON: nc -l, tail -f, servers → (a) background (&) AND (b) exact kill command same turn. Probing: timeout Ns + background + kill; prefer ss/pgrep/one-shot client.
@@ -62,7 +62,7 @@ R5.5 PRIVACY: before emitting any command whose output will be copied via clipso
 R5.6 EXIT-BINDING: check exit on target command directly. Never interpose pipe (git|tail && tests tail). Use set -o pipefail or ${PIPESTATUS[0]} only if pipe required.
 R5.7 DERIVE-IN-LOOPS: derive item list from live state, not hardcoded names. R4.1 applies inside loops.
 R5.8 SINGLE-LISTENER: never two socket listeners to same clipboard. Check launchd before starting. Recovery: launchctl bootout agent, pkill -9 listeners, killall pboard.
-R5.9 UT-WORKFLOW: multi-repo push → ut push; remote pull → nssh <alias> "~/.local/bin/ut sync". Never chain manual cd+git+push for multi-repo ops.
+R5.9 UT-WORKFLOW: multi-repo commit+push → miko sync [-m "msg"]; ut push is miko's internal primitive — never call directly in workflow. Remote pull → nssh <alias> "~/.local/bin/ut sync". Never chain manual cd+git+push for multi-repo ops.
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify expansion with grep after.
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
     Termux EXCEPTION: env -i test is INVALID on Termux — /usr/bin/env path differs, miko/tools not in PATH. Use fresh Termux tab outside byobu instead. Never use env -i to diagnose env issues on Termux.
@@ -198,6 +198,8 @@ R9.24 NOEMAP: full SSH device management suite. Aliases stored in $NOEMAP_BASE/s
     ndevs --edit/--rename/--remove/--update-ip/--resetall  manage devices
     noemap client-setup              emit clipboard-forward setup script (pipe output to client shell)
   RULE: never use raw ssh/scp/rsync when noemap tools exist. Never hardcode IPs/ports — always aliases.
+
+R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied. Always use $TMPDIR for temp files. Never hardcode /tmp in any command or script targeting Termux.
 
 R9.25 MAID: file trash and zsh history manager. Replaces rm for all user-facing deletes.
   TRASH:
