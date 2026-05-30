@@ -1,68 +1,147 @@
-# catwilo/unix-toolkit — portfolio index
+# ut — unix-toolkit repo manager
 
-A collection of command-line tools built to solve real problems on Linux, Termux (Android), and macOS. Each one started from a concrete need, runs in production on my own machines, and is written to be portable, safe to re-run, and clear to maintain.
-
----
-
-## Repos
-
-### [noemap](https://github.com/catwilo/noemap)
-LAN discovery and SSH device mapper. Scans the network, identifies reachable machines, detects OS, and lets you reach any device by a short alias. Works identically on Debian and non-root Termux.
-
-### [clipso](https://github.com/catwilo/clipso)
-Copy anything to your clipboard, anywhere. Detects the environment (Termux, Wayland, X11, SSH) and picks the right backend automatically — falling back to OSC52 so content lands on the machine you're actually sitting at.
-
-### [aicli](https://github.com/catwilo/aicli)
-Multi-account AI runtime from the terminal. Containerized setup for driving Claude, ChatGPT, and Gemini from one interface, with separate browser workers per account and a Podman-based orchestration layer.
-
-### [streaming](https://github.com/catwilo/streaming)
-Self-hosted game and desktop streaming with Sunshine + Moonlight on headless Linux. Production-grade orchestration with X11 management, watchdog, exponential backoff, and full start/stop/status controls.
-
-### [qemu-debian-mac](https://github.com/catwilo/qemu-debian-mac)
-Run a headless Debian VM on macOS via QEMU. Manages the VM through tmux, with installers, health checks, and recovery helpers. Bootstraps itself on the old Bash that ships with macOS.
-
-### [wifi-setup](https://github.com/catwilo/wifi-setup)
-Wi-Fi and USB tethering setup toolkit. Locks scanning to the associated frequency, disables background scans that cause drops, and manages network forwarding between interfaces.
-
-### [rsync-folder](https://github.com/catwilo/rsync-folder)
-Event-driven folder sync via rsync. Watches for file changes and mirrors them immediately — no polling, no cron. Supports multiple independent profiles running in parallel.
-
-### [sftp-folder](https://github.com/catwilo/sftp-folder)
-Share a local folder over SFTP with a single command, with locking to avoid conflicting sessions. Quick, secure file access between machines without a permanent server.
-
-### [spfx-tool](https://github.com/catwilo/spfx-tool)
-Reproducible SharePoint Framework (SPFx) development environment on Debian. Pins a known-good toolchain so the setup is consistent across machines and reinstalls.
-
-### [nvim-setup](https://github.com/catwilo/nvim-setup)
-Neovim setup and LSP configuration for terminal-first workflows. Reproducible install with version pinning and verification.
-
-### [termux-setup](https://github.com/catwilo/termux-setup)
-Termux environment bootstrap for Android — packages, zsh, plugins, dotfile links, and MPD. Includes zsh-setup (merged).
-
-### [wlab](https://github.com/catwilo/wlab)
-WPA2 handshake capture and wireless lab toolkit. For your own networks or networks you are explicitly authorized to test.
-
-### [neko](https://github.com/catwilo/neko)
-Install packages by named groups. Define groups (dev, gui, rpi, …) and install whole categories at once instead of remembering individual package names.
-
-### [neko-gba](https://github.com/catwilo/neko-gba)
-Scaffold a complete GBA emulation project structure inside a Neko self-hosted browser environment.
-
-### [persistent-container-podman](https://github.com/catwilo/persistent-container-podman)
-Immutable container image with persistent app data. Bakes user setup into the image while keeping data on the host — reproducible environment, no drift.
-
-### [minitools](https://github.com/catwilo/minitools)
-Single-purpose utilities grouped by theme:
-- **audio/** — volume and microphone toggles
-- **display/** — screen, input, and window-manager helpers
-- **desktop/** — notifications, fonts, workspace movers
-- **files/** — filename and path helpers
-- **system/** — host setup and maintenance
-- **vm/** — local VM control (start, stop, force-stop)
-- **misc/** — nmap wrapper, xev parser, game of life
+Manages all repos in the catwilo ecosystem across Termux, Debian, and macOS.
+Source of truth: repos.tsv. Works with miko (task + ctx) and gh (GitHub CLI).
 
 ---
 
-## Stack
+## Installation
 
-Most tools are written in POSIX shell for portability across Debian, Arch, Termux, and macOS — with Go, Rust, and TypeScript where they fit better. They favor safe defaults, clear output, and being re-runnable without surprises.
+```sh
+git clone git@github.com:catwilo/unix-toolkit.git ~/unix-toolkit
+export PATH="$HOME/unix-toolkit:$PATH"  # add to ~/.zshenv
+```
+
+All repos clone into ~/unix-toolkit-tools/<name>/.
+
+---
+
+## Commands
+
+### ut sync
+Fetch all remotes, show cross-repo status. Non-destructive.
+```sh
+ut sync
+```
+
+### ut status
+Only repos with something to report. Summary line format:
+```sh
+ut status
+# [32 repos] ✓ 30 clean  ⚡ 2 ahead  ✗ 0 conflict
+```
+
+### ut push
+Push all repos ahead of remote. Called internally by miko sync.
+```sh
+ut push
+```
+In daily workflow use miko sync — runs dstask + ut push in order.
+
+### ut clone
+Clone all repos in repos.tsv not yet present locally.
+```sh
+ut clone           # all missing
+ut clone noemap    # one specific repo
+```
+Always uses SSH (git@github.com:catwilo/<repo>.git).
+
+### ut list
+List all repos with tags and description.
+```sh
+ut list
+ut list tool       # filter by tag
+```
+
+### ut tag
+Show or filter repos by tag.
+```sh
+ut tag             # all tags in use
+ut tag cfg         # repos tagged cfg
+```
+
+### ut add
+Register a new repo in repos.tsv. Does not create the GitHub repo.
+```sh
+ut add <repo> <tags> "<description>"
+ut add deadd-setup tool,cfg "deadd notification center config + scripts"
+```
+
+### ut rm
+Remove a repo from repos.tsv. Does not delete the local clone.
+```sh
+ut rm correccionLatex
+```
+
+### ut run
+Run a command in every cloned repo.
+```sh
+ut run git log --oneline -1
+```
+
+### ut health
+Check each repo: missing remote, HTTPS remote, untracked files, no commits.
+```sh
+ut health
+```
+
+### ut diff
+Show uncommitted changes across all repos.
+```sh
+ut diff
+ut diff zsh-setup
+```
+
+### ut machines
+List registered devices via noemap — OS, repo count, sync state.
+```sh
+ut machines
+# ── d0 [debian] ── ✓ 31 repos synced
+# ── tx [android] ── ✓ 31 repos synced
+```
+
+---
+
+## repos.tsv
+
+Tab-separated: name / tags / description. Managed by ut add / ut rm.
+
+```
+clipso    tool,cli    copy anything to clipboard across environments
+noemap    tool,net    LAN discovery and SSH device mapper
+zsh-setup cfg         dotfiles + zsh installer for all platforms
+```
+
+---
+
+## Tag vocabulary
+
+| Tag    | Meaning                        |
+|--------|--------------------------------|
+| tool   | CLI tool, daily use            |
+| cli    | command-line interface         |
+| cfg    | dotfiles / configuration       |
+| util   | small utility, no installer    |
+| infra  | infrastructure / provisioning  |
+| net    | networking                     |
+| sec    | security / audit               |
+| svc    | background service             |
+| core   | foundational dependency        |
+| client | client project (external)      |
+| web    | web frontend                   |
+| arc    | archived / reference only      |
+| game   | game or emulation project      |
+| fw     | firmware / kernel driver       |
+| bot    | automation bot                 |
+
+---
+
+## Integration
+
+- miko owns all .ctx.md files and task state. Use miko sync for full sync.
+- gh required for GitHub operations (repo create, etc).
+- noemap provides device aliases used by ut machines.
+
+---
+
+→ [Project portfolio](PORTFOLIO.md)

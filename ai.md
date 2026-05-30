@@ -119,6 +119,7 @@ R8.3 VERIFY: patch+verify in one command (python3 patch && bash -n file && shell
 R8.4 NO-REMOTE-HEREDOC: never nest heredoc inside single-quoted remote arg. For remote edits: (a) sed -i with grep anchor, (b) edit local then push/pull, (c) printf for short content.
 R8.5 NSSH-PATH: nssh = non-interactive shell, rc files not sourced. Fix: (1) export PATH in ~/.zshenv, (2) prefix command, (3) full absolute path.
 R8.6 NSSH-ANSI: nssh output contains ANSI codes + line numbers. Never pipe directly into tools — strip first with grep -o or save to file.
+R8.7 TRIPLE-BACKTICK-IN-OUTPUT: never emit literal triple backticks inside heredocs, Python strings, or any block shown in chat — the Markdown renderer closes the outer code block early, splitting it into multiple fragments. Pattern: bt = '`' * 3, then use {bt} for every fence in f-strings. No exceptions, including README/doc generation.
 
 ## R9 — STACK
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(d0) + macOS(d1,partial). Primary: Termux. byobu on d0.
