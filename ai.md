@@ -133,6 +133,8 @@ R9.7 MACHINE: never ask. Derive from first-turn probe.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
 R9.9 DOTFILE-ARCH: zsh-setup/dotfiles/ is canonical source for ALL platforms. dotconfig DELETED. Never reference dotconfigtermux, custom_termux, dotconfig, termux-setup — all deleted. zsh-setup is canonical installer for all platforms.
 R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH host fingerprint, credential prompt, sudo) must NOT be wrapped in clipso — spinner blocks input, cannot be killed cleanly. Run bare. Wrap follow-up normally. Recovery if stuck: pkill -f clipso.
+    INTERACTIVE SSH SESSION ≠ exemption: being inside `nssh d0` bare does not exempt from clipso. clipso is installed on all machines. Only stdin-blocking commands (fingerprint, sudo, fzf/interactive TUI) are exempt. Standard commands in interactive sessions still require `{ cmd; } 2>&1 | clipso`.
+    INTERACTIVE SSH SESSION ≠ exemption: being inside `nssh d0` bare does not exempt from clipso. clipso is installed on all machines. Only stdin-blocking commands (fingerprint, sudo, fzf/interactive TUI) are exempt. Standard commands in interactive sessions still require `{ cmd; } 2>&1 | clipso`.
 R9.11 SSH-REMOTES: all git remotes must use SSH protocol (git@github.com:...), never HTTPS. Verify with git remote -v on every repo add/clone/recover. Fix: git remote set-url origin git@github.com:user/repo.git.
 R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new rules in ai.md, (2) update .ctx.md — completed ✓, pending+blockers, last-known-good, (3) run miko status (no push) or miko sync (full), (4) commit ai.md + .ctx.md in one commit. Never defer any part.
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed with a comment indicating target machine (# Termux | # d0 | # d1). Never emit a command without explicit machine label when ambiguity exists. If unsure where user currently is — ask before emitting. No exceptions.
@@ -201,6 +203,8 @@ R9.24 NOEMAP: full SSH device management suite. Aliases stored in $NOEMAP_BASE/s
   RULE: never use raw ssh/scp/rsync when noemap tools exist. Never hardcode IPs/ports — always aliases.
 
 R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied. Always use $TMPDIR for temp files. Never hardcode /tmp in any command or script targeting Termux.
+R9.27 INSTALL-DOTFILE-SYMLINK: install.sh scripts that append PATH or exports to rc files MUST check if target is a symlink to a versioned dotfile (e.g. zsh-setup/dotfiles/). If yes — skip the append and emit a warning. Never write hardcoded machine-specific paths into canonical dotfiles. Pattern: `[ -L "$_RC" ] && log_warn "RC is a symlink — skipping PATH inject" && return`.
+R9.27 INSTALL-DOTFILE-SYMLINK: install.sh scripts that append PATH or exports to rc files MUST check if target is a symlink to a versioned dotfile (e.g. zsh-setup/dotfiles/). If yes — skip the append and emit a warning. Never write hardcoded machine-specific paths into canonical dotfiles. Pattern: `[ -L "$_RC" ] && log_warn "RC is a symlink — skipping PATH inject" && return`.
 
 R9.25 MAID: file trash and zsh history manager. Replaces rm for all user-facing deletes.
   TRASH:
