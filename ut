@@ -99,6 +99,18 @@ cmd_status() {
     bold "[$_total repos] ✓ $_clean clean  ⚡ $_issues with changes"
 }
 
+
+cmd_fetch() {
+    _tag="${1:-}"
+    errors=0
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        target="$DST/$repo"
+        [ -d "$target/.git" ] || continue
+        git -C "$target" fetch --quiet 2>/dev/null             && ok "$repo — fetched"             || { err "$repo — fetch failed"; errors=$((errors+1)); }
+    done
+    [ "$errors" -eq 0 ] && ok "all repos fetched" || { err "$errors repo(s) failed"; exit 1; }
+}
+
 cmd_push() {
     _tag="${1:-}"
     _self="$(dirname "$(realpath "$0")")"
@@ -278,10 +290,11 @@ cmd_machines() {
 
 
 CMD="${1:-}"; shift || true
-[ -z "$CMD" ] && { err "usage: ut <sync|status|push|run|list|clone|health|diff|tag|add|rm|machines> [args]"; exit 1; }
+[ -z "$CMD" ] && { err "usage: ut <sync|fetch|status|push|run|list|clone|health|diff|tag|add|rm|machines> [args]"; exit 1; }
 
 case "$CMD" in
     sync)     cmd_sync     "$@" ;;
+    fetch)    cmd_fetch    "$@" ;;
     status)   cmd_status   "$@" ;;
     push)     cmd_push     "$@" ;;
     run)      cmd_run      "$@" ;;
