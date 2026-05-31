@@ -57,7 +57,8 @@ R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 R4.10 FILE-HYGIENE: when touching config/dotfile/ctx/script: scan for redundant blocks, dead vars, stale entries, duplicate PATH exports, unreachable code. Remove/consolidate. Never leave file dirtier than found.
 R4.11 SCRIPT-MODE: after writing any executable script (via python3 or heredoc), chmod +x in SAME command. After git commit confirm mode 100755 in output. Pattern: write → chmod +x → git add → commit — never separate steps.
 R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
-  (1) write script to $TMPDIR/patch_<name>.py — never inline python3 inside { }
+  (1) for simple patches (no special chars, <5 replaces): python3 -c inline OK
+      for complex patches (special chars, multiline, >5 replaces): write to $TMPDIR/patch_<name>.py
   (2) grep -c 'exact_target' <file> → must return 1; 0=re-read, >1=tighter anchor
   (3) use raw strings + named variables for strings with quotes/special chars:
         old = r'exact string here'; new = 'replacement here'
@@ -156,6 +157,7 @@ R6.14 IMPROVE-PROTOCOL: LLM proactively detects and reports at end of any respon
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
 R7.2 MESSAGE: feat|fix|refactor|chore|docs. Subject ≤60 chars, imperative, English, no period. One concern/commit.
 R7.3 MULTI-MACHINE: pull --rebase before push from second machine. Rebase conflict → abort, push --force-with-lease from correct machine. After force push → pull all others immediately.
+  BEFORE force-with-lease: git fetch origin && git log --oneline origin/main — inspect what will be lost. Never force-push blind.
 R7.4 REPO-MGMT: source of truth ~/unix-toolkit/repos.tsv. Manager: ut. GitHub rename/delete/add → update repos.tsv + remote + local dir same turn.
 R7.5 PUSH-VERIFY: after push, read actual output: git push 2>&1 | tail -5. rc=0 with remote reject = invisible without reading output. Commit without confirmed push = incomplete.
 R7.6 README-SYNC: any commit that changes CLI interface, install flow, config format, or runtime behavior → README update mandatory in same commit. No exceptions.
@@ -180,6 +182,7 @@ R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no exce
     clipc <bin> [args]     binary shorthand — stdout+stderr via clipso
     { ...; } |& clipso     compound expressions (pipes, &&, subshells)
   clipc: defined in zsh-setup/dotfiles/.addons-zsh/aliass/shared.zsh
+  LIMIT: clipc only works with binaries — aliases/functions fail silently. Use |& clipso for those.
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactive, no clipboard.
