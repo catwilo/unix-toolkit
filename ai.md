@@ -89,6 +89,12 @@ R5.9 UT-WORKFLOW:
   multi-repo commit+push → miko sync [-m "msg"]
   remote pull → nssh <alias> "~/.local/bin/ut sync"
   Never chain manual cd+git+push for multi-repo ops.
+  SYNC-FLOW (after any changes on a device):
+    STEP 1 — on origin device: miko sync -m "msg"  → dstask+fetch+reconcile+commit+push
+    STEP 2 — on each other device: nssh <alias> "~/.local/bin/ut sync"  → pull only, no push
+    ORDER IS MANDATORY: always push from origin first, then pull on destinations.
+    Never run miko sync on destination before origin has pushed — causes conflicts.
+    Never skip STEP 1 and go straight to STEP 2 — destinations would pull stale state.
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify expansion with grep after.
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
   Termux EXCEPTION: env -i test INVALID on Termux. Use fresh Termux tab outside byobu instead. Never env -i on Termux.
