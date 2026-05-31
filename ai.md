@@ -202,6 +202,8 @@ R9.24 NOEMAP: full SSH device management suite. Aliases stored in $NOEMAP_BASE/s
     noemap client-setup              emit clipboard-forward setup script (pipe output to client shell)
   RULE: never use raw ssh/scp/rsync when noemap tools exist. Never hardcode IPs/ports — always aliases.
 
+R9.28 CLIPSO-COLOR-PASSTHROUGH: commands that emit ANSI color to stdout (miko list, miko status, etc.) must NOT suppress colors for tty display. Pattern: clipso preserves TMP_DISPLAY (original with colors) for tty; strips ANSI only in TMP for clipboard. Never strip ANSI before display_with_privacy runs.
+
 R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied. Always use $TMPDIR for temp files. Never hardcode /tmp in any command or script targeting Termux.
 R9.27 INSTALL-DOTFILE-SYMLINK: install.sh scripts that append PATH or exports to rc files MUST check if target is a symlink to a versioned dotfile (e.g. zsh-setup/dotfiles/). If yes — skip the append and emit a warning. Never write hardcoded machine-specific paths into canonical dotfiles. Pattern: `[ -L "$_RC" ] && log_warn "RC is a symlink — skipping PATH inject" && return`.
 R9.27 INSTALL-DOTFILE-SYMLINK: install.sh scripts that append PATH or exports to rc files MUST check if target is a symlink to a versioned dotfile (e.g. zsh-setup/dotfiles/). If yes — skip the append and emit a warning. Never write hardcoded machine-specific paths into canonical dotfiles. Pattern: `[ -L "$_RC" ] && log_warn "RC is a symlink — skipping PATH inject" && return`.
