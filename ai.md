@@ -182,8 +182,8 @@ R8.7 TRIPLE-BACKTICK-IN-OUTPUT: never emit literal triple backticks inside hered
 R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(d0) + macOS(d1,partial). Primary: Termux. byobu on d0.
 R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no exceptions.
   WARNING: cat > ~/path << 'EOF' overwrites existing files silently. For files that may exist → use python3 write pattern (R4.12).
-  Exceptions: (1) TTY-interactive (R9.10) — bare; (2) nssh <alias> "cmd" (R9.5) — auto-copies, no wrap.
-  VIOLATION: any command emitted without clipso wrapper outside these two cases.
+  Exceptions: (1) TTY-interactive (R9.10) — bare; (2) nssh <alias> "cmd" (R9.5) — auto-copies, no wrap; (3) miko commands (R9.22) — clipso integrated, never double-wrap.
+  VIOLATION: any command emitted without clipso wrapper outside these three cases.
   HELPERS:
     clipc <bin> [args]     binary shorthand — stdout+stderr via clipso
     { ...; } |& clipso     compound expressions (pipes, &&, subshells)
@@ -225,6 +225,7 @@ R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw d
                miko -pm [repo]      micro pending
   ctx ops:     miko lkg [repo]      update last-known-good in micro ctx
                miko ctx-diff [repo] diff micro ctx since last commit
+  CLIPSO: miko integrates clipso internally — NEVER wrap miko commands with clipso. Double-wrap = broken output.
 R9.23 CLIPSO-REFERENCE: copies content to clipboard; auto-detects backend (Termux/Wayland/X11/OSC52).
   MODES:
     { cmd; } 2>&1 | clipso             stdin pipe — primary use
