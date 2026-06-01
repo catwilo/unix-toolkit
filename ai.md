@@ -115,6 +115,7 @@ R6.5 SESSION: two-level context — MANDATORY READ BEFORE ANY ACTION:
   MACRO: ~/unix-toolkit/.ctx.md — global state: machines, repos, pending blocks, do-NOT, last-known-good
   MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md — per-repo: stack, fixes, pending, last-known-good
   OWNER: miko owns ALL ctx. Never write ctx files directly — use miko add/done/lkg/sync.
+  macro/micro are miko subcommands — NOT standalone binaries. Correct: miko macro | miko micro <repo>. Never: which macro / which micro.
   Session start: read MACRO first always. Read MICRO of every repo being touched.
   No ctx available → emit READ command, wait for paste. NEVER assume state from chat history.
   HARDSTOP: emitting any repo/task state-modifying command without having read macro ctx = violation.
@@ -134,6 +135,7 @@ R6.6 SESSION-START — MANDATORY ORDER, no exceptions:
   SESSION RESUMED: if ANY modifying command emitted since last ctx paste → re-run session start before next patch.
   If no modifying command emitted → hashes still valid, proceed.
   NEVER skip macro read. NEVER infer state from chat history — file is single source of truth.
+  MANDATORY ORDER: (1) miko macro, (2) miko micro <repos being touched>, (3) miko status. Never give instructions on a repo without having read its micro ctx first.
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd. Orphan socket blocks rebind silently. Cleanup: rm -f orphan, relaunch.
 R6.8 AUTO-IMPROVE: mistake cost a turn OR new pattern detected → fix ai.md same turn.
   Order: verify AI_MD_HASH unchanged (R4.13) → write ai.md.new → grep -c verify → mv → git diff ai.md → git add ai.md → commit ai.md only.
@@ -201,6 +203,7 @@ R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH fingerprint, cr
 R9.11 SSH-REMOTES: all git remotes must use SSH protocol (git@github.com:...), never HTTPS. Verify with git remote -v on every repo add/clone/recover.
 R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new rules in ai.md, (2) update tasks via miko add/done, (3) run miko status or miko sync, (4) commit ai.md in one commit. Never defer any part.
 R9.13 REPO-LOCATION: unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolkit-tools/<name>/. Never confuse the two.
+  ~/unix-toolkit-tools/ is a plain directory containing repos — NOT itself a git repo. Never run git commands targeting the directory itself.
 R9.14 COMMIT-COMPLETENESS: structural changes incomplete until: (a) git status shows tracked, (b) committed, (c) push rc=0 confirmed. Always git status after structural changes.
 R9.15 SYMLINK-AUDIT: when deleting a repo, scan ALL symlinks on all machines before deletion. Fix dangling symlinks same turn. Pattern: find $HOME -maxdepth 3 -type l | xargs ls -la 2>&1 | grep deleted_repo.
 R9.16 INSTALLER-CANON: repos tagged tool/cli/svc/cfg require exactly one installer named install.sh. Repos tagged util/client/web/arc/game exempt. install.sh is idempotent source of truth for deploying artifacts.
@@ -209,6 +212,7 @@ R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called 
 R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(d0) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
 R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/done BEFORE proceeding to next step. Never batch to end of session.
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # d0 | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
+  PROMPT SIGNAL: 🌐 globe in prompt = d0 active; no globe = Termux. Use this to confirm active machine before emitting any command.
 R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw dstask or cat ctx files.
   session:     miko ai [repo1 repo2 ...]   canonical session start — hashes + macro + micro
   ctx read:    { miko macro; echo "---HASH:$(git hash-object ~/unix-toolkit/.ctx.md)"; } 2>&1 | clipso
