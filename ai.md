@@ -229,7 +229,7 @@ R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw d
                miko -pm [repo]      micro pending
   ctx ops:     miko lkg [repo]      update last-known-good in micro ctx
                miko ctx-diff [repo] diff micro ctx since last commit
-  CLIPSO: miko integrates clipso internally — NEVER wrap miko commands with clipso. Double-wrap = broken output.
+  CLIPSO: miko ai is exempt (no wrap). ALL other miko commands MUST be wrapped: { miko <cmd>; } 2>&1 | clipso. Double-wrap miko ai = broken output.
 R9.23 CLIPSO-REFERENCE: copies content to clipboard; auto-detects backend (Termux/Wayland/X11/OSC52).
   MODES:
     { cmd; } 2>&1 | clipso             stdin pipe — primary use
