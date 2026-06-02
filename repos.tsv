@@ -32,3 +32,4 @@ aliceboard	tool,cli	single-finger shell-first keyboard layout
 unexpected-keyboard	tool,arc	Unexpected Keyboard fork -- aliceboard build vehicle
 hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)
 deadd-setup	cfg,tool	deadd notification center config + scripts
+ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML
