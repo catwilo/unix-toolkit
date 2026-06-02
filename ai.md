@@ -91,6 +91,11 @@ R5.9 UT-WORKFLOW:
   Never chain manual cd+git+push for multi-repo ops.
   SYNC-FLOW (after any changes on a device):
     STEP 1 — on origin device: miko sync -m "msg"  → dstask+fetch+reconcile+commit+push
+    PRE-SYNC GATE (MANDATORY before any STEP 1 or STEP 2):
+      For EVERY device involved: verify no unpushed commits before syncing.
+      Pattern: nssh <alias> "git -C ~/unix-toolkit-tools/<repo> log --oneline origin/main..HEAD"
+      Any unpushed commits on destination → commit+push from that device first, THEN run STEP 1 from correct origin.
+      Never assume destination is clean — always verify.
     STEP 2 — on each other device: nssh <alias> "~/.local/bin/ut sync"  → pull only, no push
     ORDER IS MANDATORY: always push from origin first, then pull on destinations.
     Never run miko sync on destination before origin has pushed — causes conflicts.
