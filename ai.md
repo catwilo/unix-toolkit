@@ -99,6 +99,11 @@ R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use pyt
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
   Termux EXCEPTION: env -i test INVALID on Termux. Use fresh Termux tab outside byobu instead. Never env -i on Termux.
 R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. Full reference in R9: ut | clipso | nssh/noemap/ndevs | maid | miko. If tool behavior unknown → miko micro <repo> before improvising.
+R5.12b PROJECT-CMD-GATE: before emitting ANY command targeting a specific project repo:
+  (1) micro ctx loaded? → check tool/invocation section first
+  (2) invocation not in micro ctx → read README before emitting
+  (3) never substitute raw toolchain commands (npm, gulp, node) when a project wrapper exists
+  Violation pattern: using raw npm/heft/gulp when spfx-dev wrapper exists in micro ctx.
 R5.13 LOCAL-FILE: local files → clipso <file> directly. Never { cat <file>; } 2>&1 | clipso.
 R5.14 ENV-VAR-FALLBACK: every env var that may be unset → ${VAR:-default} at point of use. Never assume exported. Critical: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars.
 R5.15 MID-COMMIT-WAIT: if user signals they are mid-commit, never emit push-related or repo-state-modifying commands. Wait for explicit signal (e.g. ".") confirming commits done before proceeding.
