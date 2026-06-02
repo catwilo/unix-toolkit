@@ -92,10 +92,12 @@ R5.9 UT-WORKFLOW:
   SYNC-FLOW (after any changes on a device):
     STEP 1 — on origin device: miko sync -m "msg"  → dstask+fetch+reconcile+commit+push
     PRE-SYNC GATE (MANDATORY before any STEP 1 or STEP 2):
-      For EVERY device involved: verify no unpushed commits before syncing.
-      Pattern: nssh <alias> "git -C ~/unix-toolkit-tools/<repo> log --oneline origin/main..HEAD"
-      Any unpushed commits on destination → commit+push from that device first, THEN run STEP 1 from correct origin.
-      Never assume destination is clean — always verify.
+      STEP 0a — on origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
+        All 31 repos must show clean. Any dirty/ahead → commit+push that repo first.
+      STEP 0b — on each destination: nssh <alias> bare → { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
+        Any repo ahead on destination → that device becomes origin for that repo; commit+push there first.
+      Never assume ANY device is clean — always run ut status on ALL devices before sync.
+      Never verify only selected repos — ut status covers all 31 at once.
     STEP 2 — on each other device: nssh <alias> "~/.local/bin/ut sync"  → pull only, no push
     ORDER IS MANDATORY: always push from origin first, then pull on destinations.
     Never run miko sync on destination before origin has pushed — causes conflicts.
