@@ -199,6 +199,7 @@ R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no exce
 R9.3 REMOTE-READ: nclip <alias>:/path OR nclipc <alias> -- "cmd 2>&1".
 R9.4 ALIASES: resolve via noemap. Use nssh not ssh.
 R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactive, no clipboard.
+  MULTI-CMD RULE: if a task requires >1 command on a remote machine → enter interactively first (nssh <alias> bare), then execute all commands there. Never chain multiple nssh <alias> "cmd" calls. Single-cmd remote exec only for quick one-off checks.
   NEVER wrap nssh remote cmd in clipso — auto-copy is built-in. Anti-pattern: { nssh d0 "cmd"; } 2>&1 | clipso → broken double-copy with duplicate line numbers. Correct: nssh d0 "cmd" bare.
 R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinstall → test.
 R9.7 MACHINE: never ask. Derive from first-turn probe.
