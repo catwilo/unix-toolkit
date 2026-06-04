@@ -64,7 +64,7 @@ R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
         old = r'exact string here'; new = 'replacement here'
         assert old in content, "target not found"
         content = content.replace(old, new, 1)
-  (4) write .new → bash -n + shellcheck if shell file
+  (4) write .new → bash -n + shellcheck if shell file (skip bash -n for .md files — backticks cause parse errors)
   (5) if verify OK: mv .new → rm $TMPDIR/patch_<name>.py in SAME command
   (6) if verify FAIL: keep .new for debug — do NOT mv — stop — wait
   Full one-liner: { python3 $TMPDIR/patch_<name>.py && mv <file>.new <file> && rm $TMPDIR/patch_<name>.py; } 2>&1 | clipso
@@ -117,8 +117,7 @@ R5.15 MID-COMMIT-WAIT: if user signals they are mid-commit, never emit push-rela
 R5.16 DEBUG-LOOP-EXIT: same issue unresolved after 3 turns → declare blocker explicitly, propose alternative approach, stop, wait for decision. Never iterate indefinitely.
 
 ## R6 — DEBUG
-R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fix across turns.
-  Pre-patch: grep -c 'exact_target' file must return 1 before writing any patch. 0 → re-read. >1 → tighter anchor.
+R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fix across turns. Pre-patch grep-c gate → R4.12(2).
 R6.2 LINT+RUN: run scripts with shebang interpreter. Var surviving reload → suspect inherited env.
   Var survives reload AND grep finds nothing → inherited env from parent (byobu/tmux). Fix: fresh Termux tab OUTSIDE byobu. Apply this diagnosis BEFORE exhausting grep turns.
 R6.3 SCRIPTS: ANSI green=ok yellow=warn red=error cyan=info. No external deps unless decisive. Visible progress; concise output.
@@ -195,7 +194,7 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
 
 ## R8 — REMOTE
 R8.1 HEREDOC: no triple-backticks inside heredoc. Plain text only. Content with backticks → python3 file write.
-R8.2 PATCH: (1) grep -c EXACT target → must return 1; (2) copy char-for-char into raw string variable; (3) assert count==1, re-read on fail; (4) anchor on ASCII-only unique lines. Never interpolate special chars directly in replace().
+R8.2 PATCH: canonical lifecycle → R4.12. Remote-specific: anchor on ASCII-only unique lines; never interpolate special chars directly in replace().
 R8.3 VERIFY: patch+verify in one command (python3 patch && bash -n file && shellcheck -S error file).
 R8.4 NO-REMOTE-HEREDOC: never nest heredoc inside single-quoted remote arg. For remote edits: (a) sed -i with grep anchor, (b) edit local then push/pull, (c) printf for short content.
 R8.5 NSSH-PATH: nssh = non-interactive shell, rc files not sourced. Fix: (1) export PATH in ~/.zshenv, (2) prefix command, (3) full absolute path.
