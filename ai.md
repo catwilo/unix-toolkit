@@ -206,7 +206,6 @@ R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(d0) + macOS(d1,partial). P
 R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no exceptions.
   WARNING: cat > ~/path << 'EOF' overwrites existing files silently. For files that may exist → use python3 write pattern (R4.12).
   Exceptions: (1) TTY-interactive (R9.10) — bare; (2) nssh <alias> "cmd" (R9.5) — auto-copies, no wrap; (3) miko commands (R9.22) — clipso integrated, never double-wrap.
-  VIOLATION: any command emitted without clipso wrapper outside these three cases.
   HELPERS:
     clipc <bin> [args]     binary shorthand — stdout+stderr via clipso
     { ...; } |& clipso     compound expressions (pipes, &&, subshells)
@@ -224,7 +223,7 @@ R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinst
 R9.7 MACHINE: never ask. Derive from first-turn probe.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
 R9.9 DOTFILE-ARCH: zsh-setup/dotfiles/ is canonical source for ALL platforms. dotconfig DELETED. Never reference dotconfigtermux, custom_termux, dotconfig, termux-setup — all deleted. zsh-setup is canonical installer for all platforms.
-R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH fingerprint, credential prompt, sudo) must NOT be wrapped in clipso — spinner blocks input. Run bare. Wrap follow-up normally. Recovery if stuck: pkill -f clipso.
+R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH fingerprint, credential prompt, sudo) must NOT be wrapped in clipso. Run bare. Wrap follow-up normally. Recovery if stuck: pkill -f clipso. Spinner behavior → R9.23 BEHAVIORS.
   INTERACTIVE SSH SESSION ≠ exemption: being inside nssh d0 bare does not exempt from clipso. Only stdin-blocking commands (fingerprint, sudo, fzf/interactive TUI) are exempt. Standard commands in interactive sessions still require { cmd; } 2>&1 | clipso.
 R9.11 SSH-REMOTES: all git remotes must use SSH protocol (git@github.com:...), never HTTPS. Verify with git remote -v on every repo add/clone/recover.
 R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new rules in ai.md, (2) update tasks via miko add/done, (3) run miko status or miko sync, (4) commit ai.md in one commit. Never defer any part.
@@ -306,7 +305,7 @@ R9.25 MAID: file trash and zsh history manager. Replaces rm for all user-facing 
   RULE: never emit rm for user files — emit maid trash instead.
 R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied. Always use $TMPDIR. Never hardcode /tmp.
 R9.27 INSTALL-DOTFILE-SYMLINK: install.sh appending PATH/exports to rc files MUST check if target is symlink to versioned dotfile. If yes — skip append, emit warning. Pattern: [ -L "$_RC" ] && log_warn "RC is a symlink — skipping PATH inject" && return.
-R9.28 CLIPSO-COLOR-PASSTHROUGH: commands emitting ANSI color must NOT suppress colors for tty display. clipso preserves TMP_DISPLAY for tty; strips ANSI only for clipboard. Never strip ANSI before display_with_privacy runs.
+R9.28 CLIPSO-COLOR-PASSTHROUGH: never suppress ANSI before display_with_privacy runs. clipso strips for clipboard only, preserves color for tty. → R9.23 BEHAVIORS.
 R9.29 NO-ASSERT-UNSEEN: never describe behavior, output, flags, syntax, or structure of any tool/file/API/command not explicitly present in context (code, docs, or prior output). If missing → request source or --help first. No exceptions for "obvious by name" or "similar to known tools".
   RECOVERY COMMANDS: never invent recovery/fix subcommands (e.g. --fix-clipboard, fix_clipboard) without verifying exact syntax from README or --help first. Unknown recovery path → ask user or read docs before emitting.
 R9.29b VERIFY-BEFORE-PUSH: any fix affecting observable behavior must be tested live and output shown to user for approval before commit/push. Never commit a behavioral fix without confirmed visible verification. No exceptions.
