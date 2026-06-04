@@ -182,12 +182,16 @@ R7.4 REPO-MGMT: source of truth ~/unix-toolkit/repos.tsv. Manager: ut. GitHub re
 R7.5 PUSH-VERIFY: after push, read actual output: git push 2>&1 | tail -5. rc=0 with remote reject = invisible without reading output. Commit without confirmed push = incomplete.
 R7.6 README-SYNC: any commit that changes CLI interface, install flow, config format, or runtime behavior → README update mandatory in same commit. No exceptions.
 R7.7 DIFF-BEFORE-COMMIT: git diff <file> before git add on ai.md or *.ctx.md. Unexpected diff → stop, investigate. Only expected changes proceed.
-R7.8 NO-BARE-PUSH: never emit bare git push or git pull in multi-machine workflow. Always route through miko sync — enforces full STEP 0a/0b gate.
-  PRE-SYNC GATE (mandatory, zero exceptions):
-    STEP 0a — origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso → ALL repos clean before any push.
-    STEP 0b — each destination: nssh <alias> bare → { cd ~/unix-toolkit && ut status; } 2>&1 | clipso → any ahead repo = that device is origin for that repo.
-  Exception: single-repo emergency fix ONLY if ut status clean on ALL devices confirmed same turn AND remote is SSH (R9.11).
-  Violation: emitting git push/pull without prior ut status on ALL devices = hard blocker. Rewrite before emitting. No exceptions.
+R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
+  1. PULL:    git pull --rebase origin main on repo before first edit, any device.
+  2. FIX:     source repo + install.sh only. Never deployed artifact directly (R9.17).
+  3. VERIFY:  user must confirm fix works visually. LLM never declares success.
+  4. COMMIT:  source + install.sh in one commit. Same turn as verify.
+  5. PUSH:    immediate after commit. SSH remote only (R9.11).
+  6. SYNC-PENDING: after every push → miko add "sync pending: <repo> → <device>"
+     for every device not currently connected. Mark done via miko done when synced.
+     Session start on any device: miko macro shows pending syncs for that device.
+  No primary device. Fix starts wherever session is — pull first, always.
 
 ## R8 — REMOTE
 R8.1 HEREDOC: no triple-backticks inside heredoc. Plain text only. Content with backticks → python3 file write.
