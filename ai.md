@@ -56,10 +56,12 @@ R4.8 SOURCE↔DEPLOY: establish paths first; edit source only; propagate source�
 R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 R4.10 FILE-HYGIENE: when touching config/dotfile/ctx/script: scan for redundant blocks, dead vars, stale entries, duplicate PATH exports, unreachable code. Remove/consolidate. Never leave file dirtier than found.
 R4.11 SCRIPT-MODE: after writing any executable script (via python3 or heredoc), chmod +x in SAME command. After git commit confirm mode 100755 in output. Pattern: write → chmod +x → git add → commit — never separate steps.
+  MV-EXECUTABLE: mv file.new file when target is executable → always append && chmod +x <file>. mv strips permissions silently.
 R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
   (1) for simple patches (no special chars, <5 replaces): python3 -c inline OK
       for complex patches (special chars, multiline, >5 replaces): write to $TMPDIR/patch_<name>.py
-  (2) grep -c 'exact_target' <file> → must return 1; 0=re-read, >1=tighter anchor
+  (2) grep -cF 'exact_target' <file> → must return 1; 0=re-read, >1=tighter anchor
+      CRITICAL: always grep -cF (fixed string), never grep -c — brackets/dots/stars are regex metacharacters
   (3) use raw strings + named variables for strings with quotes/special chars:
         old = r'exact string here'; new = 'replacement here'
         assert old in content, "target not found"
@@ -225,6 +227,7 @@ R9.14 COMMIT-COMPLETENESS: structural changes incomplete until: (a) git status s
 R9.15 SYMLINK-AUDIT: when deleting a repo, scan ALL symlinks on all machines before deletion. Fix dangling symlinks same turn. Pattern: find $HOME -maxdepth 3 -type l | xargs ls -la 2>&1 | grep deleted_repo.
 R9.16 INSTALLER-CANON: repos tagged tool/cli/svc/cfg require exactly one installer named install.sh. Repos tagged util/client/web/arc/game exempt. install.sh is idempotent source of truth for deploying artifacts.
 R9.17 INSTALLER-FIRST: flow ALWAYS: (1) patch install.sh, (2) re-run install.sh. Manual edits to deployed artifacts forbidden. Any state not reproducible by install.sh = broken state.
+  HARDSTOP: before any patch, confirm target path is ~/unix-toolkit-tools/<repo>/<file> — never ~/.local/bin/, /usr/bin/, or any deployed artifact path. Wrong path = broken state.
 R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called within clipso pipeline — stdin captured by spinner; blocks forever. Pattern: gate on env var instead of prompting. Recovery: pkill -f clipso.sh from new Termux tab.
 R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(d0) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
 R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/done BEFORE proceeding to next step. Never batch to end of session.
