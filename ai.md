@@ -127,7 +127,7 @@ R6.5 SESSION: two-level context — MANDATORY READ BEFORE ANY ACTION:
   MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md — per-repo: stack, fixes, pending, last-known-good
   OWNER: miko owns ALL ctx. Never write ctx files directly — use miko add/done/lkg/sync.
   macro/micro are miko subcommands — NOT standalone binaries. Correct: miko macro | miko micro <repo>. Never: which macro / which micro.
-  Session start: read MACRO first always. Read MICRO of every repo being touched.
+  Session start: → R6.6 (canonical: miko ai; manual fallback: R9.22).
   No ctx available → emit READ command, wait for paste. NEVER assume state from chat history.
   HARDSTOP: emitting any repo/task state-modifying command without having read macro ctx = violation.
 R6.6 SESSION-START — MANDATORY ORDER, no exceptions:
@@ -135,18 +135,10 @@ R6.6 SESSION-START — MANDATORY ORDER, no exceptions:
     → one command: emits ai.md hash + macro ctx + macro hash + micro ctx + micro hash per repo
     → clipso integrated; output structured for direct chat paste
     → IMPLEMENTED in miko-task (miko ai [repo...])
-  MANUAL FALLBACK:
-    STEP 1 — ai.md hash (already loaded as prompt — hash only, no re-read):
-      { git hash-object ~/unix-toolkit/ai.md; } 2>&1 | clipso  → store as AI_MD_HASH
-    STEP 2 — macro ctx + hash:
-      { miko macro; echo "---HASH:$(git hash-object ~/unix-toolkit/.ctx.md)"; } 2>&1 | clipso  → store MACRO_HASH
-    STEP 3 — micro ctx + hash (repeat per repo involved):
-      { miko micro <repo>; echo "---HASH:$(git hash-object ~/unix-toolkit-tools/<repo>/.ctx.md)"; } 2>&1 | clipso  → store MICRO_HASH_<repo>
-    STEP 4 — understand pending, machines, last-known-good. Then proceed.
+  MANUAL FALLBACK: commands → R9.22 (ctx read section). Steps: ai.md hash → macro+hash → micro+hash per repo → read pending/lkg.
   SESSION RESUMED: if ANY modifying command emitted since last ctx paste → re-run session start before next patch.
   If no modifying command emitted → hashes still valid, proceed.
   NEVER skip macro read. NEVER infer state from chat history — file is single source of truth.
-  MANDATORY ORDER: (1) miko macro, (2) miko micro <repos being touched>, (3) miko status. Never give instructions on a repo without having read its micro ctx first.
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd. Orphan socket blocks rebind silently. Cleanup: rm -f orphan, relaunch.
 R6.8 AUTO-IMPROVE: mistake cost a turn OR new pattern detected → fix ai.md same turn.
   Order: verify AI_MD_HASH unchanged (R4.13) → write ai.md.new → grep -c verify → mv → git diff ai.md → git add ai.md → commit ai.md only.
