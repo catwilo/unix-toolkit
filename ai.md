@@ -181,7 +181,7 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   5. PUSH:    immediate after commit. SSH remote only (R9.11).
   6. SYNC-PENDING: after every push → miko add "sync pending: <repo> → <device>"
      for every device not currently connected. Mark done via miko done when synced.
-     Session start on any device: miko macro shows pending syncs for that device.
+     Session start on any device: miko macro shows pending syncs. → R9.22.
   No primary device. Fix starts wherever session is — pull first, always.
 
 ## R8 — REMOTE
