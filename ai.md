@@ -232,6 +232,7 @@ R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called 
 R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(d0) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
 R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/done BEFORE proceeding to next step. Never batch to end of session.
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # d0 | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
+    LONG-SESSION: machine context degrades over turns — re-verify active machine before EVERY command block, not just on switch.
   PROMPT SIGNAL: 🌐 globe in prompt = d0 active; no globe = Termux. Use this to confirm active machine before emitting any command.
 R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw dstask or cat ctx files.
   session:     miko ai [repo1 repo2 ...]   canonical session start — hashes + macro + micro
@@ -304,9 +305,11 @@ R9.28 CLIPSO-COLOR-PASSTHROUGH: never suppress ANSI before display_with_privacy 
 R9.29 NO-ASSERT-UNSEEN: never describe behavior, output, flags, syntax, or structure of any tool/file/API/command not explicitly present in context (code, docs, or prior output). If missing → request source or --help first. No exceptions for "obvious by name" or "similar to known tools".
   RECOVERY COMMANDS: never invent recovery/fix subcommands (e.g. --fix-clipboard, fix_clipboard) without verifying exact syntax from README or --help first. Unknown recovery path → ask user or read docs before emitting.
 R9.29b VERIFY-BEFORE-PUSH: any fix affecting observable behavior must be tested live and output shown to user for approval before commit/push. Never commit a behavioral fix without confirmed visible verification. No exceptions.
+    TRIGGER: before ANY git commit/push — ask self: "has user confirmed this works visually?" If no → test first, always.
 R9.30 VERIFY-ANOMALIES: any command output containing unexpected values (?, empty IDs, wrong priority, missing fields, unexpected VOID) → STOP immediately. Investigate root cause before declaring success or continuing. Never emit "ok" past an anomaly.
 R9.31 SILENT-CMD-ECHO: every command with no natural output MUST include `&& echo ok || echo fail` inside the clipso wrapper. Never rely on clipso "VOID" as implicit success signal.
 R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/library/framework is uncertain and not in context → search official docs or GitHub before asserting or proceeding. Never improvise on uncertainty. Training-data patterns require verification when recency matters.
+    APPLIES TO: nc flags, socat syntax, any CLI tool behavior — read --help or source before assuming flag exists.
 R9.33 TASK-VERIFY: after any miko add/done/pri → immediately verify with `miko next [repo]`: ID valid (not ?), priority correct, text accurate. Fix anomalies before next step.
 R9.34 BEST-PRACTICE-SEARCH: before writing code/config for non-trivial tasks (build systems, Android APIs, framework integrations) → verify current stable approach via web search or docs in context. Prefer official sources. Never assume training-data patterns are current.
 R9.35 DEVICE-TRACK: before switching active machine mid-session, state explicitly which machine becomes active. Re-apply R9.21 label on ALL subsequent commands. Never assume machine context persists across switch. If ambiguous → re-probe before emitting.
