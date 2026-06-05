@@ -57,9 +57,11 @@ R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 R4.10 FILE-HYGIENE: when touching config/dotfile/ctx/script: scan for redundant blocks, dead vars, stale entries, duplicate PATH exports, unreachable code. Remove/consolidate. Never leave file dirtier than found.
 R4.11 SCRIPT-MODE: after writing any executable script (via python3 or heredoc), chmod +x in SAME command. After git commit confirm mode 100755 in output. Pattern: write → chmod +x → git add → commit — never separate steps.
   MV-EXECUTABLE: mv file.new file when target is executable → always append && chmod +x <file>. mv strips permissions silently.
+  VOID-AFTER-MV: if command after mv emits VOID or no output → chmod +x was missed. Fix: chmod +x <file> && bash install.sh. Never re-investigate — this is always the cause.
 R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
   (1) for simple patches (no special chars, <5 replaces): python3 -c inline OK
       for complex patches (special chars, multiline, >5 replaces): write to $TMPDIR/patch_<name>.py
+  UTF8-ANCHOR: never use UTF-8 chars (—, ·, ❯, ✓, etc) in old= anchor strings. Always use ASCII anchors or surrounding ASCII context. UTF-8 in file ≠ UTF-8 in Python string literal → silent count=0.
   (2) grep -cF 'exact_target' <file> → must return 1; 0=re-read, >1=tighter anchor
       CRITICAL: always grep -cF (fixed string), never grep -c — brackets/dots/stars are regex metacharacters
   (3) use raw strings + named variables for strings with quotes/special chars:
@@ -117,14 +119,19 @@ R5.13 LOCAL-FILE: local files → clipso <file> directly. Never { cat <file>; } 
 R5.14 ENV-VAR-FALLBACK: every env var that may be unset → ${VAR:-default} at point of use. Never assume exported. Critical: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars.
 R5.15 MID-COMMIT-WAIT: if user signals they are mid-commit, never emit push-related or repo-state-modifying commands. Wait for explicit signal (e.g. ".") confirming commits done before proceeding.
 R5.16 DEBUG-LOOP-EXIT: same issue unresolved after 3 turns → declare blocker explicitly, propose alternative approach, stop, wait for decision. Never iterate indefinitely.
+R5.17 RACE-CONDITION-GATE: before any background job (&) that reads a shared file → snapshot the file first (cp to tmp). Never assume background reads file before foreground modifies it.
+R5.18 BSD-SED: always use sed -i.bak on any platform; rm .bak immediately after. Never sed -i "" (fragile) or sed -i without extension (GNU-only).
+R5.19 VERIFY-THEN-PUSH: never push in same command as fix. Pattern: fix → install → test → user confirms → commit → push. Two separate commands minimum.
 
 ## R6 — DEBUG
 R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate→confirm→fix across turns. Pre-patch grep-c gate → R4.12(2).
+  FLOW-FIRST: before any behavioral fix, read full execution path of affected function (entry→exit). Never patch symptoms. grep entry point + sed -n the function body in one read.
 R6.2 LINT+RUN: run scripts with shebang interpreter. Var surviving reload → suspect inherited env.
   Var survives reload AND grep finds nothing → inherited env from parent (byobu/tmux). Fix: fresh Termux tab OUTSIDE byobu. Apply this diagnosis BEFORE exhausting grep turns.
 R6.3 SCRIPTS: ANSI green=ok yellow=warn red=error cyan=info. No external deps unless decisive. Visible progress; concise output.
 R6.4 DEAD-CODE: remove fully; grep dangling refs. Verify every called helper is defined.
 R6.5 SESSION: two-level context — MANDATORY READ BEFORE ANY ACTION:
+  INFRA-CHECK: macro ctx documents running services (listeners, agents, sockets). Read before proposing any new mechanism — may already exist or conflict.
   MACRO: ~/unix-toolkit/.ctx.md — global state: machines, repos, pending blocks, do-NOT, last-known-good
   MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md — per-repo: stack, fixes, pending, last-known-good
   OWNER: miko owns ALL ctx. Never write ctx files directly — use miko add/done/lkg/sync.
@@ -168,6 +175,7 @@ R6.14 IMPROVE-PROTOCOL: LLM proactively detects and reports at end of any respon
 
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
+  COMMIT-GATE: never chain commit+push+remote-install in one block. Order: commit → push → remote pull+install → test → next. Each step confirmed before proceeding.
 R7.2 MESSAGE: feat|fix|refactor|chore|docs. Subject ≤60 chars, imperative, English, no period. One concern/commit.
 R7.3 MULTI-MACHINE: pull --rebase before push from second machine. Rebase conflict → abort, push --force-with-lease from correct machine. After force push → pull all others immediately.
   BEFORE force-with-lease: git fetch origin && git log --oneline origin/main — inspect what will be lost. Never force-push blind.
@@ -234,6 +242,7 @@ R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/d
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # d0 | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
     LONG-SESSION: machine context degrades over turns — re-verify active machine before EVERY command block, not just on switch.
   PROMPT SIGNAL: 🌐 globe in prompt = d0 active; no globe = Termux. Use this to confirm active machine before emitting any command.
+  CLIPSO-TO: when on Termux and CLIPSO_TO is set, append --to <alias> to every clipso-wrapped command. Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
 R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw dstask or cat ctx files.
   session:     miko ai [repo1 repo2 ...]   canonical session start — hashes + macro + micro
   ctx read:    { miko macro; echo "---HASH:$(git hash-object ~/unix-toolkit/.ctx.md)"; } 2>&1 | clipso
@@ -306,6 +315,7 @@ R9.29 NO-ASSERT-UNSEEN: never describe behavior, output, flags, syntax, or struc
   RECOVERY COMMANDS: never invent recovery/fix subcommands (e.g. --fix-clipboard, fix_clipboard) without verifying exact syntax from README or --help first. Unknown recovery path → ask user or read docs before emitting.
 R9.29b VERIFY-BEFORE-PUSH: any fix affecting observable behavior must be tested live and output shown to user for approval before commit/push. Never commit a behavioral fix without confirmed visible verification. No exceptions.
     TRIGGER: before ANY git commit/push — ask self: "has user confirmed this works visually?" If no → test first, always.
+    MULTI-STEP-FIX: if fix involves >1 file or >1 system (e.g. clipso + nclip-send + Mac), verify end-to-end on ALL affected nodes before ANY commit. Partial verification = no commit.
 R9.30 VERIFY-ANOMALIES: any command output containing unexpected values (?, empty IDs, wrong priority, missing fields, unexpected VOID) → STOP immediately. Investigate root cause before declaring success or continuing. Never emit "ok" past an anomaly.
 R9.31 SILENT-CMD-ECHO: every command with no natural output MUST include `&& echo ok || echo fail` inside the clipso wrapper. Never rely on clipso "VOID" as implicit success signal.
 R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/library/framework is uncertain and not in context → search official docs or GitHub before asserting or proceeding. Never improvise on uncertainty. Training-data patterns require verification when recency matters.
