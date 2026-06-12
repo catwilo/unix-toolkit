@@ -5,15 +5,13 @@ R0 META | R1 OUTPUT | R2 INTERACTION | R3 AUTONOMY | R4 FS | R5 EXEC | R6 DEBUG 
 NOTE: R9 is the densest section — contains full stack, tools, clipso, miko, noemap, maid. Read fully on cold start.
 
 ## R0 — META
-R0.1 SELF-CHECK: before emitting ANY response or command, run this gate:
-  □ Complies with ALL rules in this file?
-  □ Performs restricted action (R3.3, R0.5, banned refs)?
-  □ Command output contains sensitive data? → mask per R5.5 or exit-code-only
-  □ Patch target verified with git hash-object + grep -c before writing?
-  If any box fails — rewrite until all pass. If rewrite impossible → state blocker in one line, stop, wait. Never loop.
-  No exceptions. No deferred fixes.
-R0.2 VIOLATIONS: never violate defined rules. R6.8 mandates same-turn fix when broken.
-R0.3 COMPLIANCE-GATE: if intended response would violate any rule, rewrite before emitting. Never emit non-compliant and note it after.
+R0.1 SELF-CHECK: before emitting ANY response or command:
+  □ Any rule violated by intended output? → rewrite until compliant
+  □ Clipso wrapper missing on non-exempt command? → add (R0.4)
+  □ Rewrite impossible? → state blocker in one line, stop, wait. Never loop.
+  Sensitive data → R5.5. Patch hash → R4.13. Restricted actions → R3.3. No exceptions.
+R0.2 COMPLIANCE: never violate defined rules. Rewrite before emitting if any rule violated — never emit non-compliant and note after. R6.8 mandates same-turn fix when confirmed.
+R0.3 → merged into R0.2.
 R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapper is present. If missing — rewrite before emitting. No exceptions. Exemptions: TTY-interactive (R9.10) and nssh remote cmd (R9.5).
 R0.5 BASH-TOOL-HARDBAN: Claude has NO filesystem. bash_tool runs in isolated container — output NEVER accessible to user. NEVER use bash_tool. All output = commands for user to execute. No exceptions.
 R0.7 FILE-MONOTONIC: every edit to ai.md or any .ctx.md must leave the file strictly more complete than before. Allowed: compress duplicates, merge redundant blocks. Forbidden: remove unique definitions, rules, pending items, last-known-good, or any content not explicitly confirmed for deletion. Before emitting rewrite: diff mentally — anything present before absent after = rewrite rejected.
@@ -27,12 +25,15 @@ R1.4 NO-ARTIFACTS: NEVER use Claude artifacts, HTML files, React components, or 
 ## R2 — INTERACTION
 R2.1 FEEDBACK: "."=proceed | "v"=void | bare paste=output (USER codes only; never emit).
 R2.2 IDLE: suggest next task if turn ends with no pending action.
-R2.3 PROSE GATES: only (a) diagnosis, (b) missing context — one question only, (c) HIGH-risk — one-line note, wait.
+R2.3 PROSE GATES: only (a) diagnosis, (b) missing context — one question only, (c) HIGH-risk — one-line note, wait, (d) direct user question about rule/behavior → prose answer, no command.
 R2.4 SCOPE: act on exactly what was named.
   CONFLICT (two rules contradict) → stop, name both, ask which wins.
   AMBIGUITY (>1 valid interpretation) → take most conservative, declare inline, proceed.
+  CONTENT: provided spec/output/doc defines exact scope → never infer unstated requirements.
 R2.5 LEARN: error cost a turn + clarified → add abstract rule same turn (R6.8).
 R2.6 OUTPUT-VS-SIGNAL: terminal block pastes = command output — never feedback signals. "v"/"."/etc. = signals only as bare chat messages. Never confuse command printing "VOID" with user signaling void.
+R2.7 INTERRUPT: user corrects/questions/redirects mid-sequence → address fully before resuming. Never continue prior sequence past interruption.
+R2.8 TRUNCATED-SPEC: spec, output, or doc appears incomplete → obtain complete version before acting. Never infer missing parts.
 
 ## R3 — AUTONOMY
 R3.1 READ-ONLY: emit directly.
@@ -48,7 +49,7 @@ R4.2 MKDIR: mkdir -p before cp/mv.
 R4.3 READ: one targeted read/turn (grep -n|sed -n 'X,Yp'|rg). No cat of large files; no multi-range.
 R4.4 LIST: find, not globs (glob fail aborts zsh).
 R4.5 EDIT: minimal change on confirmed problem; preserve conventions. Absolute paths from $HOME/live state.
-R4.6 WHOLE-FILE: never in-place overwrite. Write .new → verify (bash -n + shellcheck) → mv. No cat > overwrite.
+R4.6 WHOLE-FILE: write .new → verify (bash -n + shellcheck) → mv. Never in-place overwrite. Full lifecycle → R4.12.
   If verify fails → PATCH FAILED — do NOT mv — stop turn — emit error — wait instruction.
   ctx files (*.ctx.md): owned by miko. Never write directly — use miko add/done/lkg. LLM never patches ctx files manually.
 R4.7 NO-HARDCODE: IPs/ifaces/IDs/paths derive from live state. Use $HOME or realpath ~/. Unsure → find first.
@@ -76,6 +77,7 @@ R4.13 PRE-PATCH-HASH: before ANY patch to ai.md or *.ctx.md:
   (1) { git hash-object <file>; } 2>&1 | clipso → compare against stored hash
   (2) equal → proceed; different → re-read first, re-evaluate patch, then proceed
   Store hash mentally at READ TIME. Invalidate if any modifying command was emitted since last read.
+  SESSION-HEADER: hash present in session start → use directly. Never re-query a hash already in context.
 
 ## R5 — EXEC
 R5.1 FOREGROUND-DAEMON: nc -l, tail -f, servers → (a) background (&) AND (b) exact kill command same turn.
@@ -110,7 +112,7 @@ R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use pyt
 R5.11 CLEAN-ENV-TEST: verify PATH/env isolation with env -i HOME=$HOME TERM=$TERM zsh --no-rcs. byobu/tmux inherit env, bypass rc files.
   Termux EXCEPTION: env -i test INVALID on Termux. Use fresh Termux tab outside byobu instead. Never env -i on Termux.
 R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. Full reference in R9: ut | clipso | nssh/noemap/ndevs | maid | miko. If tool behavior unknown → miko micro <repo> before improvising.
-R5.12b PROJECT-CMD-GATE: before emitting ANY command targeting a specific project repo:
+  PROJECT-CMD-GATE: before emitting ANY command targeting a specific project repo:
   (1) micro ctx loaded? → check tool/invocation section first
   (2) invocation not in micro ctx → read README before emitting
   (3) never substitute raw toolchain commands (npm, gulp, node) when a project wrapper exists
@@ -118,7 +120,7 @@ R5.12b PROJECT-CMD-GATE: before emitting ANY command targeting a specific projec
 R5.13 LOCAL-FILE: local files → clipso <file> directly. Never { cat <file>; } 2>&1 | clipso.
 R5.14 ENV-VAR-FALLBACK: every env var that may be unset → ${VAR:-default} at point of use. Never assume exported. Critical: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars.
 R5.15 MID-COMMIT-WAIT: if user signals they are mid-commit, never emit push-related or repo-state-modifying commands. Wait for explicit signal (e.g. ".") confirming commits done before proceeding.
-R5.16 DEBUG-LOOP-EXIT: same issue unresolved after 3 turns → declare blocker explicitly, propose alternative approach, stop, wait for decision. Never iterate indefinitely.
+R5.16 DEBUG-LOOP-EXIT: same command fails twice with identical approach → declare blocker, propose alternative, stop, wait. Never attempt third run. Never iterate indefinitely.
 R5.17 RACE-CONDITION-GATE: before any background job (&) that reads a shared file → snapshot the file first (cp to tmp). Never assume background reads file before foreground modifies it.
 R5.18 BSD-SED: always use sed -i.bak on any platform; rm .bak immediately after. Never sed -i "" (fragile) or sed -i without extension (GNU-only).
 R5.19 VERIFY-THEN-PUSH: never push in same command as fix. Pattern: fix → install → test → user confirms → commit → push. Two separate commands minimum.
@@ -149,20 +151,20 @@ R6.6 SESSION-START — MANDATORY ORDER, no exceptions:
   If no modifying command emitted → hashes still valid, proceed.
   NEVER skip macro read. NEVER infer state from chat history — file is single source of truth.
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd. Orphan socket blocks rebind silently. Cleanup: rm -f orphan, relaunch.
-R6.8 AUTO-IMPROVE: mistake cost a turn OR new pattern detected → fix ai.md same turn.
+R6.8 AUTO-IMPROVE: mistake confirmed by user or test output → fix ai.md same turn. Never self-declare error and auto-fix without external confirmation.
   Order: verify AI_MD_HASH unchanged (R4.13) → write ai.md.new → grep -c verify → mv → git diff ai.md → git add ai.md → commit ai.md only.
   Tasks: miko add/done — never edit ctx files directly. miko sync at natural workflow point, not forced after every ai.md patch.
   Never defer. Never batch to end of session.
 R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var → VAR silently unset. Pattern: initialize → assign → use.
 R6.10 DSTASK-GIT: dstask owns its .git in DSTASK_DATA. Never place DSTASK_DATA inside another repo.
 R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds real logic. Pure pass-through = dead code — eliminate.
-R6.12 CALLER-VERIFY: before shipping any lib function, verify ≥1 reachable caller. bash -n passing ≠ correct — also verify: semantics, caller exists, output tested.
+R6.12 CALLER-VERIFY: before shipping any lib function, constant, variable, or export — verify ≥1 reachable consumer. bash -n passing ≠ correct — verify: semantics, consumer exists, output tested. No consumer = dead code — eliminate.
 R6.13 HASH-TRACK: use git hash-object for O(1) change detection on any file LLM has read and may patch.
   READ TIME: capture hash → store mentally as <FILE>_HASH
   PRE-PATCH: { git hash-object <file>; } 2>&1 | clipso → compare against stored hash
   equal → patch; different → re-read first, invalidate old hash, re-evaluate
   Applies to: ai.md, ~/unix-toolkit/.ctx.md, ~/unix-toolkit-tools/<repo>/.ctx.md
-R6.14 IMPROVE-PROTOCOL: LLM proactively detects and reports at end of any response turn:
+R6.14 IMPROVE-PROTOCOL: TRIGGER: (a) repeated manual sequence with canonical shortcut, (b) ctx contradicts observed state, (c) duplicate content in docs. Not triggered by uncertainty. LLM reports at end of turn:
   [DRIFT]     — ai.md / macro / micro ctx inconsistent with observed state
   [SIMPLIFY]  — multi-step manual sequence has shorter canonical equivalent
   [REDUNDANT] — duplicate content detected in documentation
@@ -236,8 +238,8 @@ R9.13 REPO-LOCATION: unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolk
 R9.14 COMMIT-COMPLETENESS: structural changes incomplete until: (a) git status shows tracked, (b) committed, (c) push rc=0 confirmed. Always git status after structural changes.
 R9.15 SYMLINK-AUDIT: when deleting a repo, scan ALL symlinks on all machines before deletion. Fix dangling symlinks same turn. Pattern: find $HOME -maxdepth 3 -type l | xargs ls -la 2>&1 | grep deleted_repo.
 R9.16 INSTALLER-CANON: repos tagged tool/cli/svc/cfg require exactly one installer named install.sh. Repos tagged util/client/web/arc/game exempt. install.sh is idempotent source of truth for deploying artifacts.
-R9.17 INSTALLER-FIRST: flow ALWAYS: (1) patch install.sh, (2) re-run install.sh. Manual edits to deployed artifacts forbidden. Any state not reproducible by install.sh = broken state.
-  HARDSTOP: before any patch, confirm target path is ~/unix-toolkit-tools/<repo>/<file> — never ~/.local/bin/, /usr/bin/, or any deployed artifact path. Wrong path = broken state.
+R9.17 INSTALLER-FIRST: patch source → run install.sh. Never patch deployed artifacts. Any state not reproducible by install.sh = broken state. → R4.8 source-to-deploy flow.
+  HARDSTOP: target must be ~/unix-toolkit-tools/<repo>/<file> — never ~/.local/bin/, /usr/bin/, or deployed artifact path.
 R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called within clipso pipeline — stdin captured by spinner; blocks forever. Pattern: gate on env var instead of prompting. Recovery: pkill -f clipso.sh from new Termux tab.
 R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(db) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
 R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/done BEFORE proceeding to next step. Never batch to end of session.
@@ -313,13 +315,12 @@ R9.25 MAID: file trash and zsh history manager. Replaces rm for all user-facing 
 R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied. Always use $TMPDIR. Never hardcode /tmp.
 R9.27 INSTALL-DOTFILE-SYMLINK: install.sh appending PATH/exports to rc files MUST check if target is symlink to versioned dotfile. If yes — skip append, emit warning. Pattern: [ -L "$_RC" ] && log_warn "RC is a symlink — skipping PATH inject" && return.
 R9.28 CLIPSO-COLOR-PASSTHROUGH: never suppress ANSI before display_with_privacy runs. clipso strips for clipboard only, preserves color for tty. → R9.23 BEHAVIORS.
-R9.29 NO-ASSERT-UNSEEN: never describe behavior, output, flags, syntax, or structure of any tool/file/API/command not explicitly present in context (code, docs, or prior output). If missing → request source or --help first. No exceptions for "obvious by name" or "similar to known tools".
-  RECOVERY COMMANDS: never invent recovery/fix subcommands (e.g. --fix-clipboard, fix_clipboard) without verifying exact syntax from README or --help first. Unknown recovery path → ask user or read docs before emitting.
-  SELF-DOCUMENTED TOOLS: applies to flags and subcommands of tools documented in ai.md itself (R9.22 miko, R9.23 clipso, R9.24 noemap, R9.25 maid). Never add flags absent from documented syntax. Undocumented flag → read --help or README first.
-R9.29b VERIFY-BEFORE-PUSH: any fix affecting observable behavior must be tested live and output shown to user for approval before commit/push. Never commit a behavioral fix without confirmed visible verification. No exceptions.
-    TRIGGER: before ANY git commit/push — ask self: "has user confirmed this works visually?" If no → test first, always.
-    MULTI-STEP-FIX: if fix involves >1 file or >1 system (e.g. clipso + nclip-send + Mac), verify end-to-end on ALL affected nodes before ANY commit. Partial verification = no commit.
-    DEPLOY-IMPORT: for deploy/import artifacts (XML layouts, configs, binaries): visual verification = user confirms load/function in destination system (app, service, shell). CLI output alone (e.g. clipso target status, ET.parse OK) does not count as visual verification.
+R9.29 NO-ASSERT-UNSEEN: never describe behavior, flags, syntax, or structure of any tool/file/API/command not explicitly in context. If missing → request source or --help first. No exceptions for "obvious by name", "similar to known tools", or unverified multi-arg syntax.
+  RECOVERY COMMANDS: never invent recovery/fix subcommands without verifying exact syntax from README or --help first.
+  SELF-DOCUMENTED TOOLS: applies to all tools in ai.md (R9.22 miko, R9.23 clipso, R9.24 noemap, R9.25 maid). Never add flags absent from documented syntax.
+  VERIFY-BEFORE-PUSH: behavioral fix must be tested live, output shown to user before commit/push. "user confirmed visually?" If no → test first.
+    MULTI-STEP-FIX: >1 file or system → verify end-to-end on ALL nodes before ANY commit. Partial = no commit.
+    DEPLOY-IMPORT: visual verification = user confirms in destination system. CLI output alone does not count.
 R9.30 VERIFY-ANOMALIES: any command output containing unexpected values (?, empty IDs, wrong priority, missing fields, unexpected VOID) → STOP immediately. Investigate root cause before declaring success or continuing. Never emit "ok" past an anomaly.
 R9.31 SILENT-CMD-ECHO: every command with no natural output MUST include `&& echo ok || echo fail` inside the clipso wrapper. Never rely on clipso "VOID" as implicit success signal.
 R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/library/framework is uncertain and not in context → search official docs or GitHub before asserting or proceeding. Never improvise on uncertainty. Training-data patterns require verification when recency matters.
