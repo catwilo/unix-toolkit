@@ -173,6 +173,8 @@ R6.14 IMPROVE-PROTOCOL: LLM proactively detects and reports at end of any respon
   User decides whether to run — LLM never auto-applies without confirmation.
   On confirmation: execute immediately, continue with remaining work without re-asking.
 
+R6.15 SILENT-FAIL-STDERR: command returns non-zero with no visible output → first and only diagnostic step = re-run with full stderr: { cmd; } 2>&1 | clipso. Never bash -x before seeing raw stderr. If stderr also empty → then bash -x. No intermediate steps.
+
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
   COMMIT-GATE: never chain commit+push+remote-install in one block. Order: commit → push → remote pull+install → test → next. Each step confirmed before proceeding.
@@ -204,7 +206,7 @@ R8.6 NSSH-ANSI: nssh output contains ANSI codes + line numbers. Never pipe direc
 R8.7 TRIPLE-BACKTICK-IN-OUTPUT: never emit literal triple backticks inside heredocs, Python strings, or any block shown in chat. Pattern: bt = '`' * 3, then use {bt} for every fence in f-strings. No exceptions.
 
 ## R9 — STACK
-R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(d0) + macOS(d1,partial). Primary: Termux. byobu on d0.
+R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(db) + macOS(d1,partial). Primary: Termux. byobu on db.
 R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso — no exceptions.
   WARNING: cat > ~/path << 'EOF' overwrites existing files silently. For files that may exist → use python3 write pattern (R4.12).
   Exceptions: (1) TTY-interactive (R9.10) — bare; (2) nssh <alias> "cmd" (R9.5) — auto-copies, no wrap; (3) miko commands (R9.22) — clipso integrated, never double-wrap.
@@ -220,13 +222,13 @@ R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactiv
   BANNED via nssh remote cmd: miko sync, miko macro, ut sync, git push, git commit, installs, any multi-step task.
   DEFAULT: always prefer nssh <alias> bare → run commands interactively inside the session.
   RULE: if >1 command needed OR any state-modifying command → nssh <alias> bare first, no exceptions.
-  NEVER wrap nssh remote cmd in clipso — auto-copy is built-in. Anti-pattern: { nssh d0 "cmd"; } 2>&1 | clipso → broken double-copy with duplicate line numbers. Correct: nssh d0 "cmd" bare.
+  NEVER wrap nssh remote cmd in clipso — auto-copy is built-in. Anti-pattern: { nssh db "cmd"; } 2>&1 | clipso → broken double-copy with duplicate line numbers. Correct: nssh db "cmd" bare.
 R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch → reinstall → test.
 R9.7 MACHINE: never ask. Derive from first-turn probe.
 R9.8 RULES: new rules follow ID'd modular format. Keep existing IDs stable.
 R9.9 DOTFILE-ARCH: zsh-setup/dotfiles/ is canonical source for ALL platforms. dotconfig DELETED. Never reference dotconfigtermux, custom_termux, dotconfig, termux-setup — all deleted. zsh-setup is canonical installer for all platforms.
 R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH fingerprint, credential prompt, sudo) must NOT be wrapped in clipso. Run bare. Wrap follow-up normally. Recovery if stuck: pkill -f clipso. Spinner behavior → R9.23 BEHAVIORS.
-  INTERACTIVE SSH SESSION ≠ exemption: being inside nssh d0 bare does not exempt from clipso. Only stdin-blocking commands (fingerprint, sudo, fzf/interactive TUI) are exempt. Standard commands in interactive sessions still require { cmd; } 2>&1 | clipso.
+  INTERACTIVE SSH SESSION ≠ exemption: being inside nssh db bare does not exempt from clipso. Only stdin-blocking commands (fingerprint, sudo, fzf/interactive TUI) are exempt. Standard commands in interactive sessions still require { cmd; } 2>&1 | clipso.
 R9.11 SSH-REMOTES: all git remotes must use SSH protocol (git@github.com:...), never HTTPS. Verify with git remote -v on every repo add/clone/recover.
 R9.12 CTX: user command "ctx" = execute ALL: (1) document session errors as new rules in ai.md, (2) update tasks via miko add/done, (3) run miko status or miko sync, (4) commit ai.md in one commit. Never defer any part.
 R9.13 REPO-LOCATION: unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolkit-tools/<name>/. Never confuse the two.
@@ -237,11 +239,11 @@ R9.16 INSTALLER-CANON: repos tagged tool/cli/svc/cfg require exactly one install
 R9.17 INSTALLER-FIRST: flow ALWAYS: (1) patch install.sh, (2) re-run install.sh. Manual edits to deployed artifacts forbidden. Any state not reproducible by install.sh = broken state.
   HARDSTOP: before any patch, confirm target path is ~/unix-toolkit-tools/<repo>/<file> — never ~/.local/bin/, /usr/bin/, or any deployed artifact path. Wrong path = broken state.
 R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called within clipso pipeline — stdin captured by spinner; blocks forever. Pattern: gate on env var instead of prompting. Recovery: pkill -f clipso.sh from new Termux tab.
-R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(d0) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
+R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(db) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
 R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/done BEFORE proceeding to next step. Never batch to end of session.
-R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # d0 | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
+R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # db | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
     LONG-SESSION: machine context degrades over turns — re-verify active machine before EVERY command block, not just on switch.
-  PROMPT SIGNAL: 🌐 globe in prompt = d0 active; no globe = Termux. Use this to confirm active machine before emitting any command.
+  PROMPT SIGNAL: 🌐 globe in prompt = db active; no globe = Termux. Use this to confirm active machine before emitting any command.
   CLIPSO-TO: when on Termux and CLIPSO_TO is set, append --to <alias> to every clipso-wrapped command. Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
 R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw dstask or cat ctx files.
   session:     miko ai [repo1 repo2 ...]   canonical session start — hashes + macro + micro
@@ -313,13 +315,18 @@ R9.27 INSTALL-DOTFILE-SYMLINK: install.sh appending PATH/exports to rc files MUS
 R9.28 CLIPSO-COLOR-PASSTHROUGH: never suppress ANSI before display_with_privacy runs. clipso strips for clipboard only, preserves color for tty. → R9.23 BEHAVIORS.
 R9.29 NO-ASSERT-UNSEEN: never describe behavior, output, flags, syntax, or structure of any tool/file/API/command not explicitly present in context (code, docs, or prior output). If missing → request source or --help first. No exceptions for "obvious by name" or "similar to known tools".
   RECOVERY COMMANDS: never invent recovery/fix subcommands (e.g. --fix-clipboard, fix_clipboard) without verifying exact syntax from README or --help first. Unknown recovery path → ask user or read docs before emitting.
+  SELF-DOCUMENTED TOOLS: applies to flags and subcommands of tools documented in ai.md itself (R9.22 miko, R9.23 clipso, R9.24 noemap, R9.25 maid). Never add flags absent from documented syntax. Undocumented flag → read --help or README first.
 R9.29b VERIFY-BEFORE-PUSH: any fix affecting observable behavior must be tested live and output shown to user for approval before commit/push. Never commit a behavioral fix without confirmed visible verification. No exceptions.
     TRIGGER: before ANY git commit/push — ask self: "has user confirmed this works visually?" If no → test first, always.
     MULTI-STEP-FIX: if fix involves >1 file or >1 system (e.g. clipso + nclip-send + Mac), verify end-to-end on ALL affected nodes before ANY commit. Partial verification = no commit.
+    DEPLOY-IMPORT: for deploy/import artifacts (XML layouts, configs, binaries): visual verification = user confirms load/function in destination system (app, service, shell). CLI output alone (e.g. clipso target status, ET.parse OK) does not count as visual verification.
 R9.30 VERIFY-ANOMALIES: any command output containing unexpected values (?, empty IDs, wrong priority, missing fields, unexpected VOID) → STOP immediately. Investigate root cause before declaring success or continuing. Never emit "ok" past an anomaly.
 R9.31 SILENT-CMD-ECHO: every command with no natural output MUST include `&& echo ok || echo fail` inside the clipso wrapper. Never rely on clipso "VOID" as implicit success signal.
 R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/library/framework is uncertain and not in context → search official docs or GitHub before asserting or proceeding. Never improvise on uncertainty. Training-data patterns require verification when recency matters.
     APPLIES TO: nc flags, socat syntax, any CLI tool behavior — read --help or source before assuming flag exists.
 R9.33 TASK-VERIFY: after any miko add/done/pri → immediately verify with `miko next [repo]`: ID valid (not ?), priority correct, text accurate. Fix anomalies before next step.
 R9.34 BEST-PRACTICE-SEARCH: before writing code/config for non-trivial tasks (build systems, Android APIs, framework integrations) → verify current stable approach via web search or docs in context. Prefer official sources. Never assume training-data patterns are current.
+  XML: comments must not contain '--' (XML spec violation). Verify well-formedness with ET.parse before mv. Never commit XML without parser validation.
+R9.36 MICRO-CTX-BIND: before any git add/commit in any repo → extract ALL REGLA and do-NOT entries from that repo's micro ctx. Each is binding equal to ai.md. Any unmet REGLA = commit blocked. No exceptions.
+
 R9.35 DEVICE-TRACK: before switching active machine mid-session, state explicitly which machine becomes active. Re-apply R9.21 label on ALL subsequent commands. Never assume machine context persists across switch. If ambiguous → re-probe before emitting.
