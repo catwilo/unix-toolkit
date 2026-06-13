@@ -153,7 +153,7 @@ R6.6 SESSION-START — MANDATORY ORDER, no exceptions:
 R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBindUnlink yes in REMOTE sshd. Orphan socket blocks rebind silently. Cleanup: rm -f orphan, relaunch.
 R6.8 AUTO-IMPROVE: mistake confirmed by user or test output → fix ai.md same turn. Never self-declare error and auto-fix without external confirmation.
   Order: verify AI_MD_HASH unchanged (R4.13) → write ai.md.new → grep -c verify → mv → git diff ai.md → git add ai.md → commit ai.md only.
-  Tasks: miko add/done — never edit ctx files directly. miko sync at natural workflow point, not forced after every ai.md patch.
+  Tasks: miko add -r <repo> / miko done <id> — never edit ctx files directly. miko sync at natural workflow point, not forced after every ai.md patch.
   Never defer. Never batch to end of session.
 R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var → VAR silently unset. Pattern: initialize → assign → use.
 R6.10 DSTASK-GIT: dstask owns its .git in DSTASK_DATA. Never place DSTASK_DATA inside another repo.
@@ -194,7 +194,7 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   4. COMMIT:  source + install.sh in one commit. Same turn as verify.
   5. PUSH:    immediate after commit. SSH remote only (R9.11).
   6. SYNC-PENDING: after every push → miko add "sync pending: <repo> → <device>"
-     for every device not currently connected. Mark done via miko done when synced.
+     for every device not currently connected. Use: miko add -r unix-toolkit "sync pending: <repo> -> <device>". Mark done via miko done <id> when synced.
      Session start on any device: miko macro shows pending syncs. → R9.22.
   No primary device. Fix starts wherever session is — pull first, always.
 
@@ -242,7 +242,7 @@ R9.17 INSTALLER-FIRST: patch source → run install.sh. Never patch deployed art
   HARDSTOP: target must be ~/unix-toolkit-tools/<repo>/<file> — never ~/.local/bin/, /usr/bin/, or deployed artifact path.
 R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called within clipso pipeline — stdin captured by spinner; blocks forever. Pattern: gate on env var instead of prompting. Recovery: pkill -f clipso.sh from new Termux tab.
 R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(db) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
-R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add/done BEFORE proceeding to next step. Never batch to end of session.
+R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add -r <repo> / miko done <id> BEFORE proceeding to next step. Never batch to end of session.
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # db | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
     LONG-SESSION: machine context degrades over turns — re-verify active machine before EVERY command block, not just on switch.
   PROMPT SIGNAL: 🌐 globe in prompt = db active; no globe = Termux. Use this to confirm active machine before emitting any command.
@@ -252,9 +252,10 @@ R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw d
   ctx read:    { miko macro; echo "---HASH:$(git hash-object ~/unix-toolkit/.ctx.md)"; } 2>&1 | clipso
                { miko micro <repo>; echo "---HASH:$(git hash-object ~/unix-toolkit-tools/<repo>/.ctx.md)"; } 2>&1 | clipso
   tasks:       miko next [repo]     show next tasks
-               miko add "text"      add task
-               miko done <id>       mark done
-               miko ctx [context]   get/set dstask context
+               miko add -r <repo> "text"   add task — repo ALWAYS required
+               miko done <id>               mark done (NOTE: post-store-impl → miko done -r <repo> <id>)
+               HARDBAN: miko add without -r <repo> — no default, no fallback, no exceptions
+               miko ctx: dstask context — NOT an LLM workflow command. Never use to set context before miko add.
   sync:        miko sync [-m msg]   full sync: pull+push dstask+git
                miko status          quick state snapshot (repos + tasks) — never ut status
                miko check           pre-flight validation (7 checks) — run BEFORE miko sync; not interchangeable with status
@@ -317,6 +318,7 @@ R9.27 INSTALL-DOTFILE-SYMLINK: install.sh appending PATH/exports to rc files MUS
 R9.28 CLIPSO-COLOR-PASSTHROUGH: never suppress ANSI before display_with_privacy runs. clipso strips for clipboard only, preserves color for tty. → R9.23 BEHAVIORS.
 R9.29 NO-ASSERT-UNSEEN: never describe behavior, flags, syntax, or structure of any tool/file/API/command not explicitly in context. If missing → request source or --help first. No exceptions for "obvious by name", "similar to known tools", or unverified multi-arg syntax.
   RECOVERY COMMANDS: never invent recovery/fix subcommands without verifying exact syntax from README or --help first.
+  NEGATIVE-ASSERT: never declare a flag, argument, or behavior unnecessary, optional, or harmless without reading the source that handles it. Uncertainty in either direction → read first, assert after. No exceptions.
   SELF-DOCUMENTED TOOLS: applies to all tools in ai.md (R9.22 miko, R9.23 clipso, R9.24 noemap, R9.25 maid). Never add flags absent from documented syntax.
   VERIFY-BEFORE-PUSH: behavioral fix must be tested live, output shown to user before commit/push. "user confirmed visually?" If no → test first.
     MULTI-STEP-FIX: >1 file or system → verify end-to-end on ALL nodes before ANY commit. Partial = no commit.
@@ -325,9 +327,13 @@ R9.30 VERIFY-ANOMALIES: any command output containing unexpected values (?, empt
 R9.31 SILENT-CMD-ECHO: every command with no natural output MUST include `&& echo ok || echo fail` inside the clipso wrapper. Never rely on clipso "VOID" as implicit success signal.
 R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/library/framework is uncertain and not in context → search official docs or GitHub before asserting or proceeding. Never improvise on uncertainty. Training-data patterns require verification when recency matters.
     APPLIES TO: nc flags, socat syntax, any CLI tool behavior — read --help or source before assuming flag exists.
-R9.33 TASK-VERIFY: after any miko add/done/pri → immediately verify with `miko next [repo]`: ID valid (not ?), priority correct, text accurate. Fix anomalies before next step.
+R9.33 TASK-VERIFY: after any miko add -r <repo> / miko done <id> / pri → immediately verify with `miko next [repo]`: ID valid (not ?), priority correct, text accurate. Fix anomalies before next step.
 R9.34 BEST-PRACTICE-SEARCH: before writing code/config for non-trivial tasks (build systems, Android APIs, framework integrations) → verify current stable approach via web search or docs in context. Prefer official sources. Never assume training-data patterns are current.
   XML: comments must not contain '--' (XML spec violation). Verify well-formedness with ET.parse before mv. Never commit XML without parser validation.
 R9.36 MICRO-CTX-BIND: before any git add/commit in any repo → extract ALL REGLA and do-NOT entries from that repo's micro ctx. Each is binding equal to ai.md. Any unmet REGLA = commit blocked. No exceptions.
+
+R9.37 R-VERIFY: the only valid human verification signal is the exact word "verifico". No other phrase, emoji, "ok", "si", or "." counts as verification. Without "verifico" — LLM does not advance to next step. No exceptions.
+
+R9.38 R-COMMIT-GATE: LLM never commits, never approves PRs, never merges, never pushes autonomously. LLM emits commands only. Human executes, pastes output. LLM reads output, proposes next step. Human decides. No exceptions.
 
 R9.35 DEVICE-TRACK: before switching active machine mid-session, state explicitly which machine becomes active. Re-apply R9.21 label on ALL subsequent commands. Never assume machine context persists across switch. If ambiguous → re-probe before emitting.
