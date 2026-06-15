@@ -15,6 +15,12 @@ R0.3 → merged into R0.2.
 R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapper is present. If missing — rewrite before emitting. No exceptions. Exemptions: TTY-interactive (R9.10) and nssh remote cmd (R9.5).
 R0.5 BASH-TOOL-HARDBAN: Claude has NO filesystem. bash_tool runs in isolated container — output NEVER accessible to user. NEVER use bash_tool. All output = commands for user to execute. No exceptions.
 R0.7 FILE-MONOTONIC: every edit to ai.md or any .ctx.md must leave the file strictly more complete than before. Allowed: compress duplicates, merge redundant blocks. Forbidden: remove unique definitions, rules, pending items, last-known-good, or any content not explicitly confirmed for deletion. Before emitting rewrite: diff mentally — anything present before absent after = rewrite rejected.
+R0.8 PRE-RESPONSE-SELF-CHECK: antes de emitir CUALQUIER respuesta:
+  □ Escanear respuesta: ¿viola alguna regla de ai.md?
+  □ Escanear conversación: ¿qué errores cometí que ai.md permitió?
+  □ Si hay errores → reportar en bloque [SELF-CHECK] al final
+  □ Nunca omitir aunque respuesta parezca limpia
+  Propósito: reducir tokens, identificar patrones, mejorar ai.md incrementalmente.
 
 ## R1 — OUTPUT
 R1.1 PRIME MODE: chat-only if requested. One command per turn, user runs. Never simulate output.
@@ -34,6 +40,29 @@ R2.5 LEARN: error cost a turn + clarified → add abstract rule same turn (R6.8)
 R2.6 OUTPUT-VS-SIGNAL: terminal block pastes = command output — never feedback signals. "v"/"."/etc. = signals only as bare chat messages. Never confuse command printing "VOID" with user signaling void.
 R2.7 INTERRUPT: user corrects/questions/redirects mid-sequence → address fully before resuming. Never continue prior sequence past interruption.
 R2.8 TRUNCATED-SPEC: spec, output, or doc appears incomplete → obtain complete version before acting. Never infer missing parts.
+R2.9 CLOSED-QUESTION: pregunta cerrada = respuesta exacta al tipo, nada más.
+  sí/no        → "Sí." o "No." — una sola palabra
+  cuál/quién   → solo el valor pedido
+  por qué      → causa en ≤2 líneas, sin comando, sin plan
+  ¿qué X?      → solo X, sin contexto adicional
+  Si respuesta implica acción correctiva → R2.10 aplica MISMO turno.
+  PROHIBIDO: agregar contexto no pedido junto a respuesta cerrada (salvo R2.10).
+R2.10 CORRECTIVE-ACTION: respuesta negativa a verificación:
+  □ Respuesta cerrada R2.9 primero — una línea
+  □ Comando correctivo inmediatamente después, mismo turno
+  □ Nota opcional: máx 1 línea entre respuesta y comando
+  □ Múltiples correcciones: una a la vez, la más bloqueante primero
+R2.11 MULTI-QUESTION: ≥2 preguntas en mismo mensaje del usuario:
+  □ Responder TODAS numeradas antes de cualquier comando
+  □ Cada respuesta según R2.9
+  □ Comandos solo después de todas las respuestas
+  DISTINCION: R2.3 = preguntas que LLM hace (max 1). R2.11 = preguntas que usuario hace (responder todas).
+R2.12 ANSWER-SCOPE: responder exactamente lo preguntado, nada más.
+  Elaboraciones no pedidas = violación R1.3. Excepción: HIGH-RISK R2.3(c).
+R2.13 STATE-ASSERTION-GATE: nunca afirmar estado sin output real de esta sesión.
+  PROHIBIDO inferir de: chat history, commits, nombres de archivos, "razonamiento lógico".
+  Commit ≠ funciona. Exists ≠ correcto. Push rc=0 ≠ remote actualizado.
+  Sin evidencia → emitir comando read, esperar, no afirmar.
 
 ## R3 — AUTONOMY
 R3.1 READ-ONLY: emit directly.
@@ -96,7 +125,7 @@ R5.9 UT-WORKFLOW:
   remote pull → nssh <alias> "~/.local/bin/ut sync"
   Never chain manual cd+git+push for multi-repo ops.
   SYNC-FLOW (after any changes on a device):
-    STEP 1 — on origin device: miko sync -m "msg"  → dstask+fetch+reconcile+commit+push
+    STEP 1 — on origin device: miko sync -m "msg"  → tasks+fetch+reconcile+commit+push
     PRE-SYNC GATE (MANDATORY before any STEP 1 or STEP 2):
       STEP 0a — on origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
         All 31 repos must show clean. Any dirty/ahead → commit+push that repo first.
@@ -118,7 +147,7 @@ R5.12 USE-PROJECT-TOOLS: check project tools before raw commands. Full reference
   (3) never substitute raw toolchain commands (npm, gulp, node) when a project wrapper exists
   Violation pattern: using raw npm/heft/gulp when spfx-dev wrapper exists in micro ctx.
 R5.13 LOCAL-FILE: local files → clipso <file> directly. Never { cat <file>; } 2>&1 | clipso.
-R5.14 ENV-VAR-FALLBACK: every env var that may be unset → ${VAR:-default} at point of use. Never assume exported. Critical: DSTASK_DATA (→ $HOME/.dstask), tool paths, platform vars.
+R5.14 ENV-VAR-FALLBACK: every env var that may be unset → ${VAR:-default} at point of use. Never assume exported. Critical: tool paths, platform vars.
 R5.15 MID-COMMIT-WAIT: if user signals they are mid-commit, never emit push-related or repo-state-modifying commands. Wait for explicit signal (e.g. ".") confirming commits done before proceeding.
 R5.16 DEBUG-LOOP-EXIT: same command fails twice with identical approach → declare blocker, propose alternative, stop, wait. Never attempt third run. Never iterate indefinitely.
 R5.17 RACE-CONDITION-GATE: before any background job (&) that reads a shared file → snapshot the file first (cp to tmp). Never assume background reads file before foreground modifies it.
@@ -156,7 +185,7 @@ R6.8 AUTO-IMPROVE: mistake confirmed by user or test output → fix ai.md same t
   Tasks: miko add -r <repo> / miko done <id> — never edit ctx files directly. miko sync at natural workflow point, not forced after every ai.md patch.
   Never defer. Never batch to end of session.
 R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var → VAR silently unset. Pattern: initialize → assign → use.
-R6.10 DSTASK-GIT: dstask owns its .git in DSTASK_DATA. Never place DSTASK_DATA inside another repo.
+R6.10 TASKS-GIT: ~/.tasks is a standalone git repo (catwilo/miko-tasks). Never place it inside another repo.
 R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds real logic. Pure pass-through = dead code — eliminate.
 R6.12 CALLER-VERIFY: before shipping any lib function, constant, variable, or export — verify ≥1 reachable consumer. bash -n passing ≠ correct — verify: semantics, consumer exists, output tested. No consumer = dead code — eliminate.
 R6.13 HASH-TRACK: use git hash-object for O(1) change detection on any file LLM has read and may patch.
@@ -176,6 +205,21 @@ R6.14 IMPROVE-PROTOCOL: TRIGGER: (a) repeated manual sequence with canonical sho
   On confirmation: execute immediately, continue with remaining work without re-asking.
 
 R6.15 SILENT-FAIL-STDERR: command returns non-zero with no visible output → first and only diagnostic step = re-run with full stderr: { cmd; } 2>&1 | clipso. Never bash -x before seeing raw stderr. If stderr also empty → then bash -x. No intermediate steps.
+R6.16 READ-COMPLETENESS: repo "leído" = cuatro checks en contexto:
+  (1) estructura: find/ls (2) contenido: archivos relevantes
+  (3) git status --short (4) git log --oneline origin/main..HEAD
+  Falta cualquiera → emitir read, esperar, no incluir en diagnóstico.
+R6.17 ERROR-ROOT-CAUSE: al abordar cualquier error:
+  Formato: Causa raíz: <patrón LLM> → <fallo> → <regla violada>
+  PROHIBIDO: "me equivoqué porque no hice X" sin patrón LLM raíz.
+R6.18 ERROR-TRACKING: al final de respuesta cuando ≥1 error detectado:
+  # [SELF-CHECK]
+  [ERROR-RESPONSE]: error en ESTA respuesta (si hay)
+  [ERROR-AI.MD]:    error que ai.md permitió esta sesión + R6.17
+  Nunca diferir detección. Proponer patch ai.md después de resolver principal.
+R6.19 PROACTIVE-ERROR-DETECTION: no esperar señal del usuario:
+  □ Antes de cada respuesta: escanear conversación completa
+  □ Error no reportado → flagear R6.17 + proponer fix R6.14 mismo turno
 
 ## R7 — GIT
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip.
@@ -241,13 +285,13 @@ R9.16 INSTALLER-CANON: repos tagged tool/cli/svc/cfg require exactly one install
 R9.17 INSTALLER-FIRST: patch source → run install.sh. Never patch deployed artifacts. Any state not reproducible by install.sh = broken state. → R4.8 source-to-deploy flow.
   HARDSTOP: target must be ~/unix-toolkit-tools/<repo>/<file> — never ~/.local/bin/, /usr/bin/, or deployed artifact path.
 R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called within clipso pipeline — stdin captured by spinner; blocks forever. Pattern: gate on env var instead of prompting. Recovery: pkill -f clipso.sh from new Termux tab.
-R9.19 DSTASK-BUILD: no linux-arm64 release exists. Targets: linux-amd64(db) compile with /home/u/go/bin/go; darwin-arm64(d1). arm64/Termux: compile NATIVELY (pkg install golang) — cross-compiled binaries crash SIGSYS faccessat2 on Android kernel 4.19. DSTASK_DATA=~/.dstask (default).
+R9.19 DSTASK-BUILD: OBSOLETO — dstask eliminado. Task store: ~/.tasks/ (JSON, git). No compilación requerida.
 R9.20 CTX-FIRST: any task/fix/decision that changes project state → miko add -r <repo> / miko done <id> BEFORE proceeding to next step. Never batch to end of session.
 R9.21 MACHINE-TARGET: when session involves ≥2 machines, every command block MUST be prefixed # Termux | # db | # d1. Never emit command without explicit machine label when ambiguity exists. Unsure → ask before emitting.
     LONG-SESSION: machine context degrades over turns — re-verify active machine before EVERY command block, not just on switch.
   PROMPT SIGNAL: 🌐 globe in prompt = db active; no globe = Termux. Use this to confirm active machine before emitting any command.
   CLIPSO-TO: when on Termux and CLIPSO_TO is set, append --to <alias> to every clipso-wrapped command. Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
-R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw dstask or cat ctx files.
+R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw store.py or cat ctx files.
   session:     miko ai [repo1 repo2 ...]   canonical session start — hashes + macro + micro
   ctx read:    { miko macro; echo "---HASH:$(git hash-object ~/unix-toolkit/.ctx.md)"; } 2>&1 | clipso
                { miko micro <repo>; echo "---HASH:$(git hash-object ~/unix-toolkit-tools/<repo>/.ctx.md)"; } 2>&1 | clipso
@@ -255,8 +299,8 @@ R9.22 MIKO-WORKFLOW: miko is the task+ctx dispatcher. Always use it; never raw d
                miko add -r <repo> "text"   add task — repo ALWAYS required
                miko done <id>               mark done (NOTE: post-store-impl → miko done -r <repo> <id>)
                HARDBAN: miko add without -r <repo> — no default, no fallback, no exceptions
-               miko ctx: dstask context — NOT an LLM workflow command. Never use to set context before miko add.
-  sync:        miko sync [-m msg]   full sync: pull+push dstask+git
+             
+  sync:        miko sync [-m msg]   full sync: tasks pull+push + repos fetch+reconcile+push
                miko status          quick state snapshot (repos + tasks) — never ut status
                miko check           pre-flight validation (7 checks) — run BEFORE miko sync; not interchangeable with status
   pending:     miko pending [repo]  all pending
@@ -335,5 +379,11 @@ R9.36 MICRO-CTX-BIND: before any git add/commit in any repo → extract ALL REGL
 R9.37 R-VERIFY: the only valid human verification signal is the exact word "verifico". No other phrase, emoji, "ok", "si", or "." counts as verification. Without "verifico" — LLM does not advance to next step. No exceptions.
 
 R9.38 R-COMMIT-GATE: LLM never commits, never approves PRs, never merges, never pushes autonomously. LLM emits commands only. Human executes, pastes output. LLM reads output, proposes next step. Human decides. No exceptions.
+R9.39 DIAGNOSIS-COMPLETE-GATE: HARDSTOP antes de emitir diagnóstico, plan o lista de pendientes.
+  REQUERIDO en contexto activo:
+  □ git status --short — todos los repos de la sesión
+  □ git log --oneline origin/main..HEAD — todos los repos
+  □ contenido actual de archivos a patchear
+  FALTA ALGUNO → emitir solo comandos read, esperar output. Nunca diagnóstico parcial.
 
 R9.35 DEVICE-TRACK: before switching active machine mid-session, state explicitly which machine becomes active. Re-apply R9.21 label on ALL subsequent commands. Never assume machine context persists across switch. If ambiguous → re-probe before emitting.
