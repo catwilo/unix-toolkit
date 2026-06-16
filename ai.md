@@ -180,17 +180,17 @@ R5.9 UT-WORKFLOW:
     ut status -> miko status | ut push -> miko sync | ut sync -> miko sync
   VALID direct use (no miko equivalent): list | clone | add | rm | tag | machines | health | diff
   multi-repo commit+push -> miko sync [-m "msg"]
-  remote pull -> nssh <alias> bare -> ut sync (interactively)
+  remote pull -> nssh <alias> PTY session -> ut sync (interactively)
   Never chain manual cd+git+push for multi-repo ops.
   SYNC-FLOW (after any changes on a device):
     PRE-SYNC GATE (MANDATORY before STEP 1 or STEP 2):
       STEP 0a -- on origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
         All 31 repos must show clean. Any dirty/ahead -> commit+push that repo first.
-      STEP 0b -- on each destination: nssh <alias> bare -> { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
+      STEP 0b -- on each destination: nssh <alias> PTY session -> { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
         Any repo ahead on destination -> that device becomes origin for that repo; commit+push there first.
       Never assume ANY device is clean. ut status covers all 31 at once; never verify only selected repos.
     STEP 1 -- on origin device: miko sync -m "msg"  -> tasks+fetch+reconcile+commit+push
-    STEP 2 -- on each other device: nssh <alias> bare -> ut sync  -> pull only, no push
+    STEP 2 -- on each other device: nssh <alias> PTY session -> ut sync  -> pull only, no push
     ORDER MANDATORY: push from origin first, then pull on destinations.
     Never run miko sync on destination before origin has pushed -> causes conflicts.
 R5.10 SED-VAR: never inject shell vars via sed in single-quoted strings. Use python3 or heredoc. Verify with grep after.
@@ -299,7 +299,9 @@ R6.19 PROACTIVE-ERROR-DETECTION: do not wait for user signal.
 R7.1 COMMIT: after every confirmed fix/meaningful change. Never skip. Never accumulate multiple fixes before committing.
   COMMIT-GATE: never chain commit+push+remote-install in one block.
   Order: commit -> push -> remote pull+install -> test -> next. Each step confirmed before proceeding.
-R7.2 MESSAGE: feat|fix|refactor|chore|docs. Subject <=60 chars, imperative, English, no period. One concern/commit.
+R7.2 MESSAGE: feat|fix|refactor|perf|docs|chore|ci|test. Subject <=60 chars, imperative, English, no period. One concern/commit.
+  Format: <type>(<scope>): <description>  [body: what+why <=72 chars/line]  [Fixes #N]
+  One commit = one logical change. Two concerns -> two commits.
 R7.3 MULTI-MACHINE: pull --rebase before push from second machine.
   Rebase conflict -> abort, push --force-with-lease from correct machine. After force push -> pull all others immediately.
   BEFORE force-with-lease: git fetch origin && git log --oneline origin/main -- inspect what will be lost. Never blind.
@@ -309,18 +311,26 @@ R7.5 PUSH-VERIFY: after push, read actual output: git push 2>&1 | tail -5.
   rc=0 with remote reject = invisible without reading output. Commit without confirmed push = incomplete.
 R7.6 README-SYNC: any commit that changes CLI interface, install flow, config format, or runtime behavior ->
   README update mandatory in same commit. grep -i 'affected_term' README.md to identify sections. No exceptions.
-R7.7 DIFF-BEFORE-COMMIT: git diff <file> before git add on ai.md or *.ctx.md.
+R7.7 DIFF-BEFORE-COMMIT: git diff <file> before git add on ANY file.
   Unexpected diff -> stop, investigate. Only expected changes proceed.
+  Before push: git diff --stat origin/main to confirm exactly what leaves local.
 R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   0. CWD-VERIFY:     confirm working directory before any git command. Use cd <repo> && git status first.
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
+  1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
+  1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
   2. FIX:            source repo + install.sh only. Never patch deployed artifact (R9.17).
   3. VERIFY:         user confirms fix works visually with "verifico". LLM never declares success.
+                     DoD before "verifico" is valid (R7.12).
   4. COMMIT:         source + install.sh in one commit. Same turn as verify.
-  5. PUSH:           immediate after commit. SSH remote only (R9.11).
-  6. SYNC-PENDING:   after every push -> miko add -r unix-toolkit "sync pending: <repo> -> <device>"
-     for every device not currently connected. Mark done via miko done -r unix-toolkit <id> when synced.
-     Session start on any device: miko macro shows pending syncs -> R9.22.
+  5. PUSH:           git rebase origin/main -> git checkout main -> git merge <branch> -> git push (R9.11).
+                     git branch -d <branch> immediately after push.
+  6. REINSTALL:      "Accessible nodes now? db / d1 / none" -> for each accessible:
+                     nssh <alias> PTY session -> pull --rebase -> ./install.sh
+                     inaccessible -> miko add -r unix-toolkit "sync pending: <repo> -> <node>"
+  7. LKG:            if state is stable -> git tag -a lkg -m "lkg: <desc>" -f && git push origin lkg -f (R7.15).
+  8. SYNC-PENDING:   miko add -r unix-toolkit "sync pending: <repo> -> <device>" for every disconnected node.
+                     Mark done via miko done -r unix-toolkit <id> when synced.
 R7.9 GIT-REVERT-GATE: before any git revert:
   Run: { git log --oneline -3; } 2>&1 | clipso -> confirm exactly which commit HEAD is.
   Name the commit explicitly in the revert command. Never revert blind.
@@ -328,6 +338,43 @@ R7.10 GIT-CHECKOUT-DESTRUCTIVE: before git checkout <file>:
   (1) git stash or git diff HEAD <file> -> document and store changes.
   (2) Have explicit recovery plan ready before executing.
   Never revert confirmed working code as a debug tactic.
+
+R7.11 TBD-BRANCH: Trunk-Based Development -- branch rules:
+  CREATE:   git pull --rebase origin main && git checkout -b <type>/name
+  TYPES:    feat | fix | chore | refactor | docs
+  MAX LIFE: 1 day (ideal: hours). >2 days = smell, investigate and merge.
+  MERGE:    git fetch origin && git rebase origin/main -> git checkout main -> git merge <branch>
+  PUSH:     git push origin main  (separate command from merge)
+  CLEANUP:  git branch -d <branch> immediately after push
+  NEVER:    rebase a branch already pushed to shared remote. Force-push to main.
+
+R7.12 DEFINITION-OF-DONE: "verifico" is valid only when ALL true:
+  [X] install.sh ran without errors on active machine
+  [X] expected behavior visible in terminal output (not inferred)
+  [X] git status clean in repo -- no stray .new files
+  [X] no secret/token/IP in diff (R5.5)
+  LLM never declares done. User confirms.
+
+R7.13 GIT-BISECT: for regressions where last-known-good commit is unknown:
+  git bisect start
+  git bisect bad                    # current HEAD is broken
+  git bisect good <lkg-hash|tag>    # last known good (use lkg tag: R7.15)
+  # git checks out candidate -> test -> mark good/bad -> repeat ~log2(N) times
+  git bisect reset                  # ALWAYS run after bisect -- restores HEAD
+  Automate: git bisect run <test-script> (exits 0=good, 1=bad)
+
+R7.14 DIFF-STAT-BEFORE-PUSH: before any git push:
+  { git diff --stat origin/main; } 2>&1 | clipso
+  Unexpected files in diff -> stop, investigate. Never push blind.
+
+R7.15 LKG-TAG: last-known-good via annotated git tag (not text in ctx):
+  SET:   { git tag -a lkg -m "lkg: <description>" -f && git push origin lkg -f; } 2>&1 | clipso
+  READ:  { git log lkg -1 --oneline; } 2>&1 | clipso
+  BISECT anchor: git bisect good lkg
+  TAG is annotated (carries message+date), not lightweight.
+  -f required: lkg is a moving tag, always points to latest stable.
+  MULTI-NODE: git config --global push.followTags true (run once per machine).
+  On pull: git fetch --tags pulls lkg automatically.
 
 ---
 
@@ -368,10 +415,13 @@ R9.3 REMOTE-READ: nclip <alias>:/path  OR  nclipc <alias> -- "cmd 2>&1"
 
 R9.4 ALIASES: resolve via noemap. Use nssh not ssh.
 
-R9.5 NSSH: nssh <alias> "cmd" auto-copies output. nssh <alias> bare = interactive, no clipboard.
-  HARDBAN: nssh <alias> "cmd" ONLY for single quick read-only checks (e.g. git log, grep, status).
-  BANNED via nssh "cmd": miko sync, miko macro, ut sync, git push, git commit, installs, any multi-step task.
-  RULE: if >1 command needed OR any state-modifying command -> nssh <alias> bare first. No exceptions.
+R9.5 NSSH: two modes -- never confuse them:
+  PTY session:  nssh <alias>          interactive shell, full TTY, no auto-copy. Use for multi-step or state-modifying work.
+  exec mode:    nssh <alias> "cmd"    single command, auto-copies output, no PTY.
+  HARDBAN exec: ONLY for single quick read-only checks (e.g. git log, grep, status).
+  BANNED via exec: miko sync, miko macro, ut sync, git push, git commit, installs, any multi-step task.
+  RULE: if >1 command needed OR any state-modifying command -> PTY session first. No exceptions.
+  Inside PTY session: clipso applies normally to all commands -- PTY does not exempt from clipso.
   NEVER wrap nssh "cmd" in clipso -- auto-copy is built-in. Anti-pattern: { nssh db "cmd"; } 2>&1 | clipso.
 
 R9.6 CLIPSO-MOD: never modify clipso.sh while clipso executing. Patch -> reinstall -> test.
@@ -389,8 +439,8 @@ R9.9 DOTFILE-ARCH (CANONICAL):
   DELETED -- never reference: dotconfigtermux, custom_termux, dotconfig, termux-setup.
 
 R9.10 TTY-INTERACTIVE: commands expecting interactive input (SSH fingerprint, credential prompt, sudo) must NOT
-  be wrapped in clipso. Run bare. Wrap follow-up normally. Recovery if stuck: pkill -f clipso.
-  INTERACTIVE SSH SESSION != exemption: being inside nssh db bare does NOT exempt from clipso.
+  be wrapped in clipso. Run directly. Wrap follow-up normally. Recovery if stuck: pkill -f clipso.
+  PTY SESSION != exemption: being inside a PTY session (nssh <alias>) does NOT exempt from clipso.
   Only stdin-blocking commands (fingerprint, sudo, fzf/interactive TUI) are exempt. Standard commands still require wrap.
 
 R9.11 SSH-REMOTES: all git remotes must use SSH (git@github.com:...), never HTTPS.
@@ -552,6 +602,16 @@ R9.35 DEVICE-TRACK: before switching active machine mid-session, state explicitl
 
 R9.36 MICRO-CTX-BIND: before any git add/commit in any repo -> extract ALL REGLA and do-NOT entries from that
   repo's micro ctx. Each is binding equal to ai.md. Any unmet REGLA = commit blocked. No exceptions.
+
+R9.36b SPIKE-GATE: before writing any code when behavior/API/library/arch is uncertain:
+  TRIGGER: tool not in context | >=2 valid arch options | external API behavior unknown | any R9.29 violation risk.
+  NO TRIGGER: behavior obvious | already in ai.md | standard documented practice.
+  FORMAT:
+    SPIKE: <binary question>
+    SOURCE: official docs -> GitHub -> technical articles
+    RESULT: viable yes/no + concrete evidence
+    DECISION: -> miko add -r <repo> "DESIGN: <decision>"
+  Spike code goes in throwaway local branch. Never reaches main.
 
 R9.37 R-VERIFY: the only valid human verification signal is the exact word "verifico".
   No other phrase, emoji, "ok", "si", ".", or any variant counts as verification.
