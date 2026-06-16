@@ -28,7 +28,7 @@ R0.2 COMPLIANCE: never emit non-compliant output. Rewrite before emitting. R6.8 
 
 R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapper present.
   Missing -> rewrite before emitting. No exceptions.
-  Exemptions: TTY-interactive (R9.10) | nssh <alias> "cmd" (R9.5) | miko ai (R9.22).
+  Exemptions: TTY-interactive (R9.10) | nssh exec mode (R9.5) | miko ai (R9.22).
 
 R0.5 BASH-TOOL-HARDBAN: Claude has NO filesystem. bash_tool runs in isolated container -- output NEVER reaches user.
   NEVER use bash_tool. ALL output = commands for user to execute. No exceptions.
@@ -425,7 +425,7 @@ R9.1 PLATFORM: Termux(Android,no-root,ARM64) + Debian(db) + macOS(d1,partial). P
 
 R9.2 CLIPBOARD: EVERY command must be wrapped { cmd; } 2>&1 | clipso -- no exceptions.
   WARNING: cat > ~/path << 'EOF' overwrites existing files silently. For files that may exist -> R4.12.
-  Exemptions: TTY-interactive (R9.10) | nssh <alias> "cmd" (R9.5) | miko ai (R9.22).
+  Exemptions: TTY-interactive (R9.10) | nssh exec mode (R9.5) | miko ai (R9.22).
   HELPERS:
     clipc <bin> [args]     binary shorthand -- stdout+stderr via clipso
     { ...; } |& clipso     compound expressions (pipes, &&, subshells)
