@@ -152,6 +152,12 @@ R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
   (6) Verify OK: mv .new -> rm $TMPDIR/patch_<name>.py in SAME command. Include cleanup; never leave .new files loose.
       Verify FAIL: keep .new for debug -- do NOT mv -- stop -- wait instruction.
   Full one-liner: { python3 $TMPDIR/patch_<name>.py && mv <file>.new <file> && rm $TMPDIR/patch_<name>.py; } 2>&1 | clipso
+R4.12b PYTHON-PATCH-DO-NOT:
+  DO-NOT-1: NUNCA python3 -c multilinea con bash vars interpoladas -- quoting imposible
+  DO-NOT-2: NUNCA heredoc anidado dentro de python3 << 'PYEOF' con comillas simples en el contenido
+  DO-NOT-3: NUNCA base64 encode/decode para scripts con newlines en strings bash -- SyntaxError garantizado
+  CANONICAL: escribir patch script a $TMPDIR via tee << 'DELIM' (verificado funciona) antes de ejecutar con python3
+
 R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has read and may patch:
   (1) { git hash-object <file>; } 2>&1 | clipso -> compare against stored hash.
   (2) Equal -> proceed; different -> re-read first, re-evaluate patch, then proceed.
