@@ -475,7 +475,17 @@ R9.12 CTX: user command "ctx" = execute ALL:
   (2) update tasks via miko add -r <repo> / miko done -r <repo> <id>
   (3) run miko status or miko sync
   (4) commit ai.md in one commit
-  END-OF-SESSION: with >=3 state changes -> propose "ctx" explicitly to user. Never defer any part.
+  END-OF-SESSION TRIGGER (replaces >=3 state changes heuristic):
+    Propose "ctx?" when ANY of the following is true:
+    (a) EPIC-DONE     -- all items of an EPIC block resolved in this session
+    (b) AI.MD-PATCHED -- ai.md or any *.ctx.md committed+pushed in this session
+    (c) MACHINE-SWITCH -- active machine changed with unresolved state on prior machine
+    (d) BLOCKED       -- same problem attempted 2+ turns with no progress (R5.16)
+    (e) USER-PAUSE    -- user signals break, sleep, or end of availability
+    FORMAT: "ctx? [reason: <trigger letter>]" -- one line, no command, wait for response.
+    "ctx" response -> execute R9.12 steps (1)-(4) in order.
+    "." or no -> continue session, re-evaluate at next trigger.
+    Never defer any part.
 
 R9.13 REPO-LOCATION:
   unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolkit-tools/<name>/.
