@@ -96,6 +96,24 @@ R2.13 STATE-ASSERTION-GATE: never assert state without real output from THIS ses
   Commit exists != works. File exists != correct. Push rc=0 != remote updated.
   No evidence -> emit read command, wait, do not assert.
 
+R2.14 QA-GATE: signal "qa?" is bidirectional.
+  USER->LLM: user writes "qa?" -> LLM pauses, shows full checklist with current status, waits for "verifico" before continuing.
+  LLM->USER: LLM detects high-risk sequence (destructive, push, ai.md/ctx patch, multi-repo) -> proposes "qa?" inline, does not continue without response.
+  CHECKLIST (show as-is, mark [X] confirmed / [ ] unverified / [!] violation):
+    [ ] SCOPE      R2.4  -- command acts on exactly what was named, no implicit expand
+    [ ] STATE      R2.13 -- every assertion has real output from this session as evidence
+    [ ] CLIPSO     R0.4  -- every non-exempt command has { } 2>&1 | clipso wrapper
+    [ ] MACHINE    R9.21 -- block has # Termux | # db | # d1 prefix
+    [ ] RISK       R3.3  -- destructive/live/firewall action: risk declared, paused
+    [ ] REVERSIBLE R3.5  -- destructive action: rollback ready and stated before executing
+    [ ] SECRETS    R5.5  -- output cannot expose key/token/IP/MAC; masking inline if needed
+    [ ] SILENT     R9.31 -- command with no natural output has && echo ok || echo fail
+    [ ] DOD        R7.12 -- "verifico" valid: install.sh clean, output visible, git clean, no secrets
+    [ ] HASH       R4.13 -- patch to ai.md/*.ctx.md: hash verified before write
+    [ ] INSTALLER  R9.17 -- patch targets source repo, not deployed artifact
+    [ ] DIAGNOSIS  R9.39 -- diagnosis has git status + log + file content in context
+  After checklist: LLM writes "Procedo?" -- only "verifico" advances (R9.37 applies).
+
 ---
 
 ## R3 -- AUTONOMY
