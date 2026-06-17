@@ -409,6 +409,13 @@ R7.7 DIFF-BEFORE-COMMIT: git diff <file> before git add on ANY file.
   Before push: git diff --stat origin/main to confirm exactly what leaves local.
 R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   0. CWD-VERIFY:     confirm working directory before any git command. Use cd <repo> && git status first.
+      STRUCTURAL: cd <repo> && is NEVER a separate prior step or mental check -- it is part of the
+      literal text of EVERY git command emitted, inline, same line, no exceptions. A command block
+      starting directly with git (no leading cd <repo> &&) is malformed and must be rewritten before
+      emitting (R0.1 catches this). Reason: cwd does NOT persist across separate command blocks --
+      confirmed failure mode this session (R6.17), repeated twice with identical root cause before
+      this rule existed. Mental-check-only version of CWD-VERIFY is insufficient; only literal inline
+      cd makes the omission structurally impossible.
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
   1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
   1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
