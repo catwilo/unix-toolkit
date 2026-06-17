@@ -23,15 +23,34 @@ die() { err "$*"; exit 1; }
 # if tag given: only that tag
 repos_for_tag() {
     _tag="${1:-}"
+    if [ -z "$_tag" ]; then
+        tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
+            [ -z "$name" ] && continue
+            case ",$tags," in *",arc,"*) ;; *) printf '%s\n' "$name" ;; esac
+        done
+        return
+    fi
+    _tmp_matched=$(mktemp)
+    printf '0' > "$_tmp_matched"
     tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
         [ -z "$name" ] && continue
-        if [ -n "$_tag" ]; then
-            case ",$tags," in *",$_tag,"*) printf '%s\n' "$name" ;; esac
-        else
-            case ",$tags," in *",arc,"*) ;; *) printf '%s\n' "$name" ;; esac
-        fi
+        case ",$tags," in
+            *",$_tag,"*)
+                printf '%s\n' "$name"
+                printf '1' > "$_tmp_matched"
+                ;;
+        esac
     done
+    _matched=$(cat "$_tmp_matched"); rm -f "$_tmp_matched"
+    if [ "$_matched" -eq 0 ]; then
+        if grep -q "^${_tag}	" "$TSV"; then
+            printf '%s\n' "$_tag"
+        else
+            die "unknown tag or repo: $_tag"
+        fi
+    fi
 }
+
 
 # ── subcommands ──────────────────────────────────────────────────────────────
 cmd_list() {
@@ -148,11 +167,19 @@ cmd_run() {
 
 
 cmd_clone() {
-    _tag="${1:-}"
     gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
     mkdir -p "$DST"
     errors=0
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
+    _clone_list() {
+        if [ "$#" -eq 0 ]; then
+            repos_for_tag ""
+        elif [ "$#" -eq 1 ]; then
+            repos_for_tag "$1"
+        else
+            for _a in "$@"; do repos_for_tag "$_a"; done
+        fi
+    }
+    _clone_list "$@" | while IFS= read -r repo; do
         target="$DST/$repo"
         if [ -d "$target/.git" ]; then
             info "$repo — already cloned, skipping"
