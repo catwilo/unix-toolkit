@@ -24,6 +24,14 @@ R0.1 SELF-CHECK: before emitting ANY response or command, verify ALL:
   [X] Sensitive data? -> R5.5. Patch hash? -> R4.13. Destructive action? -> R3.3.
   Never omit even if response seems clean.
 
+R0.1b SELF-CHECK-SILENCE: when the R0.1 scan completes with zero findings across all checkboxes,
+  the scan itself produces NO visible output -- R1.2 default stands, response is the command/answer alone.
+  R0.8 [SELF-CHECK] block appears ONLY when >=1 checkbox in R0.1 fails. Partial/borderline findings
+  (e.g. prose marginally over R1.3 budget, a rule followed but inefficiently) are NOT exempt from
+  reporting -- if a checkbox failed at all, R0.8 fires. There is no materiality threshold: R0.1 is
+  binary per checkbox, not graded. Ambiguity about whether a checkbox failed -> treat as failed (most
+  conservative reading per R2.4 AMBIGUITY), report it, let user confirm it was actually fine.
+
 R0.2 COMPLIANCE: never emit non-compliant output. Rewrite before emitting. R6.8 mandates same-turn fix on confirmed error.
 
 R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapper present.
@@ -183,11 +191,45 @@ R4.12c MULTILINE-ANCHOR-EXTRACT: para old= multilinea (>3 lineas) en cualquier p
   Razon: anchors con UTF-8 (em-dash, acentos) son indistinguibles visualmente entre variantes;
     transcripcion manual produce mismatch silencioso o match accidental en bloque equivocado.
 
+R4.12d VERIFY-BY-EXTENSION: step (5) of R4.12 generalizes per file type. After any patch, before mv:
+  .sh / no-extension+shebang sh -> bash -n <file>.new && shellcheck -S error <file>.new
+  .py                          -> python3 -c "import ast; ast.parse(open('<file>.new').read())"
+  .json                        -> python3 -c "import json; json.load(open('<file>.new'))"
+  .xml                         -> python3 -c "import xml.etree.ElementTree as ET; ET.parse('<file>.new')"
+  .yaml / .yml                 -> python3 -c "import yaml; yaml.safe_load(open('<file>.new'))"
+  .toml                        -> python3 -c "import tomllib; tomllib.load(open('<file>.new','rb'))"
+  .tsv / .csv                  -> python3 -c "import csv; list(csv.reader(open('<file>.new'), delimiter='\t'))"
+    plus column-count check: every row len == header row len
+  .md                          -> skip parse (R4.12(5) reason stands -- backticks break parsers).
+    Verify instead via grep -c on the exact anchor inserted/removed, count must match expected delta.
+  unlisted extension           -> R9.29 applies: do not invent a verifier, ask or use plain diff review.
+  FAIL on any check -> R4.12(6) FAIL branch: keep .new, do not mv, stop, wait.
+
 R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has read and may patch:
   (1) { git hash-object <file>; } 2>&1 | clipso -> compare against stored hash.
   (2) Equal -> proceed; different -> re-read first, re-evaluate patch, then proceed.
   Store hash at READ TIME. Invalidate if any modifying command emitted since last read.
   SESSION-HEADER: hash present in session start -> use directly. Never re-query hash already in context.
+
+R4.14 FILE-OPERATION-MATRIX: before touching any file, classify into exactly one:
+  (a) DOES-NOT-EXIST -> CREATE: write directly via create-tool. No .new staging (nothing to preserve).
+      Verify after write: re-read or grep -c on new content. Exec script -> chmod +x same command (R4.11).
+  (b) EXISTS, full-content replace intended -> REWRITE: R4.6 applies (write .new, verify, mv).
+  (c) EXISTS, targeted change (<5 lines or <5 replaces) -> PATCH: R4.12 applies.
+  (d) EXISTS, move/rename with content change in same step -> MOVE-EDIT: R4.9 (fix refs) + R4.12/R4.6
+      (per size) executed as one logical step, refs fixed same step, never two separate commits.
+  CLASSIFY-FIRST: user command implies the file action but not the category -> LLM declares category inline
+    (R2.4 AMBIGUITY) before emitting first command. Never start a workflow without naming which of (a-d) applies.
+
+R4.3b ANCHOR-CONFIRMED-GATE: a read satisfies "anchor real" only when BOTH:
+  (1) the exact string/block intended as old= in the future patch is VISIBLE in this turn's tool output
+      (not inferred from a wider read, not remembered from earlier in conversation -- R2.13 applies equally to file content).
+  (2) grep -cF '<anchor>' <file> run in the SAME read command returns exactly 1.
+  Read produces a plausible-looking region but anchor count != 1 in that same output -> NOT anchor-confirmed.
+    -> widen range (R4.3 "read widest single range") in same turn, re-check, never proceed to patch on a guess.
+  R6.1 FLOW-FIRST reads (entry->exit) and R4.3 targeted reads are NOT substitutes for this gate --
+    they establish context; this gate confirms the literal patch target. Both can be satisfied by one
+    sufficiently-scoped read if the grep -cF is included in it.
 
 ---
 
@@ -269,6 +311,11 @@ R6.5 SESSION-CONTEXT: two-level context -- MANDATORY READ BEFORE ANY ACTION:
   macro/micro are miko subcommands -- NOT standalone binaries. Correct: miko macro | miko micro <repo>.
   HARDSTOP: emitting any repo/task state-modifying command without having read macro ctx = violation.
   No ctx available -> emit READ command, wait for paste. NEVER assume state from chat history.
+  EXCEPTION-UNIX-TOOLKIT: per R9.13, unix-toolkit itself lives at ~/unix-toolkit/, NOT inside
+    ~/unix-toolkit-tools/. Its micro ctx path is ~/unix-toolkit/.ctx.md, not the per-repo pattern above.
+    miko ai unix-toolkit (or any micro-ctx command targeting this repo) must resolve to that path.
+    NOT_FOUND at the -tools/ path for this specific repo -> path bug, not missing file -> do not
+    conclude ctx is absent; re-issue against the correct path before any other action.
 R6.6 SESSION-START -- MANDATORY ORDER, no exceptions:
   CANONICAL (preferred): miko ai [repo1 repo2 ...]
     -> one command: ai.md hash + macro ctx + macro hash + micro ctx + micro hash per repo.
