@@ -34,3 +34,4 @@ hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)
 deadd-setup	cfg,tool	deadd notification center config + scripts
 ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML
 RoomBookingDashboard	client,web	SPFx room reservation dashboard for client tenant
+predicciones-evento	client,web	Formulario de pronósticos deportivos para eventos presenciales vía QR
