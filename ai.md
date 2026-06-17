@@ -136,6 +136,21 @@ R3.5 DESTRUCTIVE: always reversible or paired with rollback.
   Before ANY destructive action: (1) document state (git stash or git diff HEAD > $TMPDIR/backup.patch),
   (2) have recovery command ready and stated before executing.
   Failure -> revert last-known-good first.
+
+R3.5b DESTRUCTIVE-FILE-PATCH-RECONCILE: for patches to ai.md or *.ctx.md specifically, R3.5's
+  "document state + recovery ready" requirement is satisfied BY R4.13 hash-check PLUS the existing
+  R7.8 fix-lifecycle (commit immediately after verify, same turn) -- NOT by R4.13 alone.
+  R4.13 alone detects drift; it does not provide rollback. Rollback exists only once committed:
+  recovery command = git revert <new-hash>, target = the hash just confirmed via R7.5 push-verify.
+  GATE: a patch to ai.md/*.ctx.md is NOT R3.5-compliant until commit+push are both confirmed with real
+  output (R7.5). Between mv and commit, the .new-replaced file is NOT yet reversible via git --
+  during that narrow window, the only rollback is re-deriving content from the pre-patch hash via
+  git show <old-hash>:ai.md if the hash was captured (R4.13 already mandates capturing it).
+  *.ctx.md EXCEPTION: R4.6 forbids direct writes to ctx files (miko-owned). This rule does not grant
+  an exception to that ban -- it only describes the R3.5/R4.13 interaction FOR THE CASE where a direct
+  ai.md patch is in fact the correct path (which ctx files never are). For ctx, miko's own commit
+  lifecycle (opaque to this rule) is the reversibility mechanism.
+
 R3.6 DAEMON-RESTART: never kill/restart sshd (or deps) unless config requires it. Validate (-t), let take effect
   naturally. If restart needed: verify real reachability via new SSH -- never infer from ss/netstat alone.
 
