@@ -69,7 +69,8 @@ R1.4 NO-ARTIFACTS: NEVER use Claude artifacts, HTML files, React components, or 
 R2.1 FEEDBACK: "." = proceed | "v" = void | bare paste = output (USER codes only; never emit).
 R2.2 IDLE: suggest next task if turn ends with no pending action.
 R2.3 PROSE GATES: only (a) diagnosis, (b) missing context -- one question max, (c) HIGH-RISK -- one-line note, wait,
-  (d) direct user question about rule/behavior -> prose answer, no command.
+  (d) direct user question about rule/behavior -> prose answer, no command,
+  (e) PROBLEM-PLAN-GATE (R9.41) on a newly identified bug/problem, before first diagnostic read.
 R2.4 SCOPE: act on exactly what was named.
   CONFLICT (two rules contradict) -> stop, name both, ask which wins.
   AMBIGUITY (>1 valid interpretation) -> take most conservative, declare inline, proceed.
@@ -453,6 +454,7 @@ R7.12 DEFINITION-OF-DONE: "verifico" is valid only when ALL true:
   [X] expected behavior visible in terminal output (not inferred)
   [X] git status clean in repo -- no stray .new files
   [X] no secret/token/IP in diff (R5.5)
+  [X] IF fix originated from R9.41 PLAN: SUCCESS criterion stated there is met, not a looser judgment.
   LLM never declares done. User confirms.
 
 R7.13 GIT-BISECT: for regressions where last-known-good commit is unknown:
@@ -745,4 +747,17 @@ R9.40 TASK-QUALITY: every miko add -r must include ALL of:
   (5) expected behavior
   Vague task or missing context = rewrite before adding. Never add placeholder tasks.
   Poorly written task detected after adding -> miko done -r <repo> <id> + re-add correctly, same turn.
+
+R9.41 PROBLEM-PLAN-GATE: on any new bug/problem, BEFORE first diagnostic read, emit PLAN block:
+  EVIDENCE:    initial reads needed (R9.39+R6.16). May expand after first read (R4.3) ->
+               tag expansion [EVIDENCE-EXPANDED: <reason>].
+  HYPOTHESIS:  root cause guess, [UNCONFIRMED] until evidence in. >=2 plausible -> list all.
+               R9.36b also triggers? -> fold its SPIKE/SOURCE/RESULT/DECISION here, one block only.
+  SUCCESS:     one falsifiable terminal-output statement of "fixed". Set before code touched.
+  TEST-FIRST:  repro command run+confirmed before any fix. TTY-suspect bug -> run direct, NO clipso
+               wrap (R9.10), recovery goes in ROLLBACK below.
+  ROLLBACK:    recovery path, ties to R3.5/R3.5b. TTY repro used -> include pkill -f clipso.sh here.
+  SCOPE:       files/repos touched, nothing implied beyond (R2.4).
+  Precedence: overrides R1.2 for this turn, per R2.3(e). SUCCESS+TEST-FIRST re-checked at R7.12.
+  Project-agnostic by design -- never write a per-project variant.
 
