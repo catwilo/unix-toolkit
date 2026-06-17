@@ -163,6 +163,8 @@ R4.1 EXIST: confirm file/dir exists before operating. Never use path from memory
   find/ls first. Derive paths from $HOME or realpath ~/. Never hardcode absolute paths from memory.
 R4.2 MKDIR: mkdir -p before cp/mv.
 R4.3 READ: one targeted read/turn (grep -n | sed -n 'X,Yp' | rg). No cat of large files; no multi-range reads.
+  LOCAL-FILE-READ: sed/grep/cat reads on local files -- NO clipso wrap. Paste output directly.
+    clipso wrap echoes script content and corrupts anchor reads.
   Plan full range needed before reading. If multiple ranges needed -> read widest single range covering all.
 R4.4 LIST: find, not globs (glob failure aborts zsh).
 R4.5 EDIT: minimal change on confirmed problem; preserve conventions. Absolute paths from $HOME/live state.
@@ -178,6 +180,8 @@ R4.11 SCRIPT-MODE: after writing any executable script -> chmod +x in SAME comma
   After git commit confirm mode 100755 in output. Pattern: write -> chmod +x -> git add -> commit.
   MV-EXECUTABLE: mv file.new file when target is executable -> always append && chmod +x <file>.
     mv strips permissions silently.
+    PATTERN: mv <file>.new <file> && chmod +x <file> -- one command, never two separate turns.
+    VOID-AFTER-MV confirms chmod was missed -> fix: chmod +x <file> immediately, then re-test.
   VOID-AFTER-MV: command after mv emits VOID -> chmod +x was missed. Fix: chmod +x <file> && bash install.sh.
 R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
   (1) Simple patches (no special chars, <5 replaces): python3 -c inline OK.
@@ -199,6 +203,9 @@ R4.12b PYTHON-PATCH-DO-NOT:
   DO-NOT-2: NUNCA heredoc anidado dentro de python3 << 'PYEOF' con comillas simples en el contenido
   DO-NOT-3: NUNCA base64 encode/decode para scripts con newlines en strings bash -- SyntaxError garantizado
   CANONICAL: escribir patch script a $TMPDIR via tee << 'DELIM' (verificado funciona) antes de ejecutar con python3
+  SINGLE-BLOCK-GATE: tee $TMPDIR/script.py << 'DELIM' > /dev/null AND python3 $TMPDIR/script.py MUST be
+    in the same { ...; } 2>&1 | clipso block. Never two separate turns.
+    tee without > /dev/null echoes script to clipboard -- confirmed failure mode. Always suppress tee stdout.
 
 R4.12c MULTILINE-ANCHOR-EXTRACT: para old= multilinea (>3 lineas) en cualquier patch python3:
   (1) extraer el bloque real via sed -n '<start>,<end>p' o python3 lines[a:b] -> escribir a $TMPDIR/old_block.txt
@@ -243,6 +250,9 @@ R4.3b ANCHOR-CONFIRMED-GATE: a read satisfies "anchor real" only when BOTH:
   (2) grep -cF '<anchor>' <file> run in the SAME read command returns exactly 1.
   Read produces a plausible-looking region but anchor count != 1 in that same output -> NOT anchor-confirmed.
     -> widen range (R4.3 "read widest single range") in same turn, re-check, never proceed to patch on a guess.
+  ANCHOR-DIAGNOSE: when grep -cF returns 0, run: sed -n '<line>p' <file> | cat -A
+    cat -A exposes tabs (^I), trailing spaces, CR (^M), UTF-8 variants invisible to eye.
+    Never re-attempt patch without understanding why count=0.
   R6.1 FLOW-FIRST reads (entry->exit) and R4.3 targeted reads are NOT substitutes for this gate --
     they establish context; this gate confirms the literal patch target. Both can be satisfied by one
     sufficiently-scoped read if the grep -cF is included in it.
@@ -311,6 +321,8 @@ R5.20 BINARY-CONTROL-CHARS: to insert binary/control chars in files -> use Pytho
 R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate->confirm->fix across turns.
   Pre-patch grep-c gate -> R4.12(3).
   FLOW-FIRST: before any behavioral fix, read full execution path of affected function (entry->exit).
+  SET-U-GATE: before proposing any bash variable or mechanism, read shebang + first 5 lines of target script.
+    set -u active -> unset var reference = fatal. set -e active -> any rc!=0 = abort. Design must respect both.
     Never patch symptoms. grep entry point + sed -n the function body in one read.
   READ-BEFORE-PROPOSE: before proposing any redesign or architecture -> read complete code of affected module.
     Never propose redesign without full code context. Architecture may already exist partially.
@@ -405,7 +417,8 @@ R7.5 PUSH-VERIFY: after push, read actual output: git push 2>&1 | tail -5.
   rc=0 with remote reject = invisible without reading output. Commit without confirmed push = incomplete.
 R7.6 README-SYNC: any commit that changes CLI interface, install flow, config format, or runtime behavior ->
   README update mandatory in same commit. grep -i 'affected_term' README.md to identify sections. No exceptions.
-R7.7 DIFF-BEFORE-COMMIT: git diff <file> before git add on ANY file.
+R7.7 DIFF-BEFORE-COMMIT: GIT_PAGER=cat git diff <file> before git add on ANY file.
+  GIT_PAGER=cat is mandatory -- omitting opens less and output never reaches clipboard.
   Unexpected diff -> stop, investigate. Only expected changes proceed.
   Before push: git diff --stat origin/main to confirm exactly what leaves local.
 R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
