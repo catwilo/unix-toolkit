@@ -176,6 +176,13 @@ R4.12b PYTHON-PATCH-DO-NOT:
   DO-NOT-3: NUNCA base64 encode/decode para scripts con newlines en strings bash -- SyntaxError garantizado
   CANONICAL: escribir patch script a $TMPDIR via tee << 'DELIM' (verificado funciona) antes de ejecutar con python3
 
+R4.12c MULTILINE-ANCHOR-EXTRACT: para old= multilinea (>3 lineas) en cualquier patch python3:
+  (1) extraer el bloque real via sed -n '<start>,<end>p' o python3 lines[a:b] -> escribir a $TMPDIR/old_block.txt
+  (2) verificar count == 1 en el archivo completo antes de construir el patch final
+  (3) old= se carga leyendo ese archivo -- nunca reconstruido a mano caracter por caracter
+  Razon: anchors con UTF-8 (em-dash, acentos) son indistinguibles visualmente entre variantes;
+    transcripcion manual produce mismatch silencioso o match accidental en bloque equivocado.
+
 R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has read and may patch:
   (1) { git hash-object <file>; } 2>&1 | clipso -> compare against stored hash.
   (2) Equal -> proceed; different -> re-read first, re-evaluate patch, then proceed.
