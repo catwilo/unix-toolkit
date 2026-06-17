@@ -121,13 +121,29 @@ cmd_status() {
 
 cmd_fetch() {
     _tag="${1:-}"
-    errors=0
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
-        target="$DST/$repo"
-        [ -d "$target/.git" ] || continue
-        git -C "$target" fetch --quiet 2>/dev/null             && ok "$repo — fetched"             || { err "$repo — fetch failed"; errors=$((errors+1)); }
-    done
-    [ "$errors" -eq 0 ] && ok "all repos fetched" || { err "$errors repo(s) failed"; exit 1; }
+    _errfile=$(mktemp "${TMPDIR:-/tmp}/ut-fetch-err.XXXXXX")
+    _outfile=$(mktemp "${TMPDIR:-/tmp}/ut-fetch-out.XXXXXX")
+    printf '0' > "$_errfile"
+
+    repos_for_tag "$_tag" \
+        | DST="$DST" xargs -P 8 -I{} sh -c \
+            'if [ -d "$DST/{}/.git" ]; then
+                git -C "$DST/{}" fetch --quiet 2>/dev/null \
+                    && printf "ok {}\n" \
+                    || printf "fail {}\n"
+            fi' \
+        > "$_outfile" 2>/dev/null
+
+    while IFS= read -r _line; do
+        case "$_line" in
+            ok*)   ok  "${_line#ok }" ;;
+            fail*) err "${_line#fail } — fetch failed" ;;
+        esac
+    done < "$_outfile"
+
+    _errors=$(grep -c "^fail" "$_outfile" 2>/dev/null || printf '0')
+    rm -f "$_errfile" "$_outfile"
+    [ "$_errors" -eq 0 ] && ok "all repos fetched" || { err "${_errors} repo(s) failed"; exit 1; }
 }
 
 cmd_push() {
