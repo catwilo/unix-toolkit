@@ -382,6 +382,7 @@ R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var -> VAR silently un
 R6.10 TASKS-GIT: ~/.tasks is a standalone git repo (catwilo/miko-tasks). Never place inside another repo.
 R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds real logic.
   Pure pass-through = dead code -> eliminate.
+  PYTHON-PATCH-PERMS: python3 open(path, 'w') does NOT preserve file permissions. Always write to path+'.new', then mv -- never open(path,'w') directly on executable files. Failure mode: silent 100644 on previously 100755 files, caught only at git commit.
   SOURCED-LIB-VARS: scripts designed to be sourced (lib/*.sh) must NOT redefine vars set by the dispatcher (e.g. MKIT_DIR, GREEN, RED). Those vars are already in scope. Redefining them in sourced libs causes double-dirname bugs and similar. Sourced lib = functions only; no top-level var assignments that duplicate dispatcher state.
 R6.12 CALLER-VERIFY: before shipping any lib function, constant, variable, or export -> verify >=1 reachable consumer.
   bash -n passing != correct -> verify: semantics, consumer exists, output tested. No consumer = dead code -> eliminate.
