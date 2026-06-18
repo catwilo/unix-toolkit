@@ -186,7 +186,7 @@ R4.3 READ: one targeted read/turn (grep -n | sed -n 'X,Yp' | rg). No cat of larg
 R4.4 LIST: find, not globs (glob failure aborts zsh).
 R4.5 EDIT: minimal change on confirmed problem; preserve conventions. Absolute paths from $HOME/live state.
 R4.6 WHOLE-FILE: write .new -> verify (bash -n + shellcheck) -> mv. Never in-place overwrite.
-  Verify fails -> PATCH FAILED -- do NOT mv -- stop turn -- emit error -- wait instruction.
+  Verify fails -> R4.12(6) FAIL branch applies.
   ctx files (*.ctx.md): owned by miko. Never write directly -- use miko add/done/lkg.
 R4.7 NO-HARDCODE: IPs/ifaces/IDs/paths derive from live state. Unsure -> find first.
 R4.8 SOURCE-DEPLOY: establish paths first; edit source only; propagate source->deploy same step; diff/checksum before test.
@@ -239,7 +239,7 @@ R4.12d VERIFY-BY-EXTENSION: step (5) of R4.12 generalizes per file type. After a
   .md                          -> skip parse (R4.12(5) reason stands -- backticks break parsers).
     Verify instead via grep -c on the exact anchor inserted/removed, count must match expected delta.
   unlisted extension           -> R9.29 applies: do not invent a verifier, ask or use plain diff review.
-  FAIL on any check -> R4.12(6) FAIL branch: keep .new, do not mv, stop, wait.
+  FAIL on any check -> R4.12(6) FAIL branch applies.
 
 R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has read and may patch:
   (1) { git hash-object <file>; } 2>&1 | clipso -> compare against stored hash.
