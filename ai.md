@@ -36,7 +36,7 @@ R0.2 COMPLIANCE: never emit non-compliant output. Rewrite before emitting. R6.8 
 
 R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapper present.
   Missing -> rewrite before emitting. No exceptions.
-  Exemptions: TTY-interactive (R9.10) | nssh exec mode (R9.5) | miko ai (R9.22).
+  Exemptions: TTY-interactive (R9.10) | nssh exec mode (R9.5) | miko ai (R9.22) | cat > file << 'EOF' local file writes (no output to copy -- but never wrap echo ok separately; include && echo ok inside the block).
 
 R0.5 BASH-TOOL-HARDBAN: Claude has NO filesystem. bash_tool runs in isolated container -- output NEVER reaches user.
   NEVER use bash_tool. ALL output = commands for user to execute. No exceptions.
@@ -241,8 +241,15 @@ R4.15 MKIT-GATE: before any file operation, check mkit available:
   mkit patch  <dest> <patch.py> -- R4.14(c) PATCH lifecycle
   mkit verify <file>            -- R4.12d standalone verify
   mkit not available -> fall back to manual R4.12. Never skip verify step.
+  MKIT-AVAILABLE: when which mkit rc=0, mkit REPLACES these manual sequences:
+    mkit anchor  -> grep -cF + sed -n + cat -A
+    mkit write   -> cp -> verify -> mv -> chmod +x
+    mkit patch   -> full R4.12 lifecycle (tee patch.py -> python3 -> verify -> mv -> rm)
+    mkit verify  -> R4.12d extension check
+  Use mkit first. Manual fallback only when mkit absent.
 
 R4.14 FILE-OPERATION-MATRIX: before touching any file, classify into exactly one:
+  MKIT-FIRST: after classifying, check mkit available (R4.15) -- use mkit write/patch before manual R4.6/R4.12.
   (a) DOES-NOT-EXIST -> CREATE: write directly via create-tool. No .new staging (nothing to preserve).
       Verify after write: re-read or grep -c on new content. Exec script -> chmod +x same command (R4.11).
   (b) EXISTS, full-content replace intended -> REWRITE: R4.6 applies (write .new, verify, mv).
@@ -375,6 +382,7 @@ R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var -> VAR silently un
 R6.10 TASKS-GIT: ~/.tasks is a standalone git repo (catwilo/miko-tasks). Never place inside another repo.
 R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds real logic.
   Pure pass-through = dead code -> eliminate.
+  SOURCED-LIB-VARS: scripts designed to be sourced (lib/*.sh) must NOT redefine vars set by the dispatcher (e.g. MKIT_DIR, GREEN, RED). Those vars are already in scope. Redefining them in sourced libs causes double-dirname bugs and similar. Sourced lib = functions only; no top-level var assignments that duplicate dispatcher state.
 R6.12 CALLER-VERIFY: before shipping any lib function, constant, variable, or export -> verify >=1 reachable consumer.
   bash -n passing != correct -> verify: semantics, consumer exists, output tested. No consumer = dead code -> eliminate.
 R6.13 HASH-TRACK: use git hash-object for O(1) change detection on any file LLM has read and may patch.
