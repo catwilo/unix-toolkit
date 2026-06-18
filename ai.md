@@ -617,7 +617,8 @@ R9.17 INSTALLER-FIRST: patch source -> run install.sh. Never patch deployed arti
 R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called within clipso pipeline.
   stdin captured by spinner -- blocks forever. Pattern: gate on env var instead of prompting.
   Recovery: pkill -f clipso.sh from new Termux tab.
-
+  NOTE: R9.19 was consolidated into other rules during the prose-compression pass
+  (commit 2f3f7ad) and intentionally no longer exists. Gap is expected, not a bug.
 
 R9.20 CTX-FIRST: any task/fix/decision that changes project state ->
   miko add -r <repo> / miko done -r <repo> <id> BEFORE proceeding to next step. Never batch to end of session.
