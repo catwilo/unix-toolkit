@@ -138,6 +138,17 @@ LOOP-MODE: bare "qa" from user -> run full R9.42 checklist -> emit result.
   Loop exits only when: APROBADO emitted OR user sends "stop".
   NEVER ask user to re-trigger. NEVER exit on partial fix. NEVER declare APROBADO without all [X].
 
+R2.14c QA-MASTER-GATE: root question every "qa" invocation answers FIRST, before R9.42's
+  binary checklist: "Does the plan pass advanced expert review WITHOUT over-engineering?"
+  This is a gate, not a parallel item -- a plan can pass all 16 R9.42 items and still fail
+  here if it adds complexity a real expert wouldn't introduce.
+  DIMENSIONS evaluated under that question (verbatim, as stated by user):
+  enterprise-level, optimal, KISS, modular, efficient, fast, stable, professional,
+  standard-practice-for-global-enterprise-community, obvious-to-any-programmer-anywhere.
+  OUTPUT ORDER: report root question answer (yes/no + which dimension fails if no) FIRST.
+  NO -> stop there, name the failing dimension, do not proceed to R9.42 checklist until resolved.
+  YES -> proceed to R9.42 binary checklist as supporting evidence.
+
 ---
 
 ## R3 -- AUTONOMY
