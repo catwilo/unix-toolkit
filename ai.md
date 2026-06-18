@@ -123,6 +123,12 @@ R2.14 QA-GATE: signal "qa?" is bidirectional.
     [ ] DIAGNOSIS  R9.39 -- diagnosis has git status + log + file content in context
   After checklist: LLM writes "Procedo?" -- only "verifico" advances (R9.37 applies).
 
+LOOP-MODE: bare "qa" from user -> run full R9.42 checklist -> emit result.
+  APROBADO -> stop, wait for next instruction.
+  BLOQUEADO -> fix all blockers autonomously -> re-run checklist -> repeat.
+  Loop exits only when: APROBADO emitted OR user sends "stop".
+  NEVER ask user to re-trigger. NEVER exit on partial fix. NEVER declare APROBADO without all [X].
+
 ---
 
 ## R3 -- AUTONOMY
