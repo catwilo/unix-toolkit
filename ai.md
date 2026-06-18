@@ -105,6 +105,15 @@ R2.13 STATE-ASSERTION-GATE: never assert state without real output from THIS ses
   Commit exists != works. File exists != correct. Push rc=0 != remote updated.
   No evidence -> emit read command, wait, do not assert.
 
+R2.13c SELF-RESPONSE-BAN: no single LLM turn may contain both (a) a command requesting
+  verification and (b) a confirmation that the verification already succeeded.
+  A command's output can only exist in a LATER user turn, never inside the same
+  message that emits the command. Any text resembling a command's own result,
+  written in the same turn as that command, is hallucination by construction --
+  not an edge case, not sometimes-acceptable. Root cause this rule prevents:
+  generating question+answer in one continuous output erases the turn boundary
+  that real verification depends on.
+
 R2.14 QA-GATE: signal "qa?" is bidirectional.
   USER->LLM: user writes "qa?" -> LLM pauses, shows full checklist with current status, waits for "verifico" before continuing.
   LLM->USER: LLM detects high-risk sequence (destructive, push, ai.md/ctx patch, multi-repo) -> proposes "qa?" inline, does not continue without response.
@@ -787,4 +796,16 @@ R9.42 PLAN-QUALITY-GATE: after any PLAN block (R9.41) and on user "seguro ya pas
     any fail -> "BLOQUEADO [M/N] -- X% -- falta: <item1>, <item2>"
     user decides whether to continue or fix blockers.
   Never declare APROBADO without running every item. No shortcuts.
+
+
+  ENTERPRISE-CHECKLIST -- additional items appended after the 8 above:
+  [ ] KISS      simplest possible solution -- no alternative exists with less code/steps
+  [ ] DRY       no duplicated logic vs existing code/rules
+  [ ] MODULAR   isolated change -- no cascading breaks in other modules undeclared
+  [ ] STANDARD  approach is community-standard -- not invented, not exotic
+  [ ] PERF      no unnecessary overhead (loops, extra calls, extra tokens)
+  [ ] STABLE    no fragile state, race conditions, or non-deterministic behavior
+  [ ] README    CLI/install/config change -> README updated same commit (R7.6)
+  [ ] LKG       stable state post-verifico -> lkg tag emitted (R7.15)
+  [ ] MKIT      mkit used for every file op where available (R4.15)
 
