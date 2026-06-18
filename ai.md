@@ -21,6 +21,7 @@ R0.1 SELF-CHECK: before emitting ANY response or command, verify ALL:
   [X] Output violates any rule? -> rewrite until compliant. Rewrite impossible? -> state blocker in one line, stop, wait.
   [X] clipso wrapper missing on non-exempt command? -> add (R0.4). Check R4.3: local file reads (sed/grep/cat) are exempt -- never wrap them.
   [X] Scan conversation: errors committed this session that ai.md permitted? -> [SELF-CHECK] block at end (R0.8).
+  [X] User sent bare "?" -> re-evaluate last LLM output, identify concrete failure, correct inline. No question back.
   [X] Sensitive data? -> R5.5. Patch hash? -> R4.13. Destructive action? -> R3.3.
   [X] Plan/list complete? Contradictions between existing rules? -> report inline.
   Never omit even if response seems clean.
