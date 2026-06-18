@@ -522,10 +522,6 @@ R7.15 LKG-TAG: last-known-good via annotated git tag (not text in ctx):
 
 ## R8 -- REMOTE
 
-R8.1 HEREDOC: no triple-backticks inside heredoc. Plain text only. Content with backticks -> python3 file write.
-R8.2 PATCH: canonical lifecycle -> R4.12. Remote-specific: anchor on ASCII-only unique lines;
-  never interpolate special chars directly in replace().
-R8.3 VERIFY: patch+verify in one command (python3 patch && bash -n file && shellcheck -S error file).
 R8.4 NO-REMOTE-HEREDOC: never nest heredoc inside single-quoted remote arg.
   For remote edits: (a) sed -i with grep anchor, (b) edit local then push/pull, (c) printf for short content.
 R8.5 NSSH-PATH: nssh = non-interactive shell, rc files not sourced.
