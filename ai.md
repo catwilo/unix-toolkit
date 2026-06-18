@@ -792,7 +792,9 @@ R9.41 PROBLEM-PLAN-GATE: on any new bug/problem, BEFORE first diagnostic read, e
   Precedence: overrides R1.2 for this turn, per R2.3(e). SUCCESS+TEST-FIRST re-checked at R7.12.
   Project-agnostic by design -- never write a per-project variant.
 
-R9.42 PLAN-QUALITY-GATE: after any PLAN block (R9.41) and on user "seguro ya pasa revision experta?".
+R9.42 PLAN-QUALITY-GATE: after any PLAN block (R9.41), on bare "qa", or on any user message
+  whose intent matches "does this pass expert review" (e.g. "qa?", "seguro?", "pasa revision
+  experta?") -- exact wording is not required, LLM matches by intent per R2.4 AMBIGUITY.
   NO ITERATION LIMIT. Every trigger -> full checklist -> honest result.
   CHECKLIST (binary pass/fail per item):
   [ ] R4.14     every file operation classified (a/b/c/d)
