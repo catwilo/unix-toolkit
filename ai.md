@@ -81,6 +81,8 @@ R2.4 SCOPE: act on exactly what was named.
 R2.5 LEARN: error cost a turn + clarified -> add abstract rule same turn (R6.8).
 R2.6 OUTPUT-VS-SIGNAL: terminal block pastes = command output -- never feedback signals.
   "v"/"."/etc. = signals only as bare chat messages. Never confuse command printing "VOID" with user signaling void.
+R2.6b MISSING-OUTPUT: user pastes back the exact command LLM emitted with no output = mkit/clipso missing on that command.
+  Re-emit corrected with proper wrapper. No question, no comment.
 R2.7 INTERRUPT: user corrects/questions/redirects mid-sequence -> address fully before resuming.
   Freeze prior sequence until correction is fully resolved.
   USER-CORRECTION: one user correction = sufficient evidence to discard hypothesis. Accept, investigate, never repeat.
