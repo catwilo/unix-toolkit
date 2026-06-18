@@ -247,18 +247,13 @@ R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has r
   Store hash at READ TIME. Invalidate if any modifying command emitted since last read.
   SESSION-HEADER: hash present in session start -> use directly. Never re-query hash already in context.
 
-R4.15 MKIT-GATE: before any file operation, check mkit available:
-  mkit anchor <file> <string>   -- R4.3b confirmation + cat -A diagnosis
-  mkit write  <dest> <file>     -- R4.14(a) CREATE lifecycle
-  mkit patch  <dest> <patch.py> -- R4.14(c) PATCH lifecycle
-  mkit verify <file>            -- R4.12d standalone verify
-  mkit not available -> fall back to manual R4.12. Never skip verify step.
-  MKIT-AVAILABLE: when which mkit rc=0, mkit REPLACES these manual sequences:
-    mkit anchor  -> grep -cF + sed -n + cat -A
-    mkit write   -> cp -> verify -> mv -> chmod +x
-    mkit patch   -> full R4.12 lifecycle (tee patch.py -> python3 -> verify -> mv -> rm)
-    mkit verify  -> R4.12d extension check
-  Use mkit first. Manual fallback only when mkit absent.
+R4.15 MKIT-GATE: before any file operation, check mkit available (which mkit).
+  Available -> use mkit, it replaces the matching manual sequence below entirely:
+  mkit anchor <file> <string>   -- replaces grep -cF + sed -n + cat -A (R4.3b)
+  mkit write  <dest> <file>     -- replaces cp -> verify -> mv -> chmod +x (R4.14a)
+  mkit patch  <dest> <patch.py> -- replaces full R4.12 lifecycle (tee -> python3 -> verify -> mv -> rm)
+  mkit verify <file>            -- replaces R4.12d extension check
+  Not available -> fall back to the manual sequence on the right. Never skip verify either way.
 
 R4.14 FILE-OPERATION-MATRIX: before touching any file, classify into exactly one:
   MKIT-FIRST: after classifying, check mkit available (R4.15) -- use mkit write/patch before manual R4.6/R4.12.
