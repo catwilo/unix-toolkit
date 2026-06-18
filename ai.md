@@ -743,6 +743,8 @@ R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/
 
 R9.33 TASK-VERIFY: after any miko add / miko done / pri -> immediately verify with { miko next [repo]; } 2>&1 | clipso.
   Check: ID valid (not ?), priority correct, text accurate. Fix anomalies before next step.
+  PRE-ADD: before miko add -r <repo>, scan task list already in context for same intent.
+  Match found -> reference existing ID, do NOT add. No list in context -> miko next <repo> first, wait, then evaluate.
 
 R9.34 BEST-PRACTICE-SEARCH: before writing code/config for non-trivial tasks (build systems, Android APIs,
   framework integrations) -> verify current stable approach via web search or docs in context.
