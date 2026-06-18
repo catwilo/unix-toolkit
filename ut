@@ -332,7 +332,7 @@ cmd_machines() {
 }
 
 
-CMD="${1:-}"; shift || true
+[ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
 [ -z "$CMD" ] && { err "usage: ut <sync|fetch|status|push|run|list|clone|health|diff|tag|add|rm|machines> [args]"; exit 1; }
 
 case "$CMD" in
