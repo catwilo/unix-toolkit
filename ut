@@ -26,7 +26,7 @@ repos_for_tag() {
     if [ -z "$_tag" ]; then
         tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
             [ -z "$name" ] && continue
-            case ",$tags," in *",arc,"*) ;; *) printf '%s\n' "$name" ;; esac
+            case ",$tags," in *",arc,"*|*",paused,"*) ;; *) printf '%s\n' "$name" ;; esac
         done
         return
     fi
@@ -313,6 +313,49 @@ PYEOF
 }
 
 
+cmd_pause() {
+    _repo="${1:-}"; [ -z "$_repo" ] && die "usage: ut pause <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found"
+    python3 - "$TSV" "$_repo" pause << 'PYEOF'
+import sys; tsv,repo,state=sys.argv[1],sys.argv[2],sys.argv[3]
+lines=open(tsv).readlines()
+out=[]
+for l in lines:
+    p=l.rstrip('\n').split('\t')
+    if len(p)>=4 and p[0]==repo: p[3]=state; out.append('\t'.join(p)+'\n')
+    else: out.append(l)
+open(tsv,'w').writelines(out); print(f"ok: {repo} -> {state}")
+PYEOF
+}
+
+cmd_resume() { _repo="${1:-}"; [ -z "$_repo" ] && die "usage: ut resume <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found"
+    python3 - "$TSV" "$_repo" active << 'PYEOF'
+import sys; tsv,repo,state=sys.argv[1],sys.argv[2],sys.argv[3]
+lines=open(tsv).readlines()
+out=[]
+for l in lines:
+    p=l.rstrip('\n').split('\t')
+    if len(p)>=4 and p[0]==repo: p[3]=state; out.append('\t'.join(p)+'\n')
+    else: out.append(l)
+open(tsv,'w').writelines(out); print(f"ok: {repo} -> {state}")
+PYEOF
+}
+
+cmd_archive() { _repo="${1:-}"; [ -z "$_repo" ] && die "usage: ut archive <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found"
+    python3 - "$TSV" "$_repo" archived << 'PYEOF'
+import sys; tsv,repo,state=sys.argv[1],sys.argv[2],sys.argv[3]
+lines=open(tsv).readlines()
+out=[]
+for l in lines:
+    p=l.rstrip('\n').split('\t')
+    if len(p)>=4 and p[0]==repo: p[3]=state; out.append('\t'.join(p)+'\n')
+    else: out.append(l)
+open(tsv,'w').writelines(out); print(f"ok: {repo} -> {state}")
+PYEOF
+}
+
 cmd_machines() {
     _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
     _hosts="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/hosts.db"
@@ -349,5 +392,8 @@ case "$CMD" in
     add)      cmd_add      "$@" ;;
     rm)       cmd_rm       "$@" ;;
     machines) cmd_machines ;;
+    pause)    cmd_pause    "$@" ;;
+    resume)   cmd_resume   "$@" ;;
+    archive)  cmd_archive  "$@" ;;
     *) err "unknown command: $CMD"; exit 1 ;;
 esac

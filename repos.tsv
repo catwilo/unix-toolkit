@@ -1,38 +1,38 @@
-name	tags	description
-clipso	tool,cli	clipboard universal OSC52+xclip+pbcopy
-noemap	tool,net	device alias manager for multi-machine setups
-maid-chan	tool,cli	trash and zsh history manager
-nvim-setup	cfg	neovim setup and config installer
-zsh-setup	cfg	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)
-mitsuwiki	tool,web	personal offline SPA wiki
-minitools	util	small consolidated utility scripts
-aicli	tool,cli	AI CLI tool
-audit-privacy	sec	privacy audit tool
-wlab	tool	workbench and lab repo
-neko	tool	neko project
-neko-gba	game	neko GBA project
-streaming	svc	streaming setup
-rwxdir	util	directory permission tool
-rsync-folder	util	rsync wrapper
-sftp-folder	util	sftp wrapper
-qemu-debian-mac	infra	QEMU Debian on Mac setup
-persistent-container-podman	infra	persistent podman containers
-spfx-tool	tool	SPFx SharePoint development tool
-wifi-setup	infra,net	RTL wifi driver setup and deploy
-wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver — do not push to origin
-miko-task	tool,core	task manager + ctx owner
-prestamos	client	Go+Docker loan management app with REST API and websockets
-prestamos-lc	client	Go+Redis+pgbouncer loan system LC version
-districarnesVera	client	Hugo web app for carnes Vera — login and inventory
-supbot-cli	client,bot	Node.js WhatsApp CLI — send, inbox, contacts
-sibarita-site	client,web	Eleventy+Bootstrap site for sibarita restaurant
-microcemento-site	client,web	Eleventy+Bootstrap site for microcemento client
-correccionLatex	client,arc	LaTeX university stats assignment correction — closed
-aliceboard	tool,cli	single-finger shell-first keyboard layout
-unexpected-keyboard	tool,arc	Unexpected Keyboard fork -- aliceboard build vehicle
-hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)
-deadd-setup	cfg,tool	deadd notification center config + scripts
-ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML
-RoomBookingDashboard	client,web	SPFx room reservation dashboard for client tenant
-predicciones-evento	client,web	Formulario de pronósticos deportivos para eventos presenciales vía QR
-mkit	tool,cli,core	LLM file ops toolkit — anchor/write/patch/verify CLI
+name	tags	description	state
+clipso	tool,cli	clipboard universal OSC52+xclip+pbcopy	active
+noemap	tool,net	device alias manager for multi-machine setups	active
+maid-chan	tool,cli	trash and zsh history manager	active
+nvim-setup	cfg	neovim setup and config installer	active
+zsh-setup	cfg	zsh setup + macOS bootstrap (--mac: Nix/deps/PATH/clipboard)	active
+mitsuwiki	tool,web	personal offline SPA wiki	active
+minitools	util	small consolidated utility scripts	active
+aicli	tool,cli	AI CLI tool	active
+audit-privacy	sec	privacy audit tool	active
+wlab	tool	workbench and lab repo	active
+neko	tool	neko project	active
+neko-gba	game	neko GBA project	active
+streaming	svc	streaming setup	active
+rwxdir	util	directory permission tool	active
+rsync-folder	util	rsync wrapper	active
+sftp-folder	util	sftp wrapper	active
+qemu-debian-mac	infra	QEMU Debian on Mac setup	active
+persistent-container-podman	infra	persistent podman containers	active
+spfx-tool	tool	SPFx SharePoint development tool	active
+wifi-setup	infra,net	RTL wifi driver setup and deploy	active
+wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver — do not push to origin	active
+miko-task	tool,core	task manager + ctx owner	active
+prestamos	client	Go+Docker loan management app with REST API and websockets	active
+prestamos-lc	client	Go+Redis+pgbouncer loan system LC version	active
+districarnesVera	client	Hugo web app for carnes Vera — login and inventory	active
+supbot-cli	client,bot	Node.js WhatsApp CLI — send, inbox, contacts	active
+sibarita-site	client,web	Eleventy+Bootstrap site for sibarita restaurant	active
+microcemento-site	client,web	Eleventy+Bootstrap site for microcemento client	active
+correccionLatex	client,arc	LaTeX university stats assignment correction — closed	archived
+aliceboard	tool,cli	single-finger shell-first keyboard layout	active
+unexpected-keyboard	tool,arc	Unexpected Keyboard fork -- aliceboard build vehicle	active
+hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)	active
+deadd-setup	cfg,tool	deadd notification center config + scripts	active
+ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML	active
+RoomBookingDashboard	client,web	SPFx room reservation dashboard for client tenant	active
+predicciones-evento	client,web	Formulario de pronósticos deportivos para eventos presenciales vía QR	active
+mkit	tool,cli,core	LLM file ops toolkit — anchor/write/patch/verify CLI	active
