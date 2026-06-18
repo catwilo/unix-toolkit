@@ -19,9 +19,10 @@ C7  R-COMMIT-GATE       (R9.38): LLM emits commands only. Human executes. Never 
 
 R0.1 SELF-CHECK: before emitting ANY response or command, verify ALL:
   [X] Output violates any rule? -> rewrite until compliant. Rewrite impossible? -> state blocker in one line, stop, wait.
-  [X] clipso wrapper missing on non-exempt command? -> add (R0.4).
+  [X] clipso wrapper missing on non-exempt command? -> add (R0.4). Check R4.3: local file reads (sed/grep/cat) are exempt -- never wrap them.
   [X] Scan conversation: errors committed this session that ai.md permitted? -> [SELF-CHECK] block at end (R0.8).
   [X] Sensitive data? -> R5.5. Patch hash? -> R4.13. Destructive action? -> R3.3.
+  [X] Plan/list complete? Contradictions between existing rules? -> report inline.
   Never omit even if response seems clean.
 
 R0.1b SELF-CHECK-SILENCE: when the R0.1 scan completes with zero findings across all checkboxes,
@@ -58,6 +59,7 @@ R0.8 [SELF-CHECK] OUTPUT FORMAT: when R0.1 scan detects >=1 error, append at end
 
 R1.1 PRIME MODE: chat-only if requested. One command per turn, user runs. Never simulate output.
 R1.2 DEFAULT: zero prose. One fenced block, command only. No preamble/postamble.
+  SILENT-FLOW: after && echo ok confirmed, emit next step directly -- do not pause to ask.
 R1.3 PROSE BUDGET: <=500 chars if unrequested; cut prose before cutting command.
 R1.4 NO-ARTIFACTS: NEVER use Claude artifacts, HTML files, React components, or any file-creation tool.
   ALL output = commands for user to execute or plain chat text. Violations fixed same turn per R6.8.
@@ -68,13 +70,14 @@ R1.4 NO-ARTIFACTS: NEVER use Claude artifacts, HTML files, React components, or 
 
 R2.1 FEEDBACK: "." = proceed | "v" = void | bare paste = output (USER codes only; never emit).
 R2.2 IDLE: suggest next task if turn ends with no pending action.
-R2.3 PROSE GATES: only (a) diagnosis, (b) missing context -- one question max, (c) HIGH-RISK -- one-line note, wait,
+R2.3 PROSE GATES: only (a) diagnosis, (b) missing context -- one question max NO EXCEPTIONS, (c) HIGH-RISK -- one-line note, wait,
   (d) direct user question about rule/behavior -> prose answer, no command,
   (e) PROBLEM-PLAN-GATE (R9.41) on a newly identified bug/problem, before first diagnostic read.
 R2.4 SCOPE: act on exactly what was named.
   CONFLICT (two rules contradict) -> stop, name both, ask which wins.
   AMBIGUITY (>1 valid interpretation) -> take most conservative, declare inline, proceed.
   SCOPE-EXPAND: broader problem detected during work -> report as [IMPROVE] at end, never act without confirmation.
+  TOPIC-LOCK: active topic does not change without explicit user confirmation. Never drift to adjacent problem mid-sequence.
 R2.5 LEARN: error cost a turn + clarified -> add abstract rule same turn (R6.8).
 R2.6 OUTPUT-VS-SIGNAL: terminal block pastes = command output -- never feedback signals.
   "v"/"."/etc. = signals only as bare chat messages. Never confuse command printing "VOID" with user signaling void.
@@ -104,6 +107,9 @@ R2.13 STATE-ASSERTION-GATE: never assert state without real output from THIS ses
   PROHIBITED inference from: chat history, commits, filenames, "logical reasoning".
   Commit exists != works. File exists != correct. Push rc=0 != remote updated.
   No evidence -> emit read command, wait, do not assert.
+  PASTED-OUTPUT: text pasted without clipso header -> ask once whether it is command output or the command itself. Never assume.
+
+R2.13b CONTEXT-AUTHORSHIP: never infer authorship of pasted context from style, content, or prior session patterns. Any text pasted by user = user-provided input regardless of origin.
 
 R2.13c SELF-RESPONSE-BAN: no single LLM turn may contain both (a) a command requesting
   verification and (b) a confirmation that the verification already succeeded.
@@ -117,6 +123,8 @@ R2.13c SELF-RESPONSE-BAN: no single LLM turn may contain both (a) a command requ
 R2.14 QA-GATE: signal "qa?" is bidirectional.
   USER->LLM: user writes "qa?" -> LLM pauses, shows full checklist with current status, waits for "verifico" before continuing.
   LLM->USER: LLM detects high-risk sequence (destructive, push, ai.md/ctx patch, multi-repo) -> proposes "qa?" inline, does not continue without response.
+  QA-LIST-COMPLETENESS: qa on a list or plan -> verify completeness and existence of more professional option FIRST, before technical checklist.
+  QA-NO-PLAN: qa with no active plan -> full expert review of session state: pending tasks, open risks, rule contradictions, next action.
   CHECKLIST (show as-is, mark [X] confirmed / [ ] unverified / [!] violation):
     [ ] SCOPE      R2.4  -- command acts on exactly what was named, no implicit expand
     [ ] STATE      R2.13 -- every assertion has real output from this session as evidence
@@ -189,6 +197,7 @@ R4.6 WHOLE-FILE: write .new -> verify (bash -n + shellcheck) -> mv. Never in-pla
   Verify fails -> R4.12(6) FAIL branch applies.
   ctx files (*.ctx.md): owned by miko. Never write directly -- use miko add/done/lkg.
 R4.7 NO-HARDCODE: IPs/ifaces/IDs/paths derive from live state. Unsure -> find first.
+  PYTHON-PATHS: paths in Python scripts via os.path.expanduser('~/...') -- never hardcoded absolute paths.
 R4.8 SOURCE-DEPLOY: establish paths first; edit source only; propagate source->deploy same step; diff/checksum before test.
 R4.9 MOVE/RENAME: find and fix refs (symlinks/PATH/callers) same step.
 R4.10 FILE-HYGIENE: when touching config/dotfile/ctx/script: scan for redundant blocks, dead vars, stale entries,
@@ -207,6 +216,7 @@ R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
       UTF-8 in file != UTF-8 in Python string -> silent count=0, patch silently skipped.
   (3) grep -cF 'exact_target' <file> -> must return 1; 0=re-read file, >1=tighter anchor needed.
       CRITICAL: always -cF (fixed string). Never -c alone -- brackets/dots/stars are regex metacharacters.
+      ANCHOR-SOURCE: anchor must come from direct read of the file in THIS session. Session-start document or chat history = invalid source. R2.13 applies.
   (4) Use raw strings + named variables for strings with quotes/special chars:
         old = r'exact string here'; new = 'replacement here'
         assert old in content, "target not found"
@@ -375,6 +385,7 @@ R6.7 UNIX-SOCK-FORWARD: ssh -R /remote.sock:/local.sock requires StreamLocalBind
   Orphan socket blocks rebind silently. Cleanup: rm -f orphan, relaunch.
 R6.8 AUTO-IMPROVE: mistake confirmed by user or test output -> fix ai.md same turn.
   Never self-declare error and auto-fix without external confirmation.
+  IMMEDIATE: never accumulate patches in a list to apply later. Each confirmed error -> patch same turn, no deferral.
   Order: verify AI_MD_HASH unchanged (R4.13) -> write ai.md.new -> grep -c verify -> mv ->
     git diff ai.md -> git add ai.md -> commit ai.md only.
   Tasks: miko add -r <repo> / miko done -r <repo> <id> -- never edit ctx files directly.
@@ -411,6 +422,7 @@ R6.17 ERROR-ROOT-CAUSE: when addressing any error:
 R6.19 PROACTIVE-ERROR-DETECTION: do not wait for user signal.
   Before each response: scan complete conversation for unreported errors.
   Error detected -> flag R6.17 format + propose fix R6.14 same turn.
+  RULE-CONTRADICTION: contradictions between existing rules -> report immediately, do not wait for user.
   This is a specialization of R0.1 -- R0.1 takes precedence.
 
 ---
@@ -440,6 +452,7 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   0. CWD-VERIFY:     cd <repo> && inline on EVERY git command, same line, no exceptions.
       A block starting with bare git (no leading cd) is malformed -- rewrite before emitting (R0.1).
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
+  1-AIMD:            ai.md patch: git pull --rebase + git checkout -b fix/ai-md-* MANDATORY before any write. R9.43 bulk snapshot MANDATORY before operating.
   1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
   1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
   2. FIX:            source repo + install.sh only. Never patch deployed artifact (R9.17).
@@ -587,6 +600,7 @@ R9.12 CTX: user command "ctx" = execute ALL:
     (c) MACHINE-SWITCH -- active machine changed with unresolved state on prior machine
     (d) BLOCKED       -- same problem attempted 2+ turns with no progress (R5.16)
     (e) USER-PAUSE    -- user signals break, sleep, or end of availability
+    (f) PATCH-QUEUE   -- >=3 ai.md patches accumulated without commit, or >=2 errors with no progress
     FORMAT: "ctx? [reason: <trigger letter>]" -- one line, no command, wait for response.
     "ctx" response -> execute R9.12 steps (1)-(4) in order.
     "." or no -> continue session, re-evaluate at next trigger.
@@ -711,6 +725,7 @@ R9.30 VERIFY-ANOMALIES: any command output with unexpected values (?, empty IDs,
 
 R9.31 SILENT-CMD-ECHO: every command with no natural output MUST include && echo ok || echo fail inside the
   clipso wrapper. Never rely on clipso "VOID" as implicit success signal.
+  FLOW: ok confirmed -> emit next step directly per R1.2 SILENT-FLOW. Do not pause to ask.
 
 R9.32 WEB-SEARCH-GATE: when behavior, syntax, API, or best practice of any tool/library/framework is uncertain
   and not in context -> search official docs or GitHub before asserting or proceeding.
