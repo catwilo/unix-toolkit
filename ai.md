@@ -215,6 +215,7 @@ R4.12c MULTILINE-ANCHOR-EXTRACT: para old= multilinea (>3 lineas) en cualquier p
     transcripcion manual produce mismatch silencioso o match accidental en bloque equivocado.
 
 R4.12d VERIFY-BY-EXTENSION: step (5) of R4.12 generalizes per file type. After any patch, before mv:
+  BASENAME-FIRST: always extract ext from basename only: base=$(basename "$file"); ext="${base##*.}"; [[ "$ext" == "$base" ]] && ext="". Never use ${file##*.} directly -- dots in directory path corrupt the result.
   .sh / no-extension+shebang sh -> bash -n <file>.new && shellcheck -S error <file>.new
   .py                          -> python3 -c "import ast; ast.parse(open('<file>.new').read())"
   .json                        -> python3 -c "import json; json.load(open('<file>.new'))"
@@ -518,6 +519,7 @@ R8.6 NSSH-ANSI: nssh output contains ANSI codes + line numbers. Never pipe direc
   Strip first with grep -o or save to file.
 R8.7 TRIPLE-BACKTICK-IN-OUTPUT: never emit literal triple backticks inside heredocs, Python strings, or any chat block.
   Pattern: bt = '`' * 3, then use {bt} for every fence in f-strings. No exceptions.
+  FILE-WRITE-HEREDOC: cat > file << 'EOF' blocks used to write file content must never contain triple backticks inside -- they terminate the heredoc silently. Use indented 4-space code blocks in README/docs instead.
 
 ---
 
