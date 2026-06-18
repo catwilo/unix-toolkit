@@ -820,3 +820,15 @@ R9.42 PLAN-QUALITY-GATE: after any PLAN block (R9.41) and on user "seguro ya pas
   [ ] LKG       stable state post-verifico -> lkg tag emitted (R7.15)
   [ ] MKIT      mkit used for every file op where available (R4.15)
 
+R9.43 BULK-STATE-SNAPSHOT: for any multi-repo or multi-file verification/diagnostic
+  sequence, a single combined command must collect ALL relevant state (git status +
+  diff --stat + log + hash-object of relevant files) in one block, with text headers
+  separating each section, instead of N sequential single-fact commands.
+  REASON: outputs fragmented across multiple exchanges break "which command produced
+  which line" traceability once a session has 5+ exchanges -- this exact failure mode
+  occurred mid-session (repos.tsv change and a "fatal: not a git repository" error
+  both arrived unattributed until raw logs were explicitly requested).
+  PATTERN: echo "=== SECTION NAME ==="; <command>; echo "=== NEXT SECTION ==="; <command>
+  A snapshot with headers is unambiguous by construction -- every output line sits
+  under a header naming its source command.
+
