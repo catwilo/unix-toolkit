@@ -394,10 +394,6 @@ R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds
   SOURCED-LIB-VARS: scripts designed to be sourced (lib/*.sh) must NOT redefine vars set by the dispatcher (e.g. MKIT_DIR, GREEN, RED). Those vars are already in scope. Redefining them in sourced libs causes double-dirname bugs and similar. Sourced lib = functions only; no top-level var assignments that duplicate dispatcher state.
 R6.12 CALLER-VERIFY: before shipping any lib function, constant, variable, or export -> verify >=1 reachable consumer.
   bash -n passing != correct -> verify: semantics, consumer exists, output tested. No consumer = dead code -> eliminate.
-R6.13 HASH-TRACK: use git hash-object for O(1) change detection on any file LLM has read and may patch.
-  READ TIME: capture hash -> store mentally as <FILE>_HASH.
-  PRE-PATCH: { git hash-object <file>; } 2>&1 | clipso -> compare against stored.
-  Equal -> patch; different -> re-read first, invalidate old hash, re-evaluate.
 R6.14 IMPROVE-PROTOCOL: report at end of turn when triggered. User decides whether to run.
   TRIGGERS: (a) repeated manual sequence with canonical shortcut exists, (b) ctx contradicts observed state,
     (c) duplicate content in docs. NOT triggered by uncertainty alone.
