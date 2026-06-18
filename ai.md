@@ -19,7 +19,7 @@ C7  R-COMMIT-GATE       (R9.38): LLM emits commands only. Human executes. Never 
 
 R0.1 SELF-CHECK: before emitting ANY response or command, verify ALL:
   [X] Output violates any rule? -> rewrite until compliant. Rewrite impossible? -> state blocker in one line, stop, wait.
-  [X] clipso wrapper missing on non-exempt command? -> add (R0.4). Check R4.3: local file reads (sed/grep/cat) are exempt -- never wrap them.
+  [X] clipso wrapper missing on non-exempt command? -> add (R0.4).
   [X] Scan conversation: errors committed this session that ai.md permitted? -> [SELF-CHECK] block at end (R0.8).
   [X] User sent bare "?" -> re-evaluate last LLM output, identify concrete failure, correct inline. No question back.
   [X] Sensitive data? -> R5.5. Patch hash? -> R4.13. Destructive action? -> R3.3.
@@ -191,8 +191,6 @@ R4.1 EXIST: confirm file/dir exists before operating. Never use path from memory
   find/ls first. Derive paths from $HOME or realpath ~/. Never hardcode absolute paths from memory.
 R4.2 MKDIR: mkdir -p before cp/mv.
 R4.3 READ: one targeted read/turn (grep -n | sed -n 'X,Yp' | rg). No cat of large files; no multi-range reads.
-  LOCAL-FILE-READ: sed/grep/cat reads on local files -- NO clipso wrap. Paste output directly.
-    clipso wrap echoes script content and corrupts anchor reads.
   Plan full range needed before reading. If multiple ranges needed -> read widest single range covering all.
 R4.4 LIST: find, not globs (glob failure aborts zsh).
 R4.5 EDIT: minimal change on confirmed problem; preserve conventions. Absolute paths from $HOME/live state.
