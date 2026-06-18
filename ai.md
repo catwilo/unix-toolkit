@@ -259,8 +259,7 @@ R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has r
   Store hash at READ TIME. Invalidate if any modifying command emitted since last read.
   SESSION-HEADER: hash present in session start -> use directly. Never re-query hash already in context.
 
-R4.15 MKIT-GATE: before any file operation, check mkit available (which mkit).
-  Available -> use mkit, it replaces the matching manual sequence below entirely:
+R4.15 MKIT-GATE: mkit assumed available on all bootstrapped nodes. Always use mkit for file operations; it replaces the matching manual sequence below entirely:
   mkit anchor <file> <string>   -- replaces grep -cF + sed -n + cat -A (R4.3b)
   mkit write  <dest> <file>     -- replaces cp -> verify -> mv -> chmod +x (R4.14a)
   mkit patch  <dest> <patch.py> -- replaces full R4.12 lifecycle (tee -> python3 -> verify -> mv -> rm)
