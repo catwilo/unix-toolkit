@@ -417,7 +417,6 @@ R6.16 READ-COMPLETENESS: repo "read" = four checks in context:
 R6.17 ERROR-ROOT-CAUSE: when addressing any error:
   Format: Root cause: <LLM pattern> -> <failure> -> <rule violated>
   PROHIBITED: "I was wrong because I didn't do X" without identifying the LLM root pattern.
-R6.18 ERROR-TRACKING: superseded by R0.8. See R0.8 for [SELF-CHECK] output format.
 R6.19 PROACTIVE-ERROR-DETECTION: do not wait for user signal.
   Before each response: scan complete conversation for unreported errors.
   Error detected -> flag R6.17 format + propose fix R6.14 same turn.
