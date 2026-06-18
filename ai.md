@@ -144,19 +144,10 @@ R3.5 DESTRUCTIVE: always reversible or paired with rollback.
   (2) have recovery command ready and stated before executing.
   Failure -> revert last-known-good first.
 
-R3.5b DESTRUCTIVE-FILE-PATCH-RECONCILE: for patches to ai.md or *.ctx.md specifically, R3.5's
-  "document state + recovery ready" requirement is satisfied BY R4.13 hash-check PLUS the existing
-  R7.8 fix-lifecycle (commit immediately after verify, same turn) -- NOT by R4.13 alone.
-  R4.13 alone detects drift; it does not provide rollback. Rollback exists only once committed:
-  recovery command = git revert <new-hash>, target = the hash just confirmed via R7.5 push-verify.
-  GATE: a patch to ai.md/*.ctx.md is NOT R3.5-compliant until commit+push are both confirmed with real
-  output (R7.5). Between mv and commit, the .new-replaced file is NOT yet reversible via git --
-  during that narrow window, the only rollback is re-deriving content from the pre-patch hash via
-  git show <old-hash>:ai.md if the hash was captured (R4.13 already mandates capturing it).
-  *.ctx.md EXCEPTION: R4.6 forbids direct writes to ctx files (miko-owned). This rule does not grant
-  an exception to that ban -- it only describes the R3.5/R4.13 interaction FOR THE CASE where a direct
-  ai.md patch is in fact the correct path (which ctx files never are). For ctx, miko's own commit
-  lifecycle (opaque to this rule) is the reversibility mechanism.
+R3.5b DESTRUCTIVE-FILE-PATCH-RECONCILE: for ai.md/*.ctx.md, R3.5 satisfied by R4.13 hash-check + R7.8 commit immediately after verify.
+  R4.13 alone detects drift; rollback exists only post-commit: git revert <new-hash> (R7.5).
+  Between mv and commit: only rollback = git show <old-hash>:ai.md (R4.13 captures hash).
+  *.ctx.md EXCEPTION: R4.6 forbids direct writes (miko-owned). ctx rollback = miko's own commit lifecycle.
 
 R3.6 DAEMON-RESTART: never kill/restart sshd (or deps) unless config requires it. Validate (-t), let take effect
   naturally. If restart needed: verify real reachability via new SSH -- never infer from ss/netstat alone.
@@ -204,14 +195,8 @@ R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
   (6) Verify OK: mv .new -> rm $TMPDIR/patch_<name>.py in SAME command. Include cleanup; never leave .new files loose.
       Verify FAIL: keep .new for debug -- do NOT mv -- stop -- wait instruction.
   Full one-liner: { python3 $TMPDIR/patch_<name>.py && mv <file>.new <file> && rm $TMPDIR/patch_<name>.py; } 2>&1 | clipso
-R4.12b PYTHON-PATCH-DO-NOT:
-  DO-NOT-1: NUNCA python3 -c multilinea con bash vars interpoladas -- quoting imposible
-  DO-NOT-2: NUNCA heredoc anidado dentro de python3 << 'PYEOF' con comillas simples en el contenido
-  DO-NOT-3: NUNCA base64 encode/decode para scripts con newlines en strings bash -- SyntaxError garantizado
-  CANONICAL: escribir patch script a $TMPDIR via tee << 'DELIM' (verificado funciona) antes de ejecutar con python3
-  SINGLE-BLOCK-GATE: tee $TMPDIR/script.py << 'DELIM' > /dev/null AND python3 $TMPDIR/script.py MUST be
-    in the same { ...; } 2>&1 | clipso block. Never two separate turns.
-    tee without > /dev/null echoes script to clipboard -- confirmed failure mode. Always suppress tee stdout.
+R4.12b PYTHON-PATCH-DO-NOT: never python3 -c multiline with bash vars (quoting impossible); never nested heredoc with single quotes; never base64 for scripts with newlines (SyntaxError).
+  CANONICAL: tee $TMPDIR/script.py << 'DELIM' > /dev/null then python3 in SAME clipso block. tee without > /dev/null echoes to clipboard -- always suppress.
 
 R4.12c MULTILINE-ANCHOR-EXTRACT: para old= multilinea (>3 lineas) en cualquier patch python3:
   (1) extraer el bloque real via sed -n '<start>,<end>p' o python3 lines[a:b] -> escribir a $TMPDIR/old_block.txt
@@ -293,8 +278,7 @@ R5.5 PRIVACY: before emitting command whose output copies via clipso, assess sen
 R5.6 EXIT-BINDING: check exit on target command directly. Never interpose pipe. Use set -o pipefail or
   ${PIPESTATUS[0]} only if pipe required.
 R5.7 DERIVE-IN-LOOPS: derive item list from live state, not hardcoded names. R4.1 applies inside loops.
-R5.8 SINGLE-LISTENER: never two socket listeners to same clipboard. Check launchd before starting.
-  Recovery: launchctl bootout agent, pkill -9 listeners, killall pboard.
+R5.8 SINGLE-LISTENER: never two socket listeners to same clipboard. Recovery: launchctl bootout agent && pkill -9 listeners && killall pboard.
 R5.9 UT-WORKFLOW:
   BANNED in daily workflow (miko absorbs these):
     ut status -> miko status | ut push -> miko sync | ut sync -> miko sync
@@ -342,11 +326,8 @@ R5.20 BINARY-CONTROL-CHARS: to insert binary/control chars in files -> use Pytho
 R6.1 MIN-STEPS: one read that confirms AND enables fix. No locate->confirm->fix across turns.
   Pre-patch grep-c gate -> R4.12(3).
   FLOW-FIRST: before any behavioral fix, read full execution path of affected function (entry->exit).
-  SET-U-GATE: before proposing any bash variable or mechanism, read shebang + first 5 lines of target script.
-    set -u active -> unset var reference = fatal. set -e active -> any rc!=0 = abort. Design must respect both.
-    Never patch symptoms. grep entry point + sed -n the function body in one read.
-  READ-BEFORE-PROPOSE: before proposing any redesign or architecture -> read complete code of affected module.
-    Never propose redesign without full code context. Architecture may already exist partially.
+  SET-U-GATE: read shebang + first 5 lines before any bash var/mechanism. set -u: unset=fatal. set -e: rc!=0=abort. Never patch symptoms.
+  READ-BEFORE-PROPOSE: read complete code of affected module before any redesign. Architecture may already exist.
 R6.2 LINT+RUN: run scripts with shebang interpreter. Var surviving reload -> suspect inherited env.
   Var survives reload AND grep finds nothing -> inherited env from parent (byobu/tmux).
   Fix: fresh Termux tab OUTSIDE byobu. Apply this diagnosis BEFORE exhausting grep turns.
@@ -385,7 +366,7 @@ R6.8 AUTO-IMPROVE: mistake confirmed by user or test output -> fix ai.md same tu
   Never defer. Never batch to end of session.
 R6.9 BASH-SET-U-SUBSHELL: VAR=$(cmd) where cmd refs unset var -> VAR silently unset.
   Pattern: initialize -> assign -> use.
-R6.10 TASKS-GIT: ~/.tasks is a standalone git repo (catwilo/miko-tasks). Never place inside another repo.
+R6.10 TASKS-GIT: ~/.tasks (catwilo/miko-tasks) is standalone git repo. Never place inside another repo.
 R6.11 PASSTHROUGH-DEAD-CODE: before creating lib/*.sh or wrapper, verify it adds real logic.
   Pure pass-through = dead code -> eliminate.
   PYTHON-PATCH-PERMS: python3 open(path, 'w') does NOT preserve file permissions. Always write to path+'.new', then mv -- never open(path,'w') directly on executable files. Failure mode: silent 100644 on previously 100755 files, caught only at git commit.
@@ -445,14 +426,8 @@ R7.7 DIFF-BEFORE-COMMIT: GIT_PAGER=cat git diff <file> before git add on ANY fil
   Unexpected diff -> stop, investigate. Only expected changes proceed.
   Before push: git diff --stat origin/main to confirm exactly what leaves local.
 R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
-  0. CWD-VERIFY:     confirm working directory before any git command. Use cd <repo> && git status first.
-      STRUCTURAL: cd <repo> && is NEVER a separate prior step or mental check -- it is part of the
-      literal text of EVERY git command emitted, inline, same line, no exceptions. A command block
-      starting directly with git (no leading cd <repo> &&) is malformed and must be rewritten before
-      emitting (R0.1 catches this). Reason: cwd does NOT persist across separate command blocks --
-      confirmed failure mode this session (R6.17), repeated twice with identical root cause before
-      this rule existed. Mental-check-only version of CWD-VERIFY is insufficient; only literal inline
-      cd makes the omission structurally impossible.
+  0. CWD-VERIFY:     cd <repo> && inline on EVERY git command, same line, no exceptions.
+      A block starting with bare git (no leading cd) is malformed -- rewrite before emitting (R0.1).
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
   1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
   1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
@@ -627,7 +602,6 @@ R9.18 CLIPSO-PIPELINE-TTY: never use read < /dev/tty inside any function called 
   stdin captured by spinner -- blocks forever. Pattern: gate on env var instead of prompting.
   Recovery: pkill -f clipso.sh from new Termux tab.
 
-R9.19 DSTASK-BUILD: OBSOLETE -- dstask eliminated. Task store: ~/.tasks/ (JSON, git). No compilation required.
 
 R9.20 CTX-FIRST: any task/fix/decision that changes project state ->
   miko add -r <repo> / miko done -r <repo> <id> BEFORE proceeding to next step. Never batch to end of session.
@@ -668,18 +642,8 @@ R9.23 CLIPSO-REFERENCE: copies content to clipboard; auto-detects backend (Termu
     clipso --paste / clipso -P          paste from mesh cache (~/.cache/clipso/last)
     clipso -n                           toggle line numbers (persists)
     clipso -q                           quiet -- suppress spinner
-  ENV VARS:
-    CLIPSO_PRIVACY=0      skip auto privacy check
-    CLIPSO_NO_SPINNER=1   disable spinner
-    CLIPSO_FORWARD_LABEL  label for pbcopy-forward
-    CLIPSO_NUMBERS=0/1    line numbers (default 1)
-  BEHAVIORS:
-    Privacy:  awk detects CRED/PRIV-IP/PUB-IP/MAC; censors flagged lines; shows masked in red
-    Spinner:  starts on first byte; blocks /dev/tty -- reason R9.10 bans on TTY-interactive
-    Empty:    writes literal "VOID" to clipboard
-    Size:     hard limit 10 MB; pager at 900 KB
-    Cache:    every copy cached at ~/.cache/clipso/last
-    SSH fwd:  when SSH_CONNECTION set, writes to ~/.local/share/noemap/clip.sock
+  ENV VARS: CLIPSO_PRIVACY=0 | CLIPSO_NO_SPINNER=1 | CLIPSO_NUMBERS=0/1
+  BEHAVIORS: privacy awk masks CRED/IP/MAC; spinner blocks /dev/tty (R9.10); empty=VOID; limit 10MB; cache ~/.cache/clipso/last; SSH_CONNECTION -> clip.sock
 
 R9.24 NOEMAP: full SSH device management suite. Aliases in $NOEMAP_BASE/state/devices.db.
   DISCOVERY:
