@@ -234,6 +234,13 @@ R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has r
   Store hash at READ TIME. Invalidate if any modifying command emitted since last read.
   SESSION-HEADER: hash present in session start -> use directly. Never re-query hash already in context.
 
+R4.15 MKIT-GATE: before any file operation, check mkit available:
+  mkit anchor <file> <string>   -- R4.3b confirmation + cat -A diagnosis
+  mkit write  <dest> <file>     -- R4.14(a) CREATE lifecycle
+  mkit patch  <dest> <patch.py> -- R4.14(c) PATCH lifecycle
+  mkit verify <file>            -- R4.12d standalone verify
+  mkit not available -> fall back to manual R4.12. Never skip verify step.
+
 R4.14 FILE-OPERATION-MATRIX: before touching any file, classify into exactly one:
   (a) DOES-NOT-EXIST -> CREATE: write directly via create-tool. No .new staging (nothing to preserve).
       Verify after write: re-read or grep -c on new content. Exec script -> chmod +x same command (R4.11).
@@ -436,6 +443,10 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   2. FIX:            source repo + install.sh only. Never patch deployed artifact (R9.17).
   3. VERIFY:         user confirms fix works visually with "verifico". LLM never declares success.
                      DoD before "verifico" is valid (R7.12).
+  3b. TASK-CLOSE:    immediately after "verifico" -- same turn, before commit:
+                     { miko done -r <repo> <id>; } 2>&1 | clipso
+                     { miko next <repo>; } 2>&1 | clipso  -- confirm closed
+                     NEVER advance to step 4 without task closed.
   4. COMMIT:         source + install.sh in one commit. Same turn as verify.
   5. PUSH:           git rebase origin/main -> git checkout main -> git merge <branch> -> git push (R9.11).
                      git branch -d <branch> immediately after push.
@@ -770,7 +781,27 @@ R9.41 PROBLEM-PLAN-GATE: on any new bug/problem, BEFORE first diagnostic read, e
   TEST-FIRST:  repro command run+confirmed before any fix. TTY-suspect bug -> run direct, NO clipso
                wrap (R9.10), recovery goes in ROLLBACK below.
   ROLLBACK:    recovery path, ties to R3.5/R3.5b. TTY repro used -> include pkill -f clipso.sh here.
+  TASK:        { miko add -r <repo> "FEAT/BUG/CHORE: <symptom> <root-cause> <expected>"; } 2>&1 | clipso
+               emit in THIS turn if no task exists. ID recorded here before first command.
+               No command emitted without task ID. No exceptions.
   SCOPE:       files/repos touched, nothing implied beyond (R2.4).
   Precedence: overrides R1.2 for this turn, per R2.3(e). SUCCESS+TEST-FIRST re-checked at R7.12.
   Project-agnostic by design -- never write a per-project variant.
+
+R9.42 PLAN-QUALITY-GATE: after any PLAN block (R9.41) and on user "seguro ya pasa revision experta?".
+  NO ITERATION LIMIT. Every trigger -> full checklist -> honest result.
+  CHECKLIST (binary pass/fail per item):
+  [ ] R4.14     every file operation classified (a/b/c/d)
+  [ ] ANCHORS   every anchor has grep -cF count=1 confirmed or read pending
+  [ ] ROLLBACK  every destructive action has rollback stated
+  [ ] R2.13     no state asserted without evidence from this session
+  [ ] MKIT      mkit used where applicable (R4.15) if available
+  [ ] TASK      task ID exists or created before first command (R9.41 TASK)
+  [ ] OVERLAP   no overlap with existing rules
+  [ ] SCOPE     scope does not exceed observed evidence this session
+  RESULT FORMAT:
+    all pass -> "APROBADO [N/N] -- 100%"
+    any fail -> "BLOQUEADO [M/N] -- X% -- falta: <item1>, <item2>"
+    user decides whether to continue or fix blockers.
+  Never declare APROBADO without running every item. No shortcuts.
 
