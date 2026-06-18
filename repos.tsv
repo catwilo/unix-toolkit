@@ -35,3 +35,4 @@ deadd-setup	cfg,tool	deadd notification center config + scripts
 ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML
 RoomBookingDashboard	client,web	SPFx room reservation dashboard for client tenant
 predicciones-evento	client,web	Formulario de pronósticos deportivos para eventos presenciales vía QR
+mkit	tool,cli,core	LLM file ops toolkit — anchor/write/patch/verify CLI
