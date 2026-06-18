@@ -218,12 +218,13 @@ R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
 R4.12b PYTHON-PATCH-DO-NOT: never python3 -c multiline with bash vars (quoting impossible); never nested heredoc with single quotes; never base64 for scripts with newlines (SyntaxError).
   CANONICAL: tee $TMPDIR/script.py << 'DELIM' > /dev/null then python3 in SAME clipso block. tee without > /dev/null echoes to clipboard -- always suppress.
 
-R4.12c MULTILINE-ANCHOR-EXTRACT: para old= multilinea (>3 lineas) en cualquier patch python3:
-  (1) extraer el bloque real via sed -n '<start>,<end>p' o python3 lines[a:b] -> escribir a $TMPDIR/old_block.txt
-  (2) verificar count == 1 en el archivo completo antes de construir el patch final
-  (3) old= se carga leyendo ese archivo -- nunca reconstruido a mano caracter por caracter
-  Razon: anchors con UTF-8 (em-dash, acentos) son indistinguibles visualmente entre variantes;
-    transcripcion manual produce mismatch silencioso o match accidental en bloque equivocado.
+R4.12c MULTILINE-ANCHOR-EXTRACT: for multiline old= (>3 lines) in any python3 patch:
+  (1) extract the real block via sed -n '<start>,<end>p' or python3 lines[a:b] -> write to $TMPDIR/old_block.txt
+  (2) verify count == 1 in the full file before building the final patch
+  (3) old= is loaded by reading that file -- never hand-reconstructed character by character
+  REASON: anchors with UTF-8 (em-dash, accents) are visually indistinguishable between
+    variants; manual transcription produces a silent mismatch or an accidental match
+    on the wrong block.
 
 R4.12d VERIFY-BY-EXTENSION: step (5) of R4.12 generalizes per file type. After any patch, before mv:
   BASENAME-FIRST: always extract ext from basename only: base=$(basename "$file"); ext="${base##*.}"; [[ "$ext" == "$base" ]] && ext="". Never use ${file##*.} directly -- dots in directory path corrupt the result.
