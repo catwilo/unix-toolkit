@@ -453,7 +453,6 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   0. CWD-VERIFY:     cd <repo> && inline on EVERY git command, same line, no exceptions.
       A block starting with bare git (no leading cd) is malformed -- rewrite before emitting (R0.1).
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
-  1-AIMD:            ai.md patch: git pull --rebase + git checkout -b fix/ai-md-* MANDATORY before any write. R9.43 bulk snapshot MANDATORY before operating.
   1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
   1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
   2. FIX:            source repo + install.sh only. Never patch deployed artifact (R9.17).
@@ -472,6 +471,11 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   7. LKG:            if state is stable -> git tag -a lkg -m "lkg: <desc>" -f && git push origin lkg -f (R7.15).
   8. SYNC-PENDING:   miko add -r unix-toolkit "sync pending: <repo> -> <device>" for every disconnected node.
                      Mark done via miko done -r unix-toolkit <id> when synced.
+R7.8b AI-MD-PATCH-LIFECYCLE: for any ai.md patch, before any write:
+  git pull --rebase origin main && git checkout -b fix/ai-md-* MANDATORY.
+  R9.43 bulk snapshot MANDATORY before operating.
+  Applies in addition to R7.8 steps 0-8.
+
 R7.9 GIT-REVERT-GATE: before any git revert:
   Run: { git log --oneline -3; } 2>&1 | clipso -> confirm exactly which commit HEAD is.
   Name the commit explicitly in the revert command. Never revert blind.
