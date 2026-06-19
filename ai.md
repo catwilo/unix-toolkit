@@ -915,7 +915,12 @@ R9.47 FIX-PROPAGATION-GATE: HARDSTOP before declaring any fix complete.
 
 R9.48 MKIT-HARDBAN: mkit is ALWAYS available on bootstrapped nodes. NEVER verify availability.
   HARDBAN on manual python3 R4.12 lifecycle for any file operation where mkit applies.
-  Use: mkit anchor <file> <string> | mkit patch <file> <patch.py> | mkit write <dest> <file> | mkit verify <file>
+  Use: mkit anchor <file> <string> | mkit patch <file> <patch.py> | mkit write <dest> <content_file> | mkit verify <file>
+  FIRST-OPTION: mkit is the primary path for every file op, never a fallback. Reach for mkit before any manual sequence.
+  SIGNATURE-FROM-MEMORY: subcommand signatures above are authoritative -- never re-run 'mkit --help' to recall them mid-task.
+  WRITE-CONTENT-NAME: the content_file passed to 'mkit write <dest> <content_file>' MUST NOT end in '.new' --
+    mkit writes its own <dest>.new internally and a content_file named '*.new' collides ("same file"). Stage content
+    as <name>.staged (or any non-.new suffix), then 'mkit write <dest> <name>.staged'. Confirmed 2026-06-19.
   Emitting manual tee+python3+verify+mv when mkit exists = R0.1 violation, rewrite before emitting.
 
 R9.46 OUTPUT-CONFIRM-GATE: after any command output, LLM describes what it observes
