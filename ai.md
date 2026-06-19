@@ -275,31 +275,12 @@ R4.12 PATCH-PY-BOOTSTRAP: sole permitted use of direct Python file write.
   HARDBAN: R4.12 never writes destination files directly. dest+'.new' is written by patch.py;
     mkit patch owns mv, verify, chmod, cleanup. No exceptions.
   ANCHOR rules (R4.3b) and UTF8 rules still apply to old= strings.
-R4.12b PYTHON-PATCH-DO-NOT: never python3 -c multiline with bash vars (quoting impossible); never nested heredoc with single quotes; never base64 for scripts with newlines (SyntaxError).
-  CANONICAL: tee $TMPDIR/script.py << 'DELIM' > /dev/null then python3 in SAME clipso block. tee without > /dev/null echoes to clipboard -- always suppress.
-
-R4.12c MULTILINE-ANCHOR-EXTRACT: for multiline old= (>3 lines) in any python3 patch:
-  (1) extract the real block via sed -n '<start>,<end>p' or python3 lines[a:b] -> write to $TMPDIR/old_block.txt
-  (2) verify count == 1 in the full file before building the final patch
-  (3) old= is loaded by reading that file -- never hand-reconstructed character by character
-  REASON: anchors with UTF-8 (em-dash, accents) are visually indistinguishable between
-    variants; manual transcription produces a silent mismatch or an accidental match
-    on the wrong block.
-
-R4.12d VERIFY-BY-EXTENSION: step (5) of R4.12 generalizes per file type. After any patch, before mv:
-  BASENAME-FIRST: always extract ext from basename only: base=$(basename "$file"); ext="${base##*.}"; [[ "$ext" == "$base" ]] && ext="". Never use ${file##*.} directly -- dots in directory path corrupt the result.
-  .sh / no-extension+shebang sh -> bash -n <file>.new && shellcheck -S error <file>.new
-  .py                          -> python3 -c "import ast; ast.parse(open('<file>.new').read())"
-  .json                        -> python3 -c "import json; json.load(open('<file>.new'))"
-  .xml                         -> python3 -c "import xml.etree.ElementTree as ET; ET.parse('<file>.new')"
-  .yaml / .yml                 -> python3 -c "import yaml; yaml.safe_load(open('<file>.new'))"
-  .toml                        -> python3 -c "import tomllib; tomllib.load(open('<file>.new','rb'))"
-  .tsv / .csv                  -> python3 -c "import csv; list(csv.reader(open('<file>.new'), delimiter='\t'))"
-    plus column-count check: every row len == header row len
-  .md                          -> skip parse (R4.12(5) reason stands -- backticks break parsers).
-    Verify instead via grep -c on the exact anchor inserted/removed, count must match expected delta.
-  unlisted extension           -> R9.29 applies: do not invent a verifier, ask or use plain diff review.
-  FAIL on any check -> R4.12(6) FAIL branch applies.
+R4.12b PATCH-PY-DO-NOT: prohibited patterns when writing patch.py for mkit patch:
+  NEVER: python3 -c multiline with bash vars (quoting impossible).
+  NEVER: nested heredoc with single quotes inside outer heredoc.
+  NEVER: base64 for scripts with newlines (SyntaxError).
+  NEVER: $TMPDIR -- unset on Termux. Always use ~/tmp/ (R9.26).
+  CANONICAL: tee ~/tmp/patch_<name>.py > /dev/null << 'EOF' ... EOF (R4.12 PATTERN). tee without > /dev/null echoes to clipboard -- always suppress.
 
 R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has read and may patch:
   (1) { git hash-object <file>; } 2>&1 | clipso -> compare against stored hash.
@@ -748,8 +729,9 @@ R9.25 MAID: file trash and zsh history manager. Replaces rm for all user-facing 
     maid history search    interactive fzf search (TTY-interactive -- never wrap clipso)
   RULE: never emit rm for user files -- emit maid trash instead.
 
-R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied. Always use ${TMPDIR:-/tmp}.
-  Never hardcode /tmp literal. Applies to: scripts, Python patches, and comments copied as code.
+R9.26 TERMUX-TMPDIR: on Termux /tmp is permission-denied and $TMPDIR is unset. Always use ~/tmp/.
+  Pattern: mkdir -p ~/tmp in same command before first use. Never use $TMPDIR, ${TMPDIR:-/tmp}, or /tmp literal.
+  Applies to: scripts, Python patches, patch.py bootstrap (R4.12), and comments copied as code.
 
 R9.27 INSTALL-DOTFILE-SYMLINK: install.sh appending PATH/exports to rc files MUST check if target is symlink
   to versioned dotfile. If yes -> skip append, emit warning.
