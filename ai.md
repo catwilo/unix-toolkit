@@ -12,6 +12,7 @@ C4  STATE-ASSERTION     (R2.13): never assert state without output from THIS ses
 C5  READ-FIRST          (R6.5):  macro ctx mandatory before any state-modifying command.
 C6  DIAGNOSIS-GATE      (R9.39): never emit diagnosis without git status + log + file content in context.
 C7  R-COMMIT-GATE       (R9.38): LLM emits commands only. Human executes. Never autonomous commit/push.
+C8  MKIT-HARDBAN        (R9.48): mkit is the ONLY permitted file-operation path. NEVER emit manual python3/tee/mv/verify targeting any destination file. R4.12 exists solely to write the temporary patch.py that mkit patch consumes — no other use permitted. If mkit is absent on a node -> HARDSTOP: emit "BLOCKER: mkit not found on <node>." and wait. Violation = rewrite before emitting.
 
 ---
 
@@ -28,9 +29,9 @@ R0.0b OUTPUT-BINARY: every LLM turn is EXACTLY one of two types. No third type e
     zero surrounding prose beyond what R2.3 explicitly permits. LLM then waits for
     user-pasted output. Never simulates, assumes, or narrates output (R0.5, R2.13c).
   TYPE B -- DYNAMIC QUESTION: any question to the human MUST use the dynamic-choice
-    mechanism (tappable options), never open free-text prompts. If the interface
-    lacks a dynamic-choice mechanism, LLM states that limitation in <=1 line and asks
-    the single closed question via plain text as fallback only -- never as default.
+    mechanism (tappable options). No fallback exists. No free-text questions permitted
+    under any circumstance. Interface limitation is not an exception. HARDBAN: plain-text
+    question to human = rewrite before emitting, no exceptions.
   HARDBAN: no response may mix narrative explanation, justification, or meta-commentary
     with a command or a question. No response may be a third category (e.g. pure prose
     reflection, status summary, apology, unsolicited caveat) unless explicitly requested
@@ -257,22 +258,23 @@ R4.11 SCRIPT-MODE: after writing any executable script -> chmod +x in SAME comma
     PATTERN: mv <file>.new <file> && chmod +x <file> -- one command, never two separate turns.
     VOID-AFTER-MV confirms chmod was missed -> fix: chmod +x <file> immediately, then re-test.
   VOID-AFTER-MV: command after mv emits VOID -> chmod +x was missed. Fix: chmod +x <file> && bash install.sh.
-R4.12 PYTHON-PATCH-LIFECYCLE: canonical pattern for any file patch via python3:
-  (1) Simple patches (no special chars, <5 replaces): python3 -c inline OK.
-      Complex patches (special chars, multiline, >5 replaces): write to $TMPDIR/patch_<name>.py.
-  (2) UTF8-ANCHOR: NEVER use UTF-8 chars in old= anchor strings. Always ASCII anchors or surrounding ASCII context.
-      UTF-8 in file != UTF-8 in Python string -> silent count=0, patch silently skipped.
-  (3) grep -cF 'exact_target' <file> -> must return 1; 0=re-read file, >1=tighter anchor needed.
-      CRITICAL: always -cF (fixed string). Never -c alone -- brackets/dots/stars are regex metacharacters.
-      ANCHOR-SOURCE: anchor must come from direct read of the file in THIS session. Session-start document or chat history = invalid source. R2.13 applies.
-  (4) Use raw strings + named variables for strings with quotes/special chars:
-        old = r'exact string here'; new = 'replacement here'
-        assert old in content, "target not found"
-        content = content.replace(old, new, 1)
-  (5) Write .new -> bash -n + shellcheck if shell file. Skip bash -n for .md files (backticks cause parse errors).
-  (6) Verify OK: mv .new -> rm $TMPDIR/patch_<name>.py in SAME command. Include cleanup; never leave .new files loose.
-      Verify FAIL: keep .new for debug -- do NOT mv -- stop -- wait instruction.
-  Full one-liner: { python3 $TMPDIR/patch_<name>.py && mv <file>.new <file> && rm $TMPDIR/patch_<name>.py; } 2>&1 | clipso
+R4.12 PATCH-PY-BOOTSTRAP: sole permitted use of direct Python file write.
+  PURPOSE: write a patch.py to ~/tmp/ for immediate consumption by mkit patch. Nothing else.
+  PATTERN (only valid form):
+    tee ~/tmp/patch_<name>.py > /dev/null << 'EOF'
+    import os
+    dest = os.path.expanduser('~/path/to/file')
+    content = open(dest).read()
+    old = r\"\"\"exact anchor\"\"\"
+    new = r\"\"\"replacement\"\"\"
+    assert content.count(old) == 1, f"anchor count={content.count(old)}"
+    content = content.replace(old, new, 1)
+    open(dest + '.new', 'w').write(content)
+    EOF
+    { mkit patch ~/path/to/file ~/tmp/patch_<name>.py; } 2>&1 | clipso
+  HARDBAN: R4.12 never writes destination files directly. dest+'.new' is written by patch.py;
+    mkit patch owns mv, verify, chmod, cleanup. No exceptions.
+  ANCHOR rules (R4.3b) and UTF8 rules still apply to old= strings.
 R4.12b PYTHON-PATCH-DO-NOT: never python3 -c multiline with bash vars (quoting impossible); never nested heredoc with single quotes; never base64 for scripts with newlines (SyntaxError).
   CANONICAL: tee $TMPDIR/script.py << 'DELIM' > /dev/null then python3 in SAME clipso block. tee without > /dev/null echoes to clipboard -- always suppress.
 
