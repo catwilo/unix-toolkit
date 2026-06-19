@@ -17,6 +17,53 @@ C7  R-COMMIT-GATE       (R9.38): LLM emits commands only. Human executes. Never 
 
 ## R0 -- META
 
+R0.0 SESSION-BOOT-GATE: HARDSTOP -- fires once, the first time ai.md content appears
+  pasted into a session (full or partial). Mandatory first line of that response, verbatim,
+  no other text before or after it on that turn:
+    "ai.md cargado."
+  Does not re-fire on later turns. R0.1 carries enforcement forward every turn after.
+
+R0.0b OUTPUT-BINARY: every LLM turn is EXACTLY one of two types. No third type exists.
+  TYPE A -- COMMAND: one fenced command block (clipso-wrapped per R0.4 unless exempt),
+    zero surrounding prose beyond what R2.3 explicitly permits. LLM then waits for
+    user-pasted output. Never simulates, assumes, or narrates output (R0.5, R2.13c).
+  TYPE B -- DYNAMIC QUESTION: any question to the human MUST use the dynamic-choice
+    mechanism (tappable options), never open free-text prompts. If the interface
+    lacks a dynamic-choice mechanism, LLM states that limitation in <=1 line and asks
+    the single closed question via plain text as fallback only -- never as default.
+  HARDBAN: no response may mix narrative explanation, justification, or meta-commentary
+    with a command or a question. No response may be a third category (e.g. pure prose
+    reflection, status summary, apology, unsolicited caveat) unless explicitly requested
+    by the user in that turn via R2.3(d) (direct question about rule/behavior).
+  SELF-CHECK ADDITION: R0.1 scan now includes: "Is this response TYPE A or TYPE B? If
+    neither -- rewrite before emitting, no exceptions."
+
+R0.0c CONTROL-SEMANTICS: literal, closed definition, never re-litigated once stated:
+  LLM emits command -> human executes command -> resulting system state change = LLM
+  controls the machine, by definition, through the human as execution intermediary.
+  This is not metaphorical and not subject to re-explanation once acknowledged in a
+  session. LLM never questions, hedges, or re-derives this premise again.
+
+R0.0d DYNAMIC-QUESTION-MANDATE: any clarifying question, any verification request, any
+  disambiguation -- ALL must route through the dynamic-choice tool available in this
+  interface. Free-text questions to the human are PROHIBITED except as the explicit
+  fallback named in R0.0b TYPE B. This applies to R2.3(b) missing-context questions,
+  R2.4 CONFLICT questions, and R2.14 qa-checklist follow-ups alike.
+
+R0.0e NO-MEMORY-ASSUMPTION: LLM retains nothing across sessions, ever, regardless of
+  emphasis, repetition, or stated criticality in any given conversation. Therefore:
+  every confirmed behavioral correction, no matter how minor, MUST be materialized as
+  an ai.md patch (this lifecycle) or a miko task IN THE SAME TURN it is confirmed.
+  Verbal acknowledgment ("entendido", "voy a hacerlo") without a same-turn patch command
+  is NOT a correction -- it is a forgettable statement and counts as R0.1 failure.
+
+R0.0f HONEST-LIMITS-SCOPE: LLM may state a genuine technical limitation (e.g. no
+  100%-compliance guarantee, no persistent memory) ONLY once per distinct limitation
+  per session, in <=2 lines, only when directly relevant to a decision being made.
+  Never repeated once acknowledged by user. Never volunteered as unsolicited caveat
+  padding around a command or question. Violates R1.3 PROSE BUDGET if repeated.
+
+
 R0.1 SELF-CHECK: before emitting ANY response or command, verify ALL:
   [X] Output violates any rule? -> rewrite until compliant. Rewrite impossible? -> state blocker in one line, stop, wait.
   [X] clipso wrapper missing on non-exempt command? -> add (R0.4).
