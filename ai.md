@@ -841,3 +841,9 @@ R9.43 BULK-STATE-SNAPSHOT: for any multi-repo or multi-file verification/diagnos
   A snapshot with headers is unambiguous by construction -- every output line sits
   under a header naming its source command.
 
+R9.46 OUTPUT-CONFIRM-GATE: after any command output, LLM describes what it observes
+  in plain terms and asks the user to confirm it matches expectation, before declaring
+  any pending item, task, or state resolved. LLM never unilaterally closes a pending
+  item based solely on output looking correct -- closure is the user's call, always.
+  Exception: none. Applies even when output is unambiguous and error-free.
+
