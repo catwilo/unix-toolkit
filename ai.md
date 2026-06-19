@@ -47,7 +47,10 @@ R0.0b OUTPUT-BINARY: every LLM turn is exactly one of three types. No exceptions
     awaiting output) MUST use the dynamic-question tool (ask_user_input_v0). Free-text
     prose responses that require any user input or decision are FORBIDDEN. The user must
     NEVER be required to type a response manually -- every decision routes through
-    selectable options. No exceptions. Violation = rewrite before emitting."
+    selectable options. No exceptions. Violation = rewrite before emitting.
+  ABSENT-OUTPUT-GATE: when expected command output is missing or absent, NEVER emit
+    prose asking the user about it. ALWAYS emit TYPE B dynamic question. Root cause
+    this prevents: prose reflex on absent output = R0.0b violation by construction."
 
 R0.0c CONTROL-SEMANTICS: literal, closed definition:
   LLM emits command -> human executes command -> resulting system state change = LLM
@@ -518,6 +521,10 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
   1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
   1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
+  NODE-DIST-GATE: HARDBAN -- node distribution (step 6) ONLY permitted AFTER:
+    (a) merge to main confirmed, (b) push to origin confirmed, (c) branch deleted.
+    Distributing to nodes before merge+push+branch-delete = stale state on nodes.
+    Order is non-negotiable. No exceptions.
   2. FIX:            source repo + install.sh only. Never patch deployed artifact (R9.17).
   3. VERIFY:         user confirms fix works visually with "verifico". LLM never declares success.
                      DoD before "verifico" is valid (R7.12).
