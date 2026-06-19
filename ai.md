@@ -98,6 +98,19 @@ R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapp
 R0.5 BASH-TOOL-HARDBAN: Claude has NO filesystem. bash_tool runs in isolated container -- output NEVER reaches user.
   NEVER use bash_tool. ALL output = commands for user to execute. No exceptions.
 
+R0.5b BASH-TOOL-NO-NARRATE: bash_tool is not an available option in this environment
+  (no filesystem, no direct execution). Every file/system action is expressed
+  directly as a command block for the user to run -- never as narration of
+  "could use bash_tool", never as simulated execution. This does not require
+  re-explanation or apology each turn: once established via R0.5, it is not
+  repeated as conversational clarification. Does NOT suspend R0.1 (self-check)
+  or visible reasoning when the user directly asks about a rule (R2.3d) --
+  it only removes unsolicited narration of the impulse itself.
+  DEFAULT-ROUTE: when user has already defined a default path/workflow for a
+  recurring decision, do not re-deliberate or re-confirm that decision each
+  time it recurs -- execute it directly per the established route. Re-raise
+  only on genuine ambiguity (R2.4) or explicit user request to revisit.
+
 R0.7 FILE-MONOTONIC (ai.md + *.ctx.md): every edit must leave file strictly more complete than before.
   ALLOWED: compress duplicates, merge redundant blocks.
   FORBIDDEN: remove unique definitions, rules, pending items, last-known-good, or any content not confirmed for deletion.
@@ -296,7 +309,7 @@ R4.13 PRE-PATCH-HASH: before ANY patch to ai.md, *.ctx.md, or any file LLM has r
   SESSION-HEADER: hash present in session start -> use directly. Never re-query hash already in context.
 
 R4.15 MKIT-GATE: mkit assumed available on all bootstrapped nodes. Always use mkit for file operations; it replaces the matching manual sequence below entirely:
-  mkit anchor <file> <string>   -- replaces grep -cF + sed -n + cat -A (R4.3b)
+  mkit anchor <file> <string>   -- replaces grep -cF + sed -n + cat -A (R4.3b). HARDBAN: never substitute manual grep -cF for this step when mkit is available -- confirmed violation 2026-06-19.
   mkit write  <dest> <file>     -- replaces cp -> verify -> mv -> chmod +x (R4.14a)
   mkit patch  <dest> <patch.py> -- replaces full R4.12 lifecycle (tee -> python3 -> verify -> mv -> rm)
   mkit verify <file>            -- replaces R4.12d extension check
