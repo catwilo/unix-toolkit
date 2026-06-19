@@ -356,7 +356,50 @@ open(tsv,'w').writelines(out); print(f"ok: {repo} -> {state}")
 PYEOF
 }
 
+cmd_machines_diff() {
+    _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
+    [ -f "$_devices" ] || die "devices.db not found: $_devices"
+    _collect="$(dirname "$(realpath "$0")")/ut-collect.sh"
+    [ -f "$_collect" ] || die "ut-collect.sh not found: $_collect"
+    mkdir -p "$HOME/tmp"; _out="$HOME/tmp/utdiff"; rm -rf "$_out"; mkdir -p "$_out"
+    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    _nodes="local"
+    sh "$_collect" > "$_out/local" 2>/dev/null
+    while IFS='|' read -r alias ip user port; do
+        [ -z "$alias" ] && continue
+        [ "$ip" = "$_self_ip" ] && continue
+        if nssh --raw "$alias" "sh -s" < "$_collect" > "$_out/$alias" 2>/dev/null; then
+            _nodes="$_nodes $alias"
+        else
+            : > "$_out/$alias"; printf 'UNREACH\n' > "$_out/$alias.flag"
+            _nodes="$_nodes $alias"
+        fi
+    done < "$_devices"
+    bold "── repo state by node ──"
+    tail -n +2 "$(dirname "$(realpath "$0")")/repos.tsv" | while IFS='	' read -r _repo _rest; do
+        [ -z "$_repo" ] && continue
+        printf '%s' "$_repo"
+        for _n in $_nodes; do
+            if [ -f "$_out/$_n.flag" ]; then printf '  %s:unreach' "$_n"; continue; fi
+            _line=$(grep "^$_repo	" "$_out/$_n" 2>/dev/null)
+            if [ -z "$_line" ]; then printf '  %s:-' "$_n"; continue; fi
+            _br=$(printf '%s' "$_line" | cut -f2)
+            _h=$(printf '%s' "$_line" | cut -f3)
+            _a=$(printf '%s' "$_line" | cut -f4)
+            _y=$(printf '%s' "$_line" | cut -f5)
+            _cell="$_h"
+            [ "$_br" != main ] && [ "$_br" != - ] && _cell="$_br:$_h"
+            [ "$_a" != 0 ] && _cell="$_cell↑$_a"
+            [ "$_y" != 0 ] && _cell="$_cell*$_y"
+            printf '  %s %s' "$_n" "$_cell"
+        done
+        printf '\n'
+    done
+    rm -rf "$_out"
+}
+
 cmd_machines() {
+    [ "${1:-}" = diff ] && { cmd_machines_diff; return 0; }
     _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
     _hosts="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/hosts.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
@@ -378,6 +421,134 @@ cmd_machines() {
 [ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
 [ -z "$CMD" ] && { err "usage: ut <sync|fetch|status|push|run|list|clone|health|diff|tag|add|rm|machines> [args]"; exit 1; }
 
+cmd_create() {
+    _repo="${1:-}"; _tags="${2:-}"; _desc="${3:-}"
+    [ -z "$_repo" ] || [ -z "$_tags" ] || [ -z "$_desc" ] && die "usage: ut create <repo> <tags> \"<description>\""
+    grep -q "^$_repo	" "$TSV" && die "$_repo already in repos.tsv"
+    gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
+    info "creating GitHub repo $GITHUB_USER/$_repo..."
+    gh repo create "$GITHUB_USER/$_repo" --private --description "$_desc" || die "gh repo create failed"
+    printf '%s\t%s\t%s\t%s\n' "$_repo" "$_tags" "$_desc" "active" >> "$TSV"
+    ok "registered: $_repo in repos.tsv"
+    mkdir -p "$DST"
+    git clone "git@github.com:$GITHUB_USER/$_repo.git" "$DST/$_repo" && ok "$_repo cloned to $DST/$_repo" || err "$_repo — clone failed"
+}
+
+cmd_delete() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut delete <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
+    info "deleting GitHub repo $GITHUB_USER/$_repo..."
+    gh repo delete "$GITHUB_USER/$_repo" --yes || die "gh repo delete failed"
+    python3 - "$TSV" "$_repo" << 'PYEOF'
+import sys
+tsv, repo = sys.argv[1], sys.argv[2]
+lines = [l for l in open(tsv).readlines() if not l.startswith(repo + "\t")]
+open(tsv, "w").writelines(lines)
+print(f"ok: {repo} removed from repos.tsv")
+PYEOF
+    if [ -d "$DST/$_repo" ]; then
+        maid trash "$DST/$_repo" && ok "local clone moved to trash" || warn "maid trash failed — remove $DST/$_repo manually"
+    fi
+}
+
+cmd_rename() {
+    _old="${1:-}"; _new="${2:-}"
+    [ -z "$_old" ] || [ -z "$_new" ] && die "usage: ut rename <old> <new>"
+    grep -q "^$_old	" "$TSV" || die "$_old not found in repos.tsv"
+    gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
+    info "renaming GitHub repo $_old -> $_new..."
+    gh repo rename "$_new" --repo "$GITHUB_USER/$_old" --yes || die "gh repo rename failed"
+    python3 - "$TSV" "$_old" "$_new" << 'PYEOF'
+import sys
+tsv, old, new = sys.argv[1], sys.argv[2], sys.argv[3]
+lines = open(tsv).readlines()
+out = []
+for l in lines:
+    p = l.rstrip("\n").split("\t")
+    if p[0] == old:
+        p[0] = new
+        out.append("\t".join(p) + "\n")
+    else:
+        out.append(l)
+open(tsv, "w").writelines(out)
+print(f"ok: {old} -> {new} in repos.tsv")
+PYEOF
+    if [ -d "$DST/$_old" ]; then
+        mv "$DST/$_old" "$DST/$_new" && ok "local clone moved: $DST/$_old -> $DST/$_new" || warn "mv failed — move manually"
+        git -C "$DST/$_new" remote set-url origin "git@github.com:$GITHUB_USER/$_new.git" && ok "remote URL updated" || warn "remote URL update failed"
+    fi
+}
+
+cmd_open() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut open <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
+    gh repo view "$GITHUB_USER/$_repo" --web
+}
+
+cmd_info() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut info <repo>"
+    _row=$(grep "^$_repo	" "$TSV") || die "$_repo not found in repos.tsv"
+    bold "── $_repo ──"
+    printf '%s\n' "$_row" | awk -F'\t' '{printf "tags:  %s\ndesc:  %s\nstate: %s\n", $2, $3, $4}'
+    _target="$DST/$_repo"
+    if [ -d "$_target/.git" ]; then
+        printf "remote: "; git -C "$_target" remote get-url origin
+        printf "branch: "; git -C "$_target" rev-parse --abbrev-ref HEAD
+        _ahead=$(git -C "$_target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+        _dirty=$(git -C "$_target" status --short 2>/dev/null | wc -l | tr -d ' ')
+        printf "ahead:  %s  dirty: %s\n" "$_ahead" "$_dirty"
+        bold "recent commits:"
+        git -C "$_target" log --oneline -5
+    else
+        warn "not cloned on this device"
+    fi
+}
+
+cmd_ship() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut ship <repo>"
+    _target="$DST/$_repo"
+    [ -d "$_target/.git" ] || die "$_repo not cloned at $DST/$_repo"
+    _branch=$(git -C "$_target" rev-parse --abbrev-ref HEAD)
+    [ "$_branch" = "main" ] && die "already on main — nothing to ship"
+    info "rebasing $_branch onto origin/main..."
+    git -C "$_target" fetch origin || die "fetch failed"
+    git -C "$_target" rebase origin/main || die "rebase failed — resolve conflicts then re-run"
+    info "merging $_branch -> main..."
+    git -C "$_target" checkout main || die "checkout main failed"
+    git -C "$_target" merge "$_branch" --ff-only || die "merge failed"
+    info "pushing main..."
+    git -C "$_target" push origin main || die "push failed"
+    info "deleting branch $_branch..."
+    git -C "$_target" branch -d "$_branch" && ok "branch $_branch deleted"
+    ok "$_repo shipped to origin/main"
+}
+
+cmd_distribute() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut distribute <repo>"
+    _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
+    [ -f "$_devices" ] || die "devices.db not found: $_devices"
+    _self_alias=""
+    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    while IFS='|' read -r alias ip user port; do
+        [ -z "$alias" ] && continue
+        [ "$ip" = "$_self_ip" ] && { _self_alias="$alias"; continue; }
+        info "distributing $_repo -> $alias..."
+        if nssh "$alias" "[ -d ~/unix-toolkit-tools/$_repo/.git ]" 2>/dev/null; then
+            nssh "$alias" "git -C ~/unix-toolkit-tools/$_repo pull --rebase origin main && [ -f ~/unix-toolkit-tools/$_repo/install.sh ] && ~/unix-toolkit-tools/$_repo/install.sh" \
+                && ok "$alias — $_repo updated" \
+                || err "$alias — distribution failed"
+        else
+            warn "$alias — $_repo not cloned, skipping (run: nssh $alias then ut clone $_repo)"
+        fi
+    done < "$_devices"
+    ok "distribute complete"
+}
+
 case "$CMD" in
     sync)     cmd_sync     "$@" ;;
     fetch)    cmd_fetch    "$@" ;;
@@ -391,9 +562,16 @@ case "$CMD" in
     tag)      cmd_tag      "$@" ;;
     add)      cmd_add      "$@" ;;
     rm)       cmd_rm       "$@" ;;
-    machines) cmd_machines ;;
+    machines) cmd_machines "$@" ;;
     pause)    cmd_pause    "$@" ;;
     resume)   cmd_resume   "$@" ;;
     archive)  cmd_archive  "$@" ;;
+    create)     cmd_create     "$@" ;;
+    delete)     cmd_delete     "$@" ;;
+    rename)     cmd_rename     "$@" ;;
+    open)       cmd_open       "$@" ;;
+    info)       cmd_info       "$@" ;;
+    ship)       cmd_ship       "$@" ;;
+    distribute) cmd_distribute "$@" ;;
     *) err "unknown command: $CMD"; exit 1 ;;
 esac

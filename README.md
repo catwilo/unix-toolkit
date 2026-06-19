@@ -100,6 +100,15 @@ ut machines
 # ── tx [android] ── ✓ 31 repos synced
 ```
 
+### ut machines diff
+Compare git state of every repo across all nodes (local + remote) to spot divergence.
+Runs a POSIX collector on each node via `nssh --raw` and prints one row per repo.
+
+    ut machines diff
+    # repo  local <hash>  db <hash>  d1 <hash>[branch:][↑ahead][*dirty]
+
+Cell format: `[branch:]hash[↑N][*M]` — branch shown only when not main, `↑N` commits ahead, `*M` dirty files. Differing hashes across columns = divergence. Unreachable nodes marked `unreach`.
+
 ---
 
 ## repos.tsv
@@ -141,6 +150,52 @@ zsh-setup cfg         dotfiles + zsh installer for all platforms
 - miko owns all .ctx.md files and task state. Use miko sync for full sync.
 - gh required for GitHub operations (repo create, etc).
 - noemap provides device aliases used by ut machines.
+
+---
+
+### ut create
+Register and create a new GitHub repo, add to repos.tsv, clone locally.
+```sh
+ut create <repo> <tags> "<description>"
+```
+
+### ut delete
+Delete GitHub repo, remove from repos.tsv, move local clone to trash.
+```sh
+ut delete <repo>
+```
+
+### ut rename
+Rename GitHub repo, update repos.tsv, move local clone directory.
+```sh
+ut rename <old> <new>
+```
+
+### ut open
+Open repo on GitHub in the browser.
+```sh
+ut open <repo>
+```
+
+### ut info
+Show repo metadata, remote URL, branch, ahead/dirty status, recent commits.
+```sh
+ut info <repo>
+```
+
+### ut ship
+After verifico: rebase branch onto origin/main, merge, push, delete branch.
+```sh
+ut ship <repo>
+```
+Human executes after confirming fix works. Never call autonomously.
+
+### ut distribute
+Pull and reinstall a repo on every reachable node via noemap.
+```sh
+ut distribute <repo>
+```
+Skips nodes where repo is not cloned. Reports unreachable nodes.
 
 ---
 
