@@ -521,10 +521,6 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   1. PULL:           git pull --rebase origin main on repo before first edit, any device.
   1b. SPIKE:         if behavior/API/arch uncertain -> web_search + spike BEFORE writing code (R9.36).
   1c. BRANCH:        git checkout -b <type>/name (R7.11). Max life: 1 day.
-  NODE-DIST-GATE: HARDBAN -- node distribution (step 6) ONLY permitted AFTER:
-    (a) merge to main confirmed, (b) push to origin confirmed, (c) branch deleted.
-    Distributing to nodes before merge+push+branch-delete = stale state on nodes.
-    Order is non-negotiable. No exceptions.
   2. FIX:            source repo + install.sh only. Never patch deployed artifact (R9.17).
   3. VERIFY:         user confirms fix works visually with "verifico". LLM never declares success.
                      DoD before "verifico" is valid (R7.12).
@@ -535,6 +531,10 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   4. COMMIT:         source + install.sh in one commit. Same turn as verify.
   5. PUSH:           git rebase origin/main -> git checkout main -> git merge <branch> -> git push (R9.11).
                      git branch -d <branch> immediately after push.
+  NODE-DIST-GATE: HARDBAN -- step 6 ONLY permitted AFTER all three confirmed:
+    (a) merge to main confirmed, (b) push to origin confirmed, (c) branch deleted.
+    Distributing to nodes before merge+push+branch-delete = stale state on nodes.
+    Order is non-negotiable. No exceptions.
   6. REINSTALL:      "Accessible nodes now? db / d1 / none" -> for each accessible:
                      nssh <alias> PTY session -> pull --rebase -> ./install.sh
                      inaccessible -> miko add -r unix-toolkit "sync pending: <repo> -> <node>"
@@ -664,6 +664,10 @@ R9.11 SSH-REMOTES: all git remotes must use SSH (git@github.com:...), never HTTP
   Verify with git remote -v on every repo add/clone/recover.
 
 R9.12 CTX: user command "ctx" = execute ALL:
+  ORIGIN: the node where session work was performed and local commits exist.
+    Determined by: (a) explicit user statement this turn, (b) which node has unpushed commits
+    (git log origin/main..HEAD returns non-empty), (c) R9.1 primary = Termux if ambiguous.
+    Never assumed. Never inferred from chat history. Re-derive each session.
   (1) document session errors as new rules in ai.md
   (2) update tasks via miko add -r <repo> / miko done -r <repo> <id>
   (3) run miko status or miko sync
@@ -682,9 +686,17 @@ R9.12 CTX: user command "ctx" = execute ALL:
     Never defer any part.
   CLOSE-SEQUENCE-HARDBAN: when ctx is confirmed (user responds "ctx" or equivalent), execute
     ALL of the following steps in this exact order, no skipping, no asking, no dynamic question:
+    ORIGIN-NODE-GATE: steps [1]-[3] MUST run on the origin node (R9.12 ORIGIN: the node
+        where session work was performed and commits are local). Never run miko sync or lkg
+        tag from a destination node -- push from wrong node causes conflicts (R5.9 SYNC-FLOW).
+        Active node != origin -> HARDSTOP: nssh to origin first, then execute [1]-[3] there.
     [1] miko sync -m "<session summary>"     -- tasks + repos push
     [2] miko next --all                      -- confirm 0 pending tasks
     [3] git tag -a lkg -m "lkg: <desc>" -f && git push origin lkg -f  -- mark stable state (R7.15)
+    [3b] NODE-DIST-GATE (R7.8 NODE-DIST-GATE): HARDBAN -- before step [4], verify ALL active
+        feature branches in session are: (a) merged to main, (b) pushed to origin, (c) deleted.
+        Any branch not meeting all three -> HARDSTOP: complete R7.8 steps 4-5 first, then resume here.
+        Distributing to nodes before merge+push+branch-delete = stale state on nodes.
     [4] "Accessible nodes now? db / d1 / none" -- dynamic question, then for each accessible:
         nssh <alias> PTY -> git pull --rebase origin main -> confirm ai.md hash matches
     [5] miko status                          -- final state snapshot
@@ -857,6 +869,13 @@ R9.34 BEST-PRACTICE-SEARCH: before writing code/config for non-trivial tasks (bu
 R9.35 DEVICE-TRACK: before switching active machine mid-session, state explicitly which machine becomes active.
   Re-apply R9.21 label on ALL subsequent commands. Never assume machine context persists across switch.
   If ambiguous -> re-probe before emitting.
+  SWITCH-GATE: HARDSTOP before any machine switch -- verify on the departing node:
+    (a) no open feature branch: git branch --show-current returns main (or branch is merged+pushed+deleted)
+    (b) no unpushed commits: git log origin/main..HEAD returns empty
+    (c) working tree clean: git status --short returns empty
+    Any condition unmet -> complete R7.8 steps 4-5 on departing node FIRST, then switch.
+    Commits left on a feature branch on the departing node = orphaned state -- not recoverable
+    without returning to that node. Never switch mid-fix.
 
 R9.36 MICRO-CTX-BIND: before any git add/commit in any repo -> extract ALL REGLA and do-NOT entries from that
   repo's micro ctx. Each is binding equal to ai.md. Any unmet REGLA = commit blocked. No exceptions.
