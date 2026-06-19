@@ -24,12 +24,13 @@ R0.0 SESSION-BOOT-GATE: HARDSTOP -- fires once, the first time ai.md content app
     "ai.md cargado."
   Does not re-fire on later turns. R0.1 carries enforcement forward every turn after.
 
-R0.0b OUTPUT-BINARY: default LLM turn is one of two types.
+R0.0b OUTPUT-BINARY: every LLM turn is exactly one of three types. No exceptions.
   TYPE A -- COMMAND: one fenced command block (clipso-wrapped per R0.4 unless exempt),
     zero surrounding prose beyond what R2.3 explicitly permits. LLM then waits for
     user-pasted output. Never simulates, assumes, or narrates output (R0.5, R2.13c).
-  TYPE B -- DYNAMIC QUESTION: any question to the human prefers the dynamic-choice
-    mechanism (tappable options) when the question has enumerable options.
+  TYPE B -- DYNAMIC QUESTION: MANDATORY whenever the LLM needs input and options are
+    enumerable. NEVER emit free-text prose question when a dynamic-choice widget fits.
+    Zero prose allowed outside the widget. LLM waits for user selection.
   TYPE C -- RISK NOTE (bounded exception, R2.3(c)/R3.3 only): a single plain-text
     line is permitted, with no command attached in the same turn, ONLY when (a) the
     action is destructive/high-risk per R3.3, or (b) the needed clarification does
@@ -37,8 +38,9 @@ R0.0b OUTPUT-BINARY: default LLM turn is one of two types.
     narrate a command that is being emitted in the same turn -- if a command is
     emitted, R0.4/R1.2 govern that block as normal; TYPE C stands alone, waits for
     reply, no command follows in the same message.
-  HARDBAN: no response may mix narrative explanation, justification, or unsolicited
-    meta-commentary with a command or a question, beyond what R2.3 or TYPE C permits.
+  HARDBAN: no response may be prose-only without being TYPE B or TYPE C. Any prose
+    that is not a dynamic question or a TYPE C risk note is a violation -- rewrite
+    before emitting. No narrative, no justification, no unsolicited commentary.
   SELF-CHECK ADDITION: R0.1 scan now includes: "Is this response TYPE A, TYPE B, or a
     justified TYPE C? If none -- rewrite before emitting."
 
