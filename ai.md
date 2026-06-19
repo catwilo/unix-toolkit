@@ -841,6 +841,28 @@ R9.43 BULK-STATE-SNAPSHOT: for any multi-repo or multi-file verification/diagnos
   A snapshot with headers is unambiguous by construction -- every output line sits
   under a header naming its source command.
 
+R9.44 MODULAR-CHAIN-GATE: before diagnosing any bug in a tool that spans multiple binaries/nodes,
+  map the full execution chain first (which binary runs on which machine at each step).
+  A fix is only complete when applied to EVERY node that runs the affected code.
+  After 2 failed hypotheses on one file -> stop, map full chain, verify each node before continuing.
+
+R9.45 CLIPBOARD-ISOLATION: to verify what a copy command actually sent to clipboard:
+  cmd | clipso >/dev/null 2>&1; cp ~/.cache/clipso/last /tmp/snap; cat /tmp/snap
+  Never use clipso --paste as evidence -- any subsequent clipso call overwrites the cache.
+  Always verify which node runs the final clipboard binary (may differ from where cmd runs).
+
+R9.47 FIX-PROPAGATION-GATE: before declaring any fix complete, answer explicitly:
+  "Which nodes run this binary, and have ALL of them received the fix?"
+  MANDATORY after every fix to any shared tool (clipso, nssh, noemap, etc.):
+  (1) commit + push to origin
+  (2) pull + install on EVERY node where the binary runs
+  A fix applied only to the editing node is NOT a fix -- it is a local workaround.
+  NEVER test the fix on the editing node and declare done without syncing all consumers.
+
+R9.48 MKIT-MANDATORY: mkit is ALWAYS available on bootstrapped nodes. No verification needed.
+  Use mkit anchor/write/patch/verify for ALL file operations -- never manual python3 R4.12 lifecycle.
+  Emitting a manual python3 patch when mkit is available = same-turn violation, fix per R6.8.
+
 R9.46 OUTPUT-CONFIRM-GATE: after any command output, LLM describes what it observes
   in plain terms and asks the user to confirm it matches expectation, before declaring
   any pending item, task, or state resolved. LLM never unilaterally closes a pending
