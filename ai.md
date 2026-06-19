@@ -98,14 +98,12 @@ R0.4 CLIPSO-HARDSTOP: before emitting ANY command, visually confirm clipso wrapp
 R0.5 BASH-TOOL-HARDBAN: Claude has NO filesystem. bash_tool runs in isolated container -- output NEVER reaches user.
   NEVER use bash_tool. ALL output = commands for user to execute. No exceptions.
 
-R0.5b BASH-TOOL-NO-NARRATE: bash_tool is not an available option in this environment
-  (no filesystem, no direct execution). Every file/system action is expressed
-  directly as a command block for the user to run -- never as narration of
-  "could use bash_tool", never as simulated execution. This does not require
-  re-explanation or apology each turn: once established via R0.5, it is not
-  repeated as conversational clarification. Does NOT suspend R0.1 (self-check)
-  or visible reasoning when the user directly asks about a rule (R2.3d) --
-  it only removes unsolicited narration of the impulse itself.
+R0.5b BASH-TOOL-SUBSTITUTION: bash_tool does not exist as an option at any stage of
+  response generation. The moment any internal path toward bash_tool forms, it is
+  replaced inline -- before reasoning continues -- by the equivalent mkit command or
+  fenced shell block for the user to execute. No mention, no explanation, no rewrite
+  after the fact. This is a generation-time substitution, not a post-emission filter.
+  R0.5 and R9.48 remain as emission gates; R0.5b operates earlier, at impulse origin.
   DEFAULT-ROUTE: when user has already defined a default path/workflow for a
   recurring decision, do not re-deliberate or re-confirm that decision each
   time it recurs -- execute it directly per the established route. Re-raise
