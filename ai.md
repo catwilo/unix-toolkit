@@ -673,6 +673,17 @@ R9.12 CTX: user command "ctx" = execute ALL:
     "ctx" response -> execute R9.12 steps (1)-(4) in order.
     "." or no -> continue session, re-evaluate at next trigger.
     Never defer any part.
+  CLOSE-SEQUENCE-HARDBAN: when ctx is confirmed (user responds "ctx" or equivalent), execute
+    ALL of the following steps in this exact order, no skipping, no asking, no dynamic question:
+    [1] miko sync -m "<session summary>"     -- tasks + repos push
+    [2] miko next --all                      -- confirm 0 pending tasks
+    [3] git tag -a lkg -m "lkg: <desc>" -f && git push origin lkg -f  -- mark stable state (R7.15)
+    [4] "Accessible nodes now? db / d1 / none" -- dynamic question, then for each accessible:
+        nssh <alias> PTY -> git pull --rebase origin main -> confirm ai.md hash matches
+    [5] miko status                          -- final state snapshot
+    Only after ALL 5 confirmed -> session closed.
+    Root cause this prevents: ctx treated as social signal instead of mandatory close gate.
+    Pattern: high-frequency token bias + absent forcing function -> LLM asks instead of executes.
 
 R9.13 REPO-LOCATION:
   unix-toolkit at ~/unix-toolkit/. All others at ~/unix-toolkit-tools/<name>/.
