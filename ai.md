@@ -686,6 +686,16 @@ R9.21 MACHINE-TARGET: every command block MUST be prefixed # Termux | # db | # d
   Applies even in single-machine sessions (builds habit; avoids ambiguity in long sessions).
   LONG-SESSION: machine context degrades over turns -- re-verify active machine before EVERY command block.
   PROMPT SIGNAL: globe in prompt = db active; no globe = Termux.
+  VISUAL-MACHINE-INDICATOR: at the very start of EVERY response that emits a command block, render the
+    active-machine indicator on its own line BEFORE the command, derived from real evidence (prompt signal,
+    last confirmed machine, or explicit user statement) -- NEVER from assumption:
+      [GLOBE] Debian (db)   -- when globe present in prompt / db confirmed active
+      [PHONE] Termux        -- when no globe / Termux confirmed active
+    Use the literal emoji in output. If active machine is NOT established by evidence this turn -> do NOT
+    guess and do NOT default to Termux; ask via dynamic question first (R0.0d), then label. The per-block
+    '# db | # Termux | # d1' prefix (above) still applies inside the command block; this indicator is the
+    human-visible header that prevents cross-machine state confusion. Confirmed root cause 2026-06-19:
+    blocks were mislabeled Termux while every command ran on db for the entire session.
   CLIPSO-TO: when on Termux and CLIPSO_TO is set, append --to <alias> to every clipso-wrapped command.
     Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
 
