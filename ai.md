@@ -841,27 +841,31 @@ R9.43 BULK-STATE-SNAPSHOT: for any multi-repo or multi-file verification/diagnos
   A snapshot with headers is unambiguous by construction -- every output line sits
   under a header naming its source command.
 
-R9.44 MODULAR-CHAIN-GATE: before diagnosing any bug in a tool that spans multiple binaries/nodes,
-  map the full execution chain first (which binary runs on which machine at each step).
-  A fix is only complete when applied to EVERY node that runs the affected code.
-  After 2 failed hypotheses on one file -> stop, map full chain, verify each node before continuing.
+R9.44 MODULAR-CHAIN-GATE: HARDSTOP before any diagnosis on a tool that touches multiple binaries/nodes.
+  Map full execution chain (which binary runs on which machine) BEFORE emitting any command.
+  Chain with >1 node -> list each node and binary explicitly in response before any read/fix.
+  2 failed hypotheses on one file -> STOP immediately. Re-map chain. Never continue on same file.
+  Fix is INCOMPLETE until applied and verified on EVERY node in the chain. No exceptions.
 
-R9.45 CLIPBOARD-ISOLATION: to verify what a copy command actually sent to clipboard:
-  cmd | clipso >/dev/null 2>&1; cp ~/.cache/clipso/last /tmp/snap; cat /tmp/snap
-  Never use clipso --paste as evidence -- any subsequent clipso call overwrites the cache.
-  Always verify which node runs the final clipboard binary (may differ from where cmd runs).
+R9.45 CLIPBOARD-ISOLATION: HARDSTOP: clipso --paste is NEVER valid evidence of clipboard content.
+  Any subsequent clipso call overwrites the cache -- --paste reflects the LAST clipso call, not the one being tested.
+  Only valid isolation pattern:
+    cmd | clipso >/dev/null 2>&1; cp ~/.cache/clipso/last /tmp/snap; cat /tmp/snap
+  The cat MUST NOT use clipso. No clipso between copy and read. Any other measurement -> discard, redo.
+  Always identify which node runs the final clipboard binary before testing -- may differ from editing node.
 
-R9.47 FIX-PROPAGATION-GATE: before declaring any fix complete, answer explicitly:
-  "Which nodes run this binary, and have ALL of them received the fix?"
-  MANDATORY after every fix to any shared tool (clipso, nssh, noemap, etc.):
+R9.47 FIX-PROPAGATION-GATE: HARDSTOP before declaring any fix complete.
+  Explicitly answer: "Which nodes run this binary, and have ALL received the fix?"
+  MANDATORY sequence after any fix to any shared tool (clipso, nssh, noemap, miko, etc.):
   (1) commit + push to origin
-  (2) pull + install on EVERY node where the binary runs
-  A fix applied only to the editing node is NOT a fix -- it is a local workaround.
-  NEVER test the fix on the editing node and declare done without syncing all consumers.
+  (2) pull + install confirmed on EVERY node where the binary runs
+  A fix tested only on the editing node is NOT a fix -- it is a local workaround.
+  Testing on db and declaring done while Termux still runs the old binary = violation of this rule.
 
-R9.48 MKIT-MANDATORY: mkit is ALWAYS available on bootstrapped nodes. No verification needed.
-  Use mkit anchor/write/patch/verify for ALL file operations -- never manual python3 R4.12 lifecycle.
-  Emitting a manual python3 patch when mkit is available = same-turn violation, fix per R6.8.
+R9.48 MKIT-HARDBAN: mkit is ALWAYS available on bootstrapped nodes. NEVER verify availability.
+  HARDBAN on manual python3 R4.12 lifecycle for any file operation where mkit applies.
+  Use: mkit anchor <file> <string> | mkit patch <file> <patch.py> | mkit write <dest> <file> | mkit verify <file>
+  Emitting manual tee+python3+verify+mv when mkit exists = R0.1 violation, rewrite before emitting.
 
 R9.46 OUTPUT-CONFIRM-GATE: after any command output, LLM describes what it observes
   in plain terms and asks the user to confirm it matches expectation, before declaring
