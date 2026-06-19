@@ -374,6 +374,10 @@ R5.9 UT-WORKFLOW:
       STEP 0b -- on each destination: nssh <alias> PTY session -> { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
         Any repo ahead on destination -> that device becomes origin for that repo; commit+push there first.
       Never assume ANY device is clean. ut status covers all 31 at once; never verify only selected repos.
+      STEP 0c -- HARDBAN: before ANY miko sync, verify: { cd ~/.tasks && git status; } 2>&1 | clipso
+        Output MUST show "On branch main" AND "up to date with origin/main".
+        Any other output -> fix immediately: git checkout main && git reset --hard origin/main.
+        Never proceed to miko sync without this confirmed in THIS turn's output. No exceptions.
     STEP 1 -- on origin device: miko sync -m "msg"  -> tasks+fetch+reconcile+commit+push
     STEP 2 -- on each other device: nssh <alias> PTY session -> ut sync  -> pull only, no push
     ORDER MANDATORY: push from origin first, then pull on destinations.
@@ -428,6 +432,11 @@ R6.5 SESSION-CONTEXT: two-level context -- MANDATORY READ BEFORE ANY ACTION:
     NOT_FOUND at the -tools/ path for this specific repo -> path bug, not missing file -> do not
     conclude ctx is absent; re-issue against the correct path before any other action.
 R6.6 SESSION-START -- MANDATORY ORDER, no exceptions:
+  MACHINE-FIRST HARDBAN: active machine MUST be established by real evidence before the
+  first command of any session. Evidence sources in order: (1) prompt signal -- globe = db,
+  no globe = Termux, (2) explicit user statement this turn. If neither present -> dynamic
+  question MANDATORY via ask_user_input_v0 before ANY command. Assuming, defaulting, or
+  inferring machine from chat history = R0.1 violation. Rewrite before emitting.
   CANONICAL (preferred): miko ai [repo1 repo2 ...]
     -> one command: ai.md hash + macro ctx + macro hash + micro ctx + micro hash per repo.
     -> clipso integrated; structured for direct chat paste. EXEMPT from clipso wrap.
@@ -522,6 +531,10 @@ R7.8 FIX-LIFECYCLE: canonical order for every fix, zero exceptions:
   6. REINSTALL:      "Accessible nodes now? db / d1 / none" -> for each accessible:
                      nssh <alias> PTY session -> pull --rebase -> ./install.sh
                      inaccessible -> miko add -r unix-toolkit "sync pending: <repo> -> <node>"
+                     HARDBAN: session is NOT complete until git pull --rebase origin main confirmed
+                     on EVERY accessible node with output pasted in this session. Never declare
+                     session closed, never summarize as "done", never emit "cerramos?" until this
+                     is verified with real output. Skipping = R0.1 violation, rewrite before emitting.
   7. LKG:            if state is stable -> git tag -a lkg -m "lkg: <desc>" -f && git push origin lkg -f (R7.15).
   8. SYNC-PENDING:   miko add -r unix-toolkit "sync pending: <repo> -> <device>" for every disconnected node.
                      Mark done via miko done -r unix-toolkit <id> when synced.
@@ -706,6 +719,16 @@ R9.21 MACHINE-TARGET: every command block MUST be prefixed # Termux | # db | # d
     Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
 
 R9.22 MIKO-WORKFLOW: miko = task+ctx dispatcher. Always use it; never raw store.py or cat ctx files.
+  SYNTAX-ENFORCE: before emitting ANY miko command, verify exact subcommand+flags against R9.22 signature list.
+  HARDBAN: never emit miko subcommand from memory/intuition. R9.22 is single source of truth -- not training data.
+  MIKO-CITE-GATE: every miko command emission MUST be preceded inline (same turn, before the command block) by:
+    [R9.22: <exact subcommand signature verified>]
+    Missing tag = pattern completion reflex detected = R0.1 violation = rewrite before emitting. No exceptions.
+    Purpose: forces explicit lookup interrupting high-frequency token bias (sycophantic pattern completion).
+  DYNAMIC-OPTIONS-GATE: when offering miko subcommands as dynamic question options, every option must be
+    verified correct against R9.22 before inclusion. Incorrect option offered to user = R0.0b violation.
+  MIKO-AI-EXEMPT-ENFORCE: miko ai is ALWAYS exempt from clipso wrap (R9.22). No exceptions. Never wrap.
+    If miko ai output already in session context -> do NOT re-run. R2.13 applies: use existing output.
   session:   miko ai [repo1 repo2 ...]          -- canonical start; hashes+macro+micro. EXEMPT from clipso wrap.
   ctx read:  { miko macro; echo "---HASH:$(git hash-object ~/unix-toolkit/.ctx.md)"; } 2>&1 | clipso
              { miko micro <repo>; echo "---HASH:$(git hash-object ~/unix-toolkit-tools/<repo>/.ctx.md)"; } 2>&1 | clipso
@@ -713,6 +736,10 @@ R9.22 MIKO-WORKFLOW: miko = task+ctx dispatcher. Always use it; never raw store.
              { miko add -r <repo> "text"; } 2>&1 | clipso       -- -r ALWAYS required, no default, no fallback
              { miko done -r <repo> <id>; } 2>&1 | clipso        -- post-store-impl format
              HARDBAN: miko add without -r <repo> = violation. No exceptions.
+             ID-PORTABILITY-HARDBAN: task IDs are node-local. NEVER execute miko done -r <repo> <id>
+             with IDs obtained from output of a different node. MANDATORY: run
+             { miko next <repo>; } 2>&1 | clipso on the CURRENT node first, confirm ID exists
+             in that output, then execute miko done. Violation = silent FileNotFoundError.
   sync:      { miko sync [-m msg]; } 2>&1 | clipso    -- full sync: tasks pull+push + repos fetch+reconcile+push
              { miko status; } 2>&1 | clipso            -- quick state snapshot
              { miko check; } 2>&1 | clipso             -- pre-flight validation (7 checks) -- run BEFORE miko sync; not interchangeable with status
