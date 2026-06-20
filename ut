@@ -106,9 +106,10 @@ cmd_status() {
             printf "%s %s\n" "$_t" "$_i" > "$_tmp"; continue
         fi
         _a=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+        _b=$(git -C "$target" rev-list --count "HEAD..@{u}" 2>/dev/null || echo 0)
         _d=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
-        if [ "$_d" -gt 0 ] || [ "$_a" -gt 0 ]; then
-            warn "$repo — dirty:$_d ahead:$_a"
+        if [ "$_d" -gt 0 ] || [ "$_a" -gt 0 ] || [ "$_b" -gt 0 ]; then
+            warn "$repo — dirty:$_d ahead:$_a behind:$_b"
             _i=$((_i+1))
         fi
         printf "%s %s\n" "$_t" "$_i" > "$_tmp"
