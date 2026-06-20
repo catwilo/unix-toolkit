@@ -431,6 +431,13 @@ R5.9 UT-WORKFLOW:
   multi-repo commit+push -> miko sync [-m "msg"]
   remote pull -> nssh <alias> PTY session -> ut sync (interactively)
   Never chain manual cd+git+push for multi-repo ops.
+  SYNC-ATOMIC-GATE: "sincronizar"/"sync" without further qualifier means BOTH tasks (~/.tasks via
+    miko/git) AND repos (ut sync) -- never one without the other in the same gesture. Confirmed
+    2026-06-20: LLM ran git pull on ~/.tasks alone, treated it as "synced", left 34 repos via ut sync
+    completely untouched until user caught it explicitly. SYNC-FLOW below already names both halves
+    but did not force them to execute together -- this gate closes that gap. On user request to sync
+    (no further qualifier) -> run miko sync (or git pull --rebase on ~/.tasks if origin) AND ut sync
+    in the same response, never sequentially across turns with a "done" claimed after only one half.
   SYNC-FLOW (after any changes on a device):
     PRE-SYNC GATE (MANDATORY before STEP 1 or STEP 2):
       STEP 0a -- on origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
