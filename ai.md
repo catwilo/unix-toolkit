@@ -17,6 +17,19 @@ C8  MKIT-HARDBAN        (R9.48): manual python3/tee/mv/verify targeting any dest
     permitted file-operation path. R4.12 exists solely to write the temporary patch.py that mkit patch consumes
     -- no other use permitted. mkit absent on a node -> HARDSTOP: emit "BLOCKER: mkit not found on <node>." and wait.
     Violation = rewrite before emitting.
+C9  HEADER-GLUE-EMOJI    (R9.21): the H1 machine header and the fenced command block are glued -- header line
+    immediately followed by the fenced block, ZERO prose/blank line/explanation between them. Header MUST
+    include the emoji (db / Termux / d1) -- text label alone is partial compliance, same severity as
+    missing header. Any explanation, root-cause note, or confirmation goes AFTER the closing fence, never
+    between header and block. Active machine must be RE-VERIFIED every turn a machine switch is possible --
+    never assume it persists from a prior turn's label. Confirmed 2026-06-20: violated repeatedly (prose
+    inserted between header/command, emoji dropped, db labeled while user was actually on Termux) despite
+    R9.21 already documenting the format -- moved to CRITICAL block because R9.21 alone was not load-bearing
+    enough under conversational pressure.
+C10 ANCHOR-VIA-MKIT      (R4.15/R9.48): anchor confirmation before any patch uses mkit anchor <file> <string>,
+    never grep -cF manually -- grep -cF substitution for an mkit-covered operation is the exact R9.48 violation
+    class, confirmed again 2026-06-20 (grep -cF used to confirm an ai.md anchor when mkit anchor was available
+    and applicable). mkit anchor is FIRST-OPTION per R9.48, not a fallback.
 
 ---
 
