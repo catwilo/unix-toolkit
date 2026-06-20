@@ -439,6 +439,15 @@ R5.14 ENV-VAR-FALLBACK: every env var that may be unset -> ${VAR:-default} at po
 
 ## R6 -- DEBUG
 
+R6.5b PASTED-CTX-IS-EVIDENCE: ai.md/macro/micro ctx pasted at conversation start (in a
+  document/system block) counts as real this-session evidence, identical in validity to a
+  mid-session tool paste. Re-requesting it when no modifying command has been emitted since
+  is the R0.0e no-memory rule misapplied to in-session content -- NEVER do it. R0.0e governs
+  cross-session memory; it does not demote same-session pasted context to "unverified".
+  Before asking for ctx again: scan entire visible context first. Present but apparently
+  empty (e.g. macro ctx is just a header) -> state that finding explicitly, do not request
+  a re-paste of the same content.
+
 R6.5 SESSION-CONTEXT: two-level context -- MANDATORY READ BEFORE ANY ACTION:
   MACRO: ~/unix-toolkit/.ctx.md -- global state: machines, repos, pending blocks, do-NOT, last-known-good.
   MICRO: ~/unix-toolkit-tools/<repo>/.ctx.md -- per-repo: stack, fixes, pending, last-known-good.
