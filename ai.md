@@ -434,6 +434,14 @@ R5.12 PROJECT-CMD-GATE: before emitting ANY command targeting a specific project
   (3) never substitute raw toolchain (npm, gulp, node) when a project wrapper exists.
 R5.13 LOCAL-FILE: local files -> clipso <file> directly. Never { cat <file>; } 2>&1 | clipso.
 R5.14 ENV-VAR-FALLBACK: every env var that may be unset -> ${VAR:-default} at point of use. Never assume exported.
+R5.21 SUDO-USERPATH: sudo uses secure_path (sudoers), which excludes ~/.local/bin and any
+  user-installed tool location by design -- this is correct security behavior, not a bug.
+  Any command combining sudo with a user-PATH tool (mkit, maid, clipc, or any tool living
+  outside /usr/bin /usr/sbin /bin /sbin) MUST use the absolute path under sudo:
+  sudo $(command -v <tool>) <args>  OR  sudo /home/u/.local/bin/<tool> <args> if path is
+  already confirmed this session (R2.13 -- do not assume path from memory across sessions).
+  Never assume sudo inherits the invoking shell's PATH. Applies retroactively to every rule
+  in this document that issues a sudo+usertool command without resolving the path first.
 
 ---
 
