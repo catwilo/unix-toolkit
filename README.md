@@ -28,7 +28,7 @@ ut sync
 Only repos with something to report. Summary line format:
 ```sh
 ut status
-# [32 repos] ✓ 30 clean  ⚡ 2 ahead  ✗ 0 conflict
+# [32 repos] ✓ 28 clean  ⚡ 2 ahead  ⏮ 1 behind  ✗ 1 conflict
 ```
 
 ### ut push

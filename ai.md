@@ -17,6 +17,14 @@ C8  MKIT-HARDBAN        (R9.48): manual python3/tee/mv/verify targeting any dest
     permitted file-operation path. R4.12 exists solely to write the temporary patch.py that mkit patch consumes
     -- no other use permitted. mkit absent on a node -> HARDSTOP: emit "BLOCKER: mkit not found on <node>." and wait.
     Violation = rewrite before emitting.
+    UTF8-ANCHOR-EXCEPTION-IS-NOT-MKIT-EXCEPTION: a UTF-8 anchor mismatch (em-dash, smart quotes,
+    emoji separators -- see R4.3b ANCHOR-DIAGNOSE) is a reason to re-derive the anchor bytes via xxd,
+    NEVER a reason to bypass mkit patch by calling python3 -c directly against the destination. The
+    bootstrap pattern (R4.12) handles arbitrary UTF-8 in old=/new= just fine via a heredoc'd patch.py
+    -- the failure is in matching the anchor string, not in mkit's capability. Confirmed 2026-06-20
+    (twice, same session, ut and README.md): after a UTF-8 anchor-mismatch FAIL, fell back to inline
+    python3 -c writing dest+'.new' directly, narrating it as a one-off necessity -- it is not, mkit
+    patch handles unicode literals (UTF-8 bytes inside a raw triple-quoted string) identically to ASCII ones.
 C9  HEADER-GLUE-EMOJI    (R9.21): the H1 machine header and the fenced command block are glued -- header line
     immediately followed by the fenced block, ZERO prose/blank line/explanation between them. Header MUST
     include the emoji (db / Termux / d1) -- text label alone is partial compliance, same severity as
