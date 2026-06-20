@@ -442,13 +442,21 @@ R5.9 UT-WORKFLOW:
   multi-repo commit+push -> miko sync [-m "msg"]
   remote pull -> nssh <alias> PTY session -> ut sync (interactively)
   Never chain manual cd+git+push for multi-repo ops.
-  SYNC-ATOMIC-GATE: "sincronizar"/"sync" without further qualifier means BOTH tasks (~/.tasks via
-    miko/git) AND repos (ut sync) -- never one without the other in the same gesture. Confirmed
-    2026-06-20: LLM ran git pull on ~/.tasks alone, treated it as "synced", left 34 repos via ut sync
-    completely untouched until user caught it explicitly. SYNC-FLOW below already names both halves
-    but did not force them to execute together -- this gate closes that gap. On user request to sync
-    (no further qualifier) -> run miko sync (or git pull --rebase on ~/.tasks if origin) AND ut sync
-    in the same response, never sequentially across turns with a "done" claimed after only one half.
+  SYNC-ATOMIC-GATE: "sincronizar"/"sync" without further qualifier -> emit EXACTLY this command,
+    copy-paste, no variant, no manual git pull substitute:
+      { miko sync -m "msg"; } 2>&1 | clipso
+    miko sync (no -r) already internally calls ut fetch + ut status + ut push (verified by reading
+    lib/sync.sh source 2026-06-20) -- it is the single atomic tasks+repos sync primitive. Running ut
+    sync separately after it is REDUNDANT, not complementary -- never chain both. Never substitute
+    git pull --rebase for miko sync (same class as R9.48/C10: manual command when a canonical wrapper
+    exists). Never declare sync done after a manual git pull on ~/.tasks alone.
+    Confirmed 2026-06-20 (repeated 3x same session): LLM first ran git pull on ~/.tasks alone and
+    called it synced; then, after a first version of this rule wrongly prescribed `miko sync && ut
+    sync` (written from assumption, not from reading source), reconstructed sync from memory of an
+    earlier ad-hoc git pull instead of using the new rule at all. Root fix: read lib/sync.sh before
+    prescribing any miko behavior (R9.29 NO-ASSERT-UNSEEN applies to ai.md rule-writing itself, not
+    only to user-facing commands) -- a literal correct command is the enforcement mechanism; an
+    incorrect literal command is worse than prose because it looks authoritative while being wrong.
   SYNC-FLOW (after any changes on a device):
     PRE-SYNC GATE (MANDATORY before STEP 1 or STEP 2):
       STEP 0a -- on origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
