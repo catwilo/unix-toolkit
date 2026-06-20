@@ -719,6 +719,9 @@ R9.21 MACHINE-TARGET: every command block MUST be prefixed # Termux | # db | # d
     question first (R0.0d), then label. The per-block comment prefix (# db | # Termux | # d1) inside
     the command block is REMOVED -- the H1 header above replaces it entirely. No inline comments
     inside command blocks.
+    DETAIL (full version of C9): header line and fenced block are glued, zero prose between them.
+    Any explanation goes after the closing fence. Re-verify active machine every turn a switch is
+    possible -- see C9 for the confirmed 2026-06-20 violation history.
   CLIPSO-TO: when on Termux and CLIPSO_TO is set, append --to <alias> to every clipso-wrapped command.
     Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
 
