@@ -17,6 +17,23 @@ C8  MKIT-HARDBAN        (R9.48): manual python3/tee/mv/verify targeting any dest
     permitted file-operation path. R4.12 exists solely to write the temporary patch.py that mkit patch consumes
     -- no other use permitted. mkit absent on a node -> HARDSTOP: emit "BLOCKER: mkit not found on <node>." and wait.
     Violation = rewrite before emitting.
+C9  HEADER-GLUE-EMOJI    (R9.21): the H1 machine header and the fenced command block are glued -- header line
+    immediately followed by the fenced block, ZERO prose/blank line/explanation between them. Header MUST
+    include the emoji (db / Termux / d1) -- text label alone is partial compliance, same severity as
+    missing header. Any explanation, root-cause note, or confirmation goes AFTER the closing fence, never
+    between header and block. Active machine must be RE-VERIFIED every turn a machine switch is possible --
+    never assume it persists from a prior turn's label.
+    NO-COMMAND-NO-HEADER: the header exists ONLY to label a command block. A turn with no command
+    (pure question, pure decision, pure prose) emits NO header at all -- attaching the header to prose
+    in a commandless turn is the same violation as prose between header and block, just inverted.
+    Confirmed 2026-06-20: violated repeatedly across multiple distinct failure modes -- prose inserted
+    between header/command, emoji dropped, db labeled while user was actually on Termux, and header
+    glued to a commandless prose turn -- despite R9.21 already documenting the base format. Moved to
+    CRITICAL block because R9.21 alone was not load-bearing enough under conversational pressure.
+C10 ANCHOR-VIA-MKIT      (R4.15/R9.48): anchor confirmation before any patch uses mkit anchor <file> <string>,
+    never grep -cF manually -- grep -cF substitution for an mkit-covered operation is the exact R9.48 violation
+    class, confirmed again 2026-06-20 (grep -cF used to confirm an ai.md anchor when mkit anchor was available
+    and applicable). mkit anchor is FIRST-OPTION per R9.48, not a fallback.
 
 ---
 
@@ -227,6 +244,13 @@ R2.6b MISSING-OUTPUT: user pastes back the exact command LLM emitted with no out
   Re-emit corrected with proper wrapper. No question, no comment.
 R2.6 OUTPUT-VS-SIGNAL: terminal block pastes = command output -- never feedback signals.
   "v"/"."/etc. = signals only as bare chat messages. Never confuse command printing "VOID" with user signaling void.
+  BARE-QMARK: a bare "?" sent as its own chat message (not terminal output containing a literal ?)
+    ALWAYS means: the LLM's immediately preceding response was invalid / violated a standing rule.
+    It never means "I don't understand" or "what do you mean" from the user. On bare "?" -> re-scan
+    the LLM's own last message against every active rule (C1-C10 first), identify the concrete
+    violation, state it, correct it -- never ask the user what was wrong (R0.1 self-scan applies,
+    not a clarifying question back). Confirmed 2026-06-20: LLM asked user to clarify what a bare "?"
+    meant instead of self-diagnosing -- defeats the purpose of the signal entirely.
 R2.1 FEEDBACK: "." = proceed | "v" = void | bare paste = output (USER codes only; never emit).
 
 R2.4 SCOPE: act on exactly what was named.
@@ -418,6 +442,21 @@ R5.9 UT-WORKFLOW:
   multi-repo commit+push -> miko sync [-m "msg"]
   remote pull -> nssh <alias> PTY session -> ut sync (interactively)
   Never chain manual cd+git+push for multi-repo ops.
+  SYNC-ATOMIC-GATE: "sincronizar"/"sync" without further qualifier -> emit EXACTLY this command,
+    copy-paste, no variant, no manual git pull substitute:
+      { miko sync -m "msg"; } 2>&1 | clipso
+    miko sync (no -r) already internally calls ut fetch + ut status + ut push (verified by reading
+    lib/sync.sh source 2026-06-20) -- it is the single atomic tasks+repos sync primitive. Running ut
+    sync separately after it is REDUNDANT, not complementary -- never chain both. Never substitute
+    git pull --rebase for miko sync (same class as R9.48/C10: manual command when a canonical wrapper
+    exists). Never declare sync done after a manual git pull on ~/.tasks alone.
+    Confirmed 2026-06-20 (repeated 3x same session): LLM first ran git pull on ~/.tasks alone and
+    called it synced; then, after a first version of this rule wrongly prescribed `miko sync && ut
+    sync` (written from assumption, not from reading source), reconstructed sync from memory of an
+    earlier ad-hoc git pull instead of using the new rule at all. Root fix: read lib/sync.sh before
+    prescribing any miko behavior (R9.29 NO-ASSERT-UNSEEN applies to ai.md rule-writing itself, not
+    only to user-facing commands) -- a literal correct command is the enforcement mechanism; an
+    incorrect literal command is worse than prose because it looks authoritative while being wrong.
   SYNC-FLOW (after any changes on a device):
     PRE-SYNC GATE (MANDATORY before STEP 1 or STEP 2):
       STEP 0a -- on origin: { cd ~/unix-toolkit && ut status; } 2>&1 | clipso
@@ -706,6 +745,9 @@ R9.21 MACHINE-TARGET: every command block MUST be prefixed # Termux | # db | # d
     question first (R0.0d), then label. The per-block comment prefix (# db | # Termux | # d1) inside
     the command block is REMOVED -- the H1 header above replaces it entirely. No inline comments
     inside command blocks.
+    DETAIL (full version of C9): header line and fenced block are glued, zero prose between them.
+    Any explanation goes after the closing fence. Re-verify active machine every turn a switch is
+    possible -- see C9 for the confirmed 2026-06-20 violation history.
   CLIPSO-TO: when on Termux and CLIPSO_TO is set, append --to <alias> to every clipso-wrapped command.
     Active default persists in ~/.config/clipso/config. Confirm with clipso --paste after send.
 
