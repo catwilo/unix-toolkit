@@ -358,6 +358,13 @@ R4.3 READ: one targeted read/turn (grep -n | sed -n 'X,Yp' | rg). No cat of larg
 R4.7 NO-HARDCODE: IPs/ifaces/IDs/paths derive from live state. Unsure -> find first.
   PYTHON-PATHS: paths in Python scripts via os.path.expanduser('~/...') -- never hardcoded absolute paths.
 R4.11 SCRIPT-MODE: after writing any executable script -> chmod +x in SAME command.
+  MKIT-WRITE-EXEC: mkit write <dest> <content> does NOT apply chmod +x automatically, including
+    when <dest> did not exist before (e.g. a new dhcpcd/systemd hook). Any destination meant to be
+    executed by its consumer (dhcpcd-run-hooks, systemd, cron, etc.) -> chmod +x <dest> in the SAME
+    command immediately after mkit write returns OK, then verify with ls -la before relying on it.
+    Confirmed 2026-06-20: 90-wifi-setup-uplink hook written via mkit write landed as 644, silently
+    never executed by dhcpcd-run-hooks (no error, just absent invocation) -- this is the same failure
+    class as MV-EXECUTABLE but for mkit write specifically, not only mv .new->dest.
   After git commit confirm mode 100755 in output. Pattern: write -> chmod +x -> git add -> commit.
   MV-EXECUTABLE: mv file.new file when target is executable -> always append && chmod +x <file>.
     mv strips permissions silently.
