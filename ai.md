@@ -22,10 +22,14 @@ C9  HEADER-GLUE-EMOJI    (R9.21): the H1 machine header and the fenced command b
     include the emoji (db / Termux / d1) -- text label alone is partial compliance, same severity as
     missing header. Any explanation, root-cause note, or confirmation goes AFTER the closing fence, never
     between header and block. Active machine must be RE-VERIFIED every turn a machine switch is possible --
-    never assume it persists from a prior turn's label. Confirmed 2026-06-20: violated repeatedly (prose
-    inserted between header/command, emoji dropped, db labeled while user was actually on Termux) despite
-    R9.21 already documenting the format -- moved to CRITICAL block because R9.21 alone was not load-bearing
-    enough under conversational pressure.
+    never assume it persists from a prior turn's label.
+    NO-COMMAND-NO-HEADER: the header exists ONLY to label a command block. A turn with no command
+    (pure question, pure decision, pure prose) emits NO header at all -- attaching the header to prose
+    in a commandless turn is the same violation as prose between header and block, just inverted.
+    Confirmed 2026-06-20: violated repeatedly across multiple distinct failure modes -- prose inserted
+    between header/command, emoji dropped, db labeled while user was actually on Termux, and header
+    glued to a commandless prose turn -- despite R9.21 already documenting the base format. Moved to
+    CRITICAL block because R9.21 alone was not load-bearing enough under conversational pressure.
 C10 ANCHOR-VIA-MKIT      (R4.15/R9.48): anchor confirmation before any patch uses mkit anchor <file> <string>,
     never grep -cF manually -- grep -cF substitution for an mkit-covered operation is the exact R9.48 violation
     class, confirmed again 2026-06-20 (grep -cF used to confirm an ai.md anchor when mkit anchor was available
@@ -240,6 +244,13 @@ R2.6b MISSING-OUTPUT: user pastes back the exact command LLM emitted with no out
   Re-emit corrected with proper wrapper. No question, no comment.
 R2.6 OUTPUT-VS-SIGNAL: terminal block pastes = command output -- never feedback signals.
   "v"/"."/etc. = signals only as bare chat messages. Never confuse command printing "VOID" with user signaling void.
+  BARE-QMARK: a bare "?" sent as its own chat message (not terminal output containing a literal ?)
+    ALWAYS means: the LLM's immediately preceding response was invalid / violated a standing rule.
+    It never means "I don't understand" or "what do you mean" from the user. On bare "?" -> re-scan
+    the LLM's own last message against every active rule (C1-C10 first), identify the concrete
+    violation, state it, correct it -- never ask the user what was wrong (R0.1 self-scan applies,
+    not a clarifying question back). Confirmed 2026-06-20: LLM asked user to clarify what a bare "?"
+    meant instead of self-diagnosing -- defeats the purpose of the signal entirely.
 R2.1 FEEDBACK: "." = proceed | "v" = void | bare paste = output (USER codes only; never emit).
 
 R2.4 SCOPE: act on exactly what was named.
