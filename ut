@@ -432,7 +432,7 @@ cmd_machines() {
 
 
 [ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
-[ -z "$CMD" ] && { err "usage: ut <sync|fetch|status|push|run|list|clone|health|diff|tag|add|rm|machines> [args]"; exit 1; }
+[ -z "$CMD" ] && { err "usage: ut <sync|fetch|status|push|run|list|clone|health|diff|tag|add|rm|machines|branch> [args]"; exit 1; }
 
 cmd_create() {
     _repo="${1:-}"; _tags="${2:-}"; _desc="${3:-}"
@@ -540,6 +540,44 @@ cmd_ship() {
     ok "$_repo shipped to origin/main"
 }
 
+cmd_branch() {
+    _repo="${1:-}"; _name="${2:-}"
+    [ -z "$_repo" ] || [ -z "$_name" ] && die "usage: ut branch <repo> <name>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
+    _target="$DST/$_repo"
+    [ -d "$_target/.git" ] || die "$_repo not cloned at $_target"
+
+    _stashed=0
+    if [ -n "$(git -C "$_target" status --short 2>/dev/null)" ]; then
+        _stash_msg="ut-branch-autostash-$(date +%s)"
+        git -C "$_target" stash push -m "$_stash_msg" || die "stash failed"
+        _stashed=1
+        ok "stashed local changes: $_stash_msg"
+    fi
+
+    _cur_branch=$(git -C "$_target" branch --show-current 2>/dev/null || echo main)
+    if ! git -C "$_target" pull --rebase --autostash origin "$_cur_branch"; then
+        die "pull --rebase failed on $_repo"
+    fi
+    ok "pulled origin/$_cur_branch"
+
+    git -C "$_target" checkout -b "$_name" || die "checkout -b failed"
+    ok "on branch $_name"
+
+    if [ "$_stashed" -eq 1 ]; then
+        if git -C "$_target" stash pop; then
+            ok "stash restored"
+        else
+            err "stash pop conflict -- resolve manually:"
+            err "  git -C $_target stash list"
+            err "  git -C $_target stash pop"
+            exit 1
+        fi
+    fi
+
+    ok "OK  on branch $_name"
+}
+
 cmd_distribute() {
     _repo="${1:-}"
     [ -z "$_repo" ] && die "usage: ut distribute <repo>"
@@ -585,6 +623,7 @@ case "$CMD" in
     open)       cmd_open       "$@" ;;
     info)       cmd_info       "$@" ;;
     ship)       cmd_ship       "$@" ;;
+    branch)     cmd_branch     "$@" ;;
     distribute) cmd_distribute "$@" ;;
     *) err "unknown command: $CMD"; exit 1 ;;
 esac
