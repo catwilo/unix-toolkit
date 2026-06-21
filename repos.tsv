@@ -19,15 +19,15 @@ qemu-debian-mac	infra	QEMU Debian on Mac setup	active
 persistent-container-podman	infra	persistent podman containers	active
 spfx-tool	tool	SPFx SharePoint development tool	active
 wifi-setup	infra,net	RTL wifi driver setup and deploy	active
-wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver — do not push to origin	active
+wifi-driver-rtl8188fu	fw,arc	RTL8188FU vendor driver -- do not push to origin	active
 miko-task	tool,core	task manager + ctx owner	active
 prestamos	client	Go+Docker loan management app with REST API and websockets	active
 prestamos-lc	client	Go+Redis+pgbouncer loan system LC version	active
-districarnesVera	client	Hugo web app for carnes Vera — login and inventory	active
-supbot-cli	client,bot	Node.js WhatsApp CLI — send, inbox, contacts	active
+districarnesVera	client	Hugo web app for carnes Vera -- login and inventory	active
+supbot-cli	client,bot	Node.js WhatsApp CLI -- send, inbox, contacts	active
 sibarita-site	client,web	Eleventy+Bootstrap site for sibarita restaurant	active
 microcemento-site	client,web	Eleventy+Bootstrap site for microcemento client	active
-correccionLatex	client,arc	LaTeX university stats assignment correction — closed	archived
+correccionLatex	client,arc	LaTeX university stats assignment correction -- closed	archived
 aliceboard	tool,cli	single-finger shell-first keyboard layout	active
 unexpected-keyboard	tool,arc	Unexpected Keyboard fork -- aliceboard build vehicle	active
 hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)	active
@@ -35,4 +35,4 @@ deadd-setup	cfg,tool	deadd notification center config + scripts	active
 ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML	active
 RoomBookingDashboard	client,web	SPFx room reservation dashboard for client tenant	active
 predicciones-evento	client,web	Formulario de pronósticos deportivos para eventos presenciales vía QR	active
-mkit	tool,cli,core	LLM file ops toolkit — anchor/write/patch/verify CLI	active
+mkit	tool,cli,core	LLM file ops toolkit -- anchor/write/patch/verify CLI	active
