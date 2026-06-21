@@ -444,7 +444,25 @@ cmd_create() {
     printf '%s\t%s\t%s\t%s\n' "$_repo" "$_tags" "$_desc" "active" >> "$TSV"
     ok "registered: $_repo in repos.tsv"
     mkdir -p "$DST"
-    git clone "git@github.com:$GITHUB_USER/$_repo.git" "$DST/$_repo" && ok "$_repo cloned to $DST/$_repo" || err "$_repo — clone failed"
+    if git clone "git@github.com:$GITHUB_USER/$_repo.git" "$DST/$_repo"; then
+        ok "$_repo cloned to $DST/$_repo"
+        printf '# %s
+
+%s
+' "$_repo" "$_desc" > "$DST/$_repo/README.md"
+        git -C "$DST/$_repo" add README.md
+        git -C "$DST/$_repo" commit -m "docs: add README"
+        git -C "$DST/$_repo" push -u origin main || git -C "$DST/$_repo" push -u origin master || warn "push failed -- run manually"
+        ok "initial commit pushed"
+        printf 'track in miko? [y/N] '
+        read -r _miko_ans
+        case "$_miko_ans" in
+            y|Y) miko add -r "$_repo" "CHORE: initial setup" && ok "miko tracking enabled for $_repo" || warn "miko add failed -- run manually" ;;
+            *) info "skipping miko tracking" ;;
+        esac
+    else
+        err "$_repo  clone failed"
+    fi
 }
 
 cmd_delete() {
