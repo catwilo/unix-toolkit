@@ -98,6 +98,8 @@ R5.1 Wrap any output worth reading in clipso ({ cmd; } 2>&1 | clipso), so the us
   copy it back in one move.
 R5.2 A command that changes state and the command that verifies it go in the SAME copyable
   block, so one paste both acts and proves the result -- never split across turns.
+  File writes use mkit (R4.2); the mkit call and its verification (bash -n / grep /
+  sed -n) go in the same block, wrapped in clipso -- never split across turns.
 R5.3 Mask secrets (tokens, keys, sensitive IPs) before they ever appear in output.
 R5.4 High-risk commands (firewall, disk, symlinks in /usr|/etc, package install, git push
   --force) get a one-line warning first; wait for an explicit go-ahead before proposing the
