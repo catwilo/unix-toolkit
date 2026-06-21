@@ -178,3 +178,12 @@ R9.9 Dotfile architecture (canonical):
   If install.sh appends PATH/exports to an rc file: first check if that file is a symlink
   to a versioned dotfile -- if so, skip the append, just warn.
   Deprecated, never reference: dotconfigtermux, custom_termux, dotconfig, termux-setup.
+
+## R10 -- ENCODING
+R10.1 Prefer plain ASCII (a-z, A-Z, 0-9, basic punctuation) in generated content
+  -- code, comments, files, here-docs. Rationale: in this environment, non-ASCII
+  bytes (accented chars, smart quotes, em-dashes) have been silently mangled when
+  written through here-docs, producing corrupted output ("contrasea" for
+  "contrasena"). Writing ASCII at the source avoids that failure class. This is a
+  default, not absolute: when non-ASCII is required (user-facing Spanish prose,
+  proper names), write it via python3 or mkit write -- never a raw here-doc.
