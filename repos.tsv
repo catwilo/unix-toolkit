@@ -28,8 +28,7 @@ supbot-cli	client,bot	Node.js WhatsApp CLI -- send, inbox, contacts	active
 sibarita-site	client,web	Eleventy+Bootstrap site for sibarita restaurant	active
 microcemento-site	client,web	Eleventy+Bootstrap site for microcemento client	active
 correccionLatex	client,arc	LaTeX university stats assignment correction -- closed	archived
-aliceboard	tool,cli	single-finger shell-first keyboard layout	active
-unexpected-keyboard	tool,arc	Unexpected Keyboard fork -- aliceboard build vehicle	active
+aliceboard	tool,android	Android keyboard (Unexpected Keyboard base, GPL-3) with single-finger shell/SSH layout	active
 hotspot	tool,net	hotspot manager via nmcli (anita/up/down/status/remove)	active
 deadd-setup	cfg,tool	deadd notification center config + scripts	active
 ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML	active
