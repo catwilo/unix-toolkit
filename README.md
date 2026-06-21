@@ -105,7 +105,7 @@ Compare git state of every repo across all nodes (local + remote) to spot diverg
 Runs a POSIX collector on each node via `nssh --raw` and prints one row per repo.
 
     ut machines diff
-    # repo  local <hash>  db <hash>  d1 <hash>[branch:][↑ahead][*dirty]
+    # repo  local <hash>  db <hash>  tx <hash>[branch:][↑ahead][*dirty]
 
 Cell format: `[branch:]hash[↑N][*M]` — branch shown only when not main, `↑N` commits ahead, `*M` dirty files. Differing hashes across columns = divergence. Unreachable nodes marked `unreach`.
 
