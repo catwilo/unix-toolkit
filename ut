@@ -92,31 +92,45 @@ cmd_sync() {
     [ "$errors" -eq 0 ] && ok "all repos synced" || { err "$errors repo(s) failed"; exit 1; }
 }
 
+#  repo_state <target> -- single source of repo git state
+#  echoes: "<branch> <ahead> <behind> <dirty> <stash>"
+repo_state() {
+    _t="$1"
+    _br=$(git -C "$_t" branch --show-current 2>/dev/null || echo "?")
+    _ah=$(git -C "$_t" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+    _bh=$(git -C "$_t" rev-list --count "HEAD..@{u}" 2>/dev/null || echo 0)
+    _dt=$(git -C "$_t" status --short 2>/dev/null | wc -l | tr -d ' ')
+    _st=$(git -C "$_t" stash list 2>/dev/null | wc -l | tr -d ' ')
+    printf '%s %s %s %s %s\n' "${_br:-?}" "$_ah" "$_bh" "$_dt" "$_st"
+}
+
 cmd_status() {
     _tag="${1:-}"
-    _total=0; _issues=0
-    _tmp=$(mktemp)
-    printf "0 0\n" > "$_tmp"
+    _tmp=$(mktemp); printf "0 0\n" > "$_tmp"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
-        read -r _t _i < "$_tmp"
-        _t=$((_t+1))
+        read -r _t _i < "$_tmp"; _t=$((_t+1))
         target="$DST/$repo"
         if [ ! -d "$target/.git" ]; then
-            warn "$repo — not cloned"; _i=$((_i+1))
+            warn "$repo  not cloned"; _i=$((_i+1))
             printf "%s %s\n" "$_t" "$_i" > "$_tmp"; continue
         fi
-        _a=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-        _b=$(git -C "$target" rev-list --count "HEAD..@{u}" 2>/dev/null || echo 0)
-        _d=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
-        if [ "$_d" -gt 0 ] || [ "$_a" -gt 0 ] || [ "$_b" -gt 0 ]; then
-            warn "$repo — dirty:$_d ahead:$_a behind:$_b"
-            _i=$((_i+1))
+        read -r _br _a _b _d _s <<EOF
+$(repo_state "$target")
+EOF
+        _flags=""
+        [ "$_d" -gt 0 ] && _flags="${_flags}dirty:$_d "
+        [ "$_a" -gt 0 ] && _flags="${_flags}ahead:$_a "
+        [ "$_b" -gt 0 ] && _flags="${_flags}behind:$_b "
+        [ "$_s" -gt 0 ] && _flags="${_flags}stash:$_s "
+        [ "$_br" != "main" ] && _flags="${_flags}branch:$_br "
+        if [ -n "$_flags" ]; then
+            warn "$repo  $_flags"; _i=$((_i+1))
         fi
         printf "%s %s\n" "$_t" "$_i" > "$_tmp"
     done
     read -r _total _issues < "$_tmp"; rm -f "$_tmp"
     _clean=$((_total - _issues))
-    bold "[$_total repos] ✓ $_clean clean  ⚡ $_issues with changes"
+    bold "[$_total repos]  $_clean clean   $_issues with changes"
 }
 
 
@@ -212,30 +226,28 @@ cmd_clone() {
 
 cmd_health() {
     _tag="${1:-}"
-    issues=0
+    _tmp=$(mktemp); printf "0\n" > "$_tmp"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
+        read -r issues < "$_tmp"
         target="$DST/$repo"
         if [ ! -d "$target/.git" ]; then
-            warn "$repo — not cloned"
-            issues=$((issues+1))
-            continue
+            warn "$repo  not cloned"; issues=$((issues+1))
+            printf "%s\n" "$issues" > "$_tmp"; continue
         fi
-        _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-        _behind=$(git -C "$target" rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
-        _dirty=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
-        _stash=$(git -C "$target" stash list 2>/dev/null | wc -l | tr -d ' ')
-        _remote=$(git -C "$target" remote get-url origin 2>/dev/null || echo "none")
-        _reachable=0
-        git -C "$target" ls-remote --exit-code origin HEAD >/dev/null 2>&1 && _reachable=1
-        if [ "$_reachable" -eq 0 ]; then
-            err "$repo — remote unreachable: $_remote"
-            issues=$((issues+1))
-        elif [ "$_ahead" -gt 0 ] || [ "$_behind" -gt 0 ] || [ "$_dirty" -gt 0 ] || [ "$_stash" -gt 0 ]; then
-            warn "$repo — ahead:$_ahead behind:$_behind dirty:$_dirty stash:$_stash"
+        read -r _br _a _b _d _s <<EOF
+$(repo_state "$target")
+EOF
+        if ! git -C "$target" ls-remote --exit-code origin HEAD >/dev/null 2>&1; then
+            _rem=$(git -C "$target" remote get-url origin 2>/dev/null || echo "none")
+            err "$repo  remote unreachable: $_rem"; issues=$((issues+1))
+        elif [ "$_a" -gt 0 ] || [ "$_b" -gt 0 ] || [ "$_d" -gt 0 ] || [ "$_s" -gt 0 ] || [ "$_br" != "main" ]; then
+            warn "$repo  branch:$_br ahead:$_a behind:$_b dirty:$_d stash:$_s"
             issues=$((issues+1))
         fi
+        printf "%s\n" "$issues" > "$_tmp"
     done
-    [ "$issues" -eq 0 ] && ok "all repos healthy"
+    read -r issues < "$_tmp"; rm -f "$_tmp"
+    [ "$issues" -eq 0 ] && ok "all repos healthy" || warn "$issues repo(s) need attention"
 }
 
 cmd_diff() {
