@@ -1,6 +1,6 @@
 #!/bin/sh
 # ut — unix-toolkit repo manager
-# usage: ut <sync|status|push|run|list> [tag] [-- cmd]
+# usage: ut <command> [args]  -- run ut without args for full command list
 set -eu
 
 G='\033[32m'; Y='\033[33m'; R='\033[31m'; C='\033[36m'; B='\033[1m'; Z='\033[0m'
@@ -446,7 +446,28 @@ cmd_machines() {
 
 
 [ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
-[ -z "$CMD" ] && { err "usage: ut <sync|fetch|status|push|run|list|clone|health|diff|tag|add|rm|machines|branch> [args]"; exit 1; }
+[ -z "$CMD" ] && {
+  err "ut -- unix-toolkit repo manager"
+  err ""
+  err "LECTURA multi-repo  (accept [tag]):"
+  err "  list status diff health fetch"
+  err ""
+  err "GIT multi-repo:"
+  err "  sync push run"
+  err ""
+  err "GIT un-repo:"
+  err "  clone branch ship"
+  err ""
+  err "REGISTRO TSV:"
+  err "  add rm tag pause resume archive info open"
+  err ""
+  err "GITHUB REMOTO [destructivo -- toca GitHub]:"
+  err "  create delete rename"
+  err ""
+  err "MULTI-MAQUINA:"
+  err "  machines  machines diff  distribute"
+  exit 1
+}
 
 cmd_create() {
     _repo="${1:-}"; _tags="${2:-}"; _desc="${3:-}"
