@@ -403,7 +403,7 @@ cmd_machines_diff() {
         fi
     done < "$_devices"
     bold "── repo state by node ──"
-    tail -n +2 "$(dirname "$(realpath "$0")")/repos.tsv" | while IFS='	' read -r _repo _rest; do
+    repos_all | while IFS= read -r _repo; do
         [ -z "$_repo" ] && continue
         printf '%s' "$_repo"
         for _n in $_nodes; do
