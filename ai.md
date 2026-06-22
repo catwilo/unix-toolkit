@@ -188,8 +188,12 @@ R9.7 A fix to a tool used across nodes is incomplete until pulled + reinstalled 
   node that runs it -- editing one node does not update the others.
 R9.8 To check multiple repos/files at once, use one combined command with section headers
   (echo "=== NAME ==="; command; ...), so it is one paste instead of many turns.
-R9.10 miko tasks: always run miko done/add/edit from db -- on tx it fails with
-  FileNotFoundError if miko-task repo is behind origin. After miko sync tx is up to date.
+R9.10 miko tasks: any node can run miko done/add/edit and miko sync -- reconcile_repo
+  fetches before measuring ahead/behind and rebases a divergent .tasks when task IDs do
+  not collide, so being on db is no longer required. (Root cause of the old limitation:
+  a stale @{u} read as 0/0, skipped the rebase, and the push was rejected; the previous
+  "always from db" rule is obsolete.) A real id collision is reported as CONFLICT to fix
+  by hand.
 R9.11 Session close checklist: (1) miko sync, (2) verify no dirty repos, (3) verify no
   orphan remote branches, (4) verify no unpushed commits.
 R9.9 Dotfile architecture (canonical):
