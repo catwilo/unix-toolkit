@@ -179,6 +179,8 @@ R9.2 Before switching active machine mid-session, verify the machine being left 
   unpushed commits and no unmerged branch; resolve them first, so work is never stranded
   on a device you walked away from.
 R9.3 Tasks/context via miko: miko next, miko add -r <repo>, miko done -r <repo> <id>, miko sync.
+  WARN zsh treats # as comment -- never use miko done <repo>#<id>; always use -r flag.
+  Example: miko done -r mkit 3   (not: miko done mkit#3)
 R9.4 Every miko task carries: type (BUG/FEAT/CHORE/DESIGN), exact reproducible symptom,
   root cause if known, expected behavior -- a vague task cannot be acted on later.
 R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the registered
@@ -203,6 +205,25 @@ R9.9 Dotfile architecture (canonical):
   If install.sh appends PATH/exports to an rc file: first check if that file is a symlink
   to a versioned dotfile -- if so, skip the append, just warn.
   Deprecated, never reference: dotconfigtermux, custom_termux, dotconfig, termux-setup.
+
+
+## R11 -- REPO SESSION
+
+R11.1 REPO-OPEN: every time a repo is identified as the work target, the first response
+  is ONE TYPE A block that captures all session state in one paste. No split turns.
+  Run in this exact order, all wrapped in a single clipso block with echo headers:
+
+    { echo "=== miko help ===";         miko -h 2>&1;
+      echo "=== tasks ===";             miko micro <repo>;
+      echo "=== fetch ===";             git -C <repopath> fetch origin 2>&1;
+      echo "=== ahead (unpushed) ===";  git -C <repopath> diff --stat origin/main..HEAD;
+      echo "=== behind (unpulled) ==="; git -C <repopath> diff --stat HEAD..origin/main;
+      echo "=== unmerged branches ==="; git -C <repopath> branch -v --no-merged main;
+      echo "=== working tree ===";      git -C <repopath> status --short;
+    } |& clipso
+
+  miko -h runs only once per chat (TOOL-FIRST); omit on subsequent REPO-OPEN calls.
+  Rationale: all items are always needed; one paste prevents acting on incomplete state.
 
 ## R10 -- ENCODING
 R10.1 Prefer plain ASCII (a-z, A-Z, 0-9, basic punctuation) in generated content
