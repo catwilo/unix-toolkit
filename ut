@@ -446,6 +446,7 @@ cmd_machines() {
 
 
 [ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
+case "$CMD" in -h|--help|help) CMD="" ;; esac
 [ -z "$CMD" ] && {
   err "ut -- unix-toolkit repo manager"
   err ""
@@ -576,8 +577,14 @@ cmd_info() {
 cmd_ship() {
     _repo="${1:-}"
     [ -z "$_repo" ] && die "usage: ut ship <repo>"
-    _target="$DST/$_repo"
-    [ -d "$_target/.git" ] || die "$_repo not cloned at $DST/$_repo"
+    if [ "$_repo" = "unix-toolkit" ]; then
+        # unix-toolkit is the manager repo: it lives at its own root, not under
+        # $DST (unix-toolkit-tools), because it is the repo managing the others.
+        _target="${UNIX_TOOLKIT_SELF:-$HOME/unix-toolkit}"
+    else
+        _target="$DST/$_repo"
+    fi
+    [ -d "$_target/.git" ] || die "$_repo not cloned at $_target"
     _branch=$(git -C "$_target" rev-parse --abbrev-ref HEAD)
     [ "$_branch" = "main" ] && die "already on main — nothing to ship"
     info "rebasing $_branch onto origin/main..."
