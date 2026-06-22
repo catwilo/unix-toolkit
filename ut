@@ -656,7 +656,7 @@ cmd_distribute() {
         [ "$ip" = "$_self_ip" ] && { _self_alias="$alias"; continue; }
         info "distributing $_repo -> $alias..."
         if nssh "$alias" "[ -d ~/$_rbase/.git ]" 2>/dev/null; then
-            nssh "$alias" "git -C ~/$_rbase pull --rebase origin main && [ -f ~/$_rbase/install.sh ] && ~/$_rbase/install.sh" \
+            nssh "$alias" "git -C ~/$_rbase pull --rebase origin main && { [ ! -f ~/$_rbase/install.sh ] || ~/$_rbase/install.sh; }" \
                 && ok "$alias — $_repo updated" \
                 || err "$alias — distribution failed"
         else
