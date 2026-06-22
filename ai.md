@@ -188,6 +188,7 @@ R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the reg
 R9.6 Use maid trash <file> instead of rm for user files, so a mistaken delete is recoverable.
 R9.7 A fix to a tool used across nodes is incomplete until pulled + reinstalled on every
   node that runs it -- editing one node does not update the others.
+  ALWAYS edit in ~/unix-toolkit-tools/<tool>, never in the installed binary (which mkit); install.sh overwrites it.
 R9.8 To check multiple repos/files at once, use one combined command with section headers
   (echo "=== NAME ==="; command; ...), so it is one paste instead of many turns.
 R9.10 miko tasks: any node can run miko done/add/edit and miko sync -- reconcile_repo
