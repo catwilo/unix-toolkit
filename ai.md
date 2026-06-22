@@ -94,12 +94,15 @@ R4.6 Read large files one range at a time (grep -n / sed -n), never a full cat.
 
 ## R5 -- EXEC
 
-R5.1 Wrap any output worth reading in clipso ({ cmd; } 2>&1 | clipso), so the user can
-  copy it back in one move.
+R5.1 Wrap any output worth reading in clipso ({ cmd; } |& clipso), so the user can
+  copy it back in one move. Always use braces and |& (captures both stdout and stderr);
+  plain 2>&1 or missing braces silently drops output on compound commands.
 R5.2 A command that changes state and the command that verifies it go in the SAME copyable
   block, so one paste both acts and proves the result -- never split across turns.
   File writes use mkit (R4.2); the mkit call and its verification (bash -n / grep /
   sed -n) go in the same block, wrapped in clipso -- never split across turns.
+R5.7 In patch.py always use absolute paths -- relative paths fail when cwd is not the
+  repo dir, producing FileNotFoundError with no obvious cause.
 R5.3 Mask secrets (tokens, keys, sensitive IPs) before they ever appear in output.
 R5.4 High-risk commands (firewall, disk, symlinks in /usr|/etc, package install, git push
   --force) get a one-line warning first; wait for an explicit go-ahead before proposing the
@@ -129,14 +132,16 @@ R7.1 Standard flow per fix (each step exists so a change is never lost or half-m
   3. make the fix on that branch
   4. user confirms with "verifico"
   5. commit
-  6. merge to main, done by the user: git fetch origin && git rebase origin/main
+  6. merge to main: git fetch origin && git rebase origin/main
      -> git checkout main -> git merge <branch>
+     SHORTCUT: ut ship <repo> does steps 6-8 in one command -- prefer it.
   7. git push origin main   -- this repo's merge only
-  8. git branch -d <branch>  -- delete immediately after push, so stale branches don't pile up
-  9. separately from step 7, for every fix regardless of answer: ask which nodes are
-     reachable now. Unreachable -> log a pending task (miko add -r <repo> "sync pending:
-     <repo> -> <node>"). Reachable -> miko sync (broader: syncs tasks, reconciles+pushes
-     ALL tracked repos, distributes to nodes; does not replace step 7's push).
+  8. git branch -d <branch>  -- delete immediately after push
+  9. deploy: bash ~/unix-toolkit-tools/<repo>/install.sh  (installs on db)
+     then: ut distribute <repo>  (installs on all remote nodes)
+     SHORTCUT: ut deploy <repo> does both -- prefer it once implemented (unix-toolkit#107).
+ 10. miko sync -- distributes tasks to all nodes and reconciles all repos. Always run
+     at end of session. No flags needed; distributes to all nodes by default.
 R7.2 Before any push, show git diff --stat origin/main, so the user sees exactly what ships.
 R7.3 Commit messages: type(scope): description, <=60 chars, imperative, English.
 R7.4 git push --force/--force-with-lease only on an explicit user request -- it can erase
@@ -173,6 +178,10 @@ R9.7 A fix to a tool used across nodes is incomplete until pulled + reinstalled 
   node that runs it -- editing one node does not update the others.
 R9.8 To check multiple repos/files at once, use one combined command with section headers
   (echo "=== NAME ==="; command; ...), so it is one paste instead of many turns.
+R9.10 miko tasks: always run miko done/add/edit from db -- on tx it fails with
+  FileNotFoundError if miko-task repo is behind origin. After miko sync tx is up to date.
+R9.11 Session close checklist: (1) miko sync, (2) verify no dirty repos, (3) verify no
+  orphan remote branches, (4) verify no unpushed commits.
 R9.9 Dotfile architecture (canonical):
   zsh-setup/dotfiles/ = canonical dotfiles dir for all platforms.
   install.sh = idempotent symlink installer.
