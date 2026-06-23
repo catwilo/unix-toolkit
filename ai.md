@@ -97,7 +97,7 @@ R4.1 Confirm a file exists before operating on it -- check, never recall.
 R4.2 To write or change an existing file, use mkit (see TOOL-FIRST for its help); it is
   the decided method and preserves permissions while doing .new -> verify -> mv. Do not
   re-derive a method with raw python3/sed.
-R4.3 Classify first, so the tool is obvious: CREATE -> write directly; REWRITE -> mkit
+R4.3 Classify first, so the tool is obvious: CREATE -> write directly; SINGLE-LINE PATCH (line known) -> mkit patch-line; MULTI-LINE or COMPLEX PATCH -> mkit patch (with .py); REWRITE -> mkit write; MOVE-EDIT -> fix references in the same step.
   write; PATCH -> mkit patch; MOVE-EDIT -> fix references in the same step.
 R4.4 Only if mkit cannot be used: write .new -> verify -> restore permissions -> mv. Never
   overwrite in place, so a failed write always leaves a good copy.
