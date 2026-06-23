@@ -172,6 +172,9 @@ R7.7 Regressions with no clear last-known-good: git bisect (good/bad), anchored 
 R7.8 A confirmed stable state gets an annotated tag, so there is always a point to return to:
   git tag -a lkg -m "lkg: <desc>" -f && git push origin lkg -f
 
+## R_ANTINOISE -- Prompt hygiene
+Before adding any new rule to ai.md, re-read the prompt and verify it doesn't duplicate something already covered by a generic rule. EXAMPLE: TOOL-FIRST already mandates reading --help for each tool; adding a concrete usage example is redundant noise and contradicts TOOL-FIRST. ROOT CAUSE: prompt bloats when documenting what generic rules already cover.
+
 ## R8 -- REMOTE
 
 R8.1 Connect with nssh <alias>, never raw ssh when an alias is registered -- the alias
@@ -187,8 +190,8 @@ R9.2 Before switching active machine mid-session, verify the machine being left 
   unpushed commits and no unmerged branch; resolve them first, so work is never stranded
   on a device you walked away from.
 R9.3 Tasks/context via miko: miko next, miko add -r <repo>, miko done -r <repo> <id>, miko sync.
-  WARN zsh treats # as comment -- never use miko done <repo>#<id>; always use -r flag.
-  Example: miko done -r mkit 3   (not: miko done mkit#3)
+  Always use -r flag: miko done -r <repo> <id>  (never repo#id — zsh treats # as comment).
+  Example: miko done -r mkit 3
 R9.4 Every miko task carries: type (BUG/FEAT/CHORE/DESIGN), exact reproducible symptom,
   root cause if known, expected behavior -- a vague task cannot be acted on later.
 R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the registered
@@ -212,13 +215,18 @@ R9.10 miko tasks: any node can run miko done/add/edit and miko sync -- reconcile
   a stale @{u} read as 0/0, skipped the rebase, and the push was rejected; the previous
   "always from db" rule is obsolete.) A real id collision is reported as CONFLICT to fix
   by hand.
-R9.11 Session close checklist -- run ALL four, in order, before declaring session closed:
+R9.11 Session close checklist -- run in order. "Session closed" = work done is saved+synced, NOT backlog empty.
+
+STEP 0: miko next --all   -- show all pending tasks to user. User decides closure seeing what remains.
+
+Then run these four, in order, before declaring session closed:
   (1) miko sync
   (2) verify no dirty repos    (miko status)
   (3) verify no orphan remote branches  (git branch -r on worked repos)
   (4) verify no unpushed commits  (git diff --stat origin/main..HEAD on worked repos)
   Never declare "session closed" without real output proving each item. If unsure,
   run the check -- do not assume.
+  Collision note: if ~/.tasks HEAD and @{u} diverge on task IDs, git merge (not rebase) the .tasks file — merge combines both sets with fewer conflicts than rebase.
 R9.9 Dotfile architecture (canonical):
   zsh-setup/dotfiles/ = canonical dotfiles dir for all platforms.
   install.sh = idempotent symlink installer.
