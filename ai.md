@@ -146,16 +146,20 @@ R7.1 Standard flow per fix (each step exists so a change is never lost or half-m
   3. make the fix on that branch
   4. user confirms with "verifico"
   5. commit
-  6. merge to main: git fetch origin && git rebase origin/main
-     -> git checkout main -> git merge <branch>
-     SHORTCUT: ut ship <repo> does steps 6-8 in one command -- prefer it.
-  7. git push origin main   -- this repo's merge only
-  8. git branch -d <branch>  -- delete immediately after push
-  9. deploy: bash ~/unix-toolkit-tools/<repo>/install.sh  (installs on db)
-     then: ut distribute <repo>  (installs on all remote nodes)
-     SHORTCUT: ut deploy <repo> does both -- prefer it once implemented (unix-toolkit#107).
- 10. miko sync -- distributes tasks to all nodes and reconciles all repos. Always run
-     at end of session. No flags needed; distributes to all nodes by default.
+  6-8. MERGE+PUSH+CLEANUP: run `ut ship <repo>` -- THE single way. It does fetch +
+     rebase origin/main + merge --ff-only + push + delete branch, and aborts safely on
+     any conflict (|| die). NEVER hand-run git merge/rebase/push for this -- ut ship
+     already validates every precondition; raw git skips those guards.
+  9. DEPLOY: run `ut deploy <repo>` -- THE single way. It runs install.sh locally
+     (|| die) THEN ut distribute to all remote nodes, in that order. Do NOT run
+     `bash install.sh` or `ut distribute` by hand -- ut deploy chains both safely.
+ 10. miko sync -- LAST step, always. Reconciles tasks AND repos across all nodes.
+     Why last: it syncs the deployed state; running it before step 9 syncs a state
+     not yet deployed.
+  CIERRE DE FIX -- exact order, each step proves the previous one is done:
+     ut ship <repo>  ->  ut deploy <repo>  ->  miko sync
+     RIGHT: ut ship X && ut deploy X && miko sync
+     WRONG: ut ship X && miko sync && ut deploy X   (sync before deploy = stale sync)
 R7.2 Before any push, show git diff --stat origin/main, so the user sees exactly what ships.
 R7.3 Commit messages: type(scope): description, <=60 chars, imperative, English.
 R7.4 git push --force/--force-with-lease only on an explicit user request -- it can erase
@@ -190,9 +194,16 @@ R9.4 Every miko task carries: type (BUG/FEAT/CHORE/DESIGN), exact reproducible s
 R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the registered
   hosts and options are used.
 R9.6 Use maid trash <file> instead of rm for user files, so a mistaken delete is recoverable.
-R9.7 A fix to a tool used across nodes is incomplete until pulled + reinstalled on every
-  node that runs it -- editing one node does not update the others.
-  ALWAYS edit in ~/unix-toolkit-tools/<tool>, never in the installed binary (which mkit); install.sh overwrites it.
+R9.7 A fix to a tool used across nodes is incomplete until deployed on every node that
+  runs it -- editing one node does not update the others. Deploy with `ut deploy <tool>`
+  (R7.1 step 9), never by hand.
+  SOURCE LOCATION -- the source of truth is ALWAYS the repo, never the installed binary:
+    - To find a tool's code: look in its repo dir (~/unix-toolkit-tools/<tool>, or
+      ~/unix-toolkit for ut/miko-task host files). Confirm with: find <repodir> -name ...
+    - NEVER use `which <tool>` or `command -v <tool>` to locate code to edit -- those
+      resolve to the DEPLOYED binary in ~/.local/bin, which install.sh overwrites.
+      Editing it is silently lost on the next deploy. which is for "is it installed?",
+      never for "where is the source?".
 R9.8 To check multiple repos/files at once, use one combined command with section headers
   (echo "=== NAME ==="; command; ...), so it is one paste instead of many turns.
 R9.10 miko tasks: any node can run miko done/add/edit and miko sync -- reconcile_repo
