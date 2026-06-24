@@ -1,6 +1,6 @@
 # Ignore project clones inside index (they are independent repos)
 # Only track root-level files
-*/
+!git-templates/
 !.gitignore
 *.swp
 *~

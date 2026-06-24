@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# pre-commit: block direct commits on main/master
+# installed via git config --global init.templateDir
+branch="$(git symbolic-ref HEAD 2>/dev/null | sed 's|refs/heads/||')"
+if [[ "$branch" == "main" || "$branch" == "master" ]]; then
+    echo "[BLOCKED] Direct commit on '$branch' is not allowed." >&2
+    echo "          Create a branch first: git checkout -b <type>/<name>" >&2
+    exit 1
+fi
