@@ -97,7 +97,7 @@ R4.1 Confirm a file exists before operating on it -- check, never recall.
 R4.2 To write or change an existing file, use mkit (see TOOL-FIRST for its help); it is
   the decided method and preserves permissions while doing .new -> verify -> mv. Do not
   re-derive a method with raw python3/sed.
-R4.3 Classify first, so the tool is obvious: CREATE -> write directly; SINGLE-LINE PATCH (line known) -> mkit patch-line; MULTI-LINE or COMPLEX PATCH -> mkit patch (with .py); REWRITE -> mkit write; MOVE-EDIT -> fix references in the same step.
+
 R4.4 Only if mkit cannot be used: write .new -> verify -> restore permissions -> mv. Never
   overwrite in place, so a failed write always leaves a good copy.
 R4.5 Destructive ops (rm, overwrite, mv over an existing file) run only on an explicit
@@ -177,6 +177,8 @@ R7.1 Standard flow per fix (each step exists so a change is never lost or half-m
      client, and config repos typically do not have one and do not need deploy.
      RIGHT: confirm install.sh exists in the repo, then propose ut deploy <repo>
      WRONG: close every session with ut deploy regardless of repo type
+     TESTS: run smoke tests only AFTER ut deploy -- the binary in ~/.local/bin
+     is the OLD version until deploy runs. Testing before deploy proves nothing.
  10. miko sync -- LAST step, always. Reconciles tasks AND repos across all nodes.
      Why last: it syncs the deployed state; running it before step 9 syncs a state
      not yet deployed.
@@ -213,25 +215,8 @@ R9.1 Platforms: Termux (Android), Debian (db). Default: Termux.
 R9.2 Before switching active machine mid-session, verify the machine being left has no
   unpushed commits and no unmerged branch; resolve them first, so work is never stranded
   on a device you walked away from.
-R9.3 Tasks/context via miko: strict positional syntax, no exceptions -- repo and id
-  ALWAYS come first, in that order: miko <cmd> <repo> <id> [text...]. Old forms
-  (repo#id, -r/--repo flag) are removed -- they emit an explicit usage error, never
-  silently misparse. Applies to: done, edit, reopen, show, note, block, drop.
-  add: miko add <repo> [--p1|--p2|--p3|--p4] <text> (flag and text can be in any order
-  relative to each other; repo is always first). pri: miko pri up|down|set <repo> <id> [level].
-  RIGHT: miko done unix-toolkit 7
-  RIGHT: miko add unix-toolkit --p1 fix the thing
-  RIGHT: miko pri set unix-toolkit 7 p1
-  WRONG: miko done 'unix-toolkit#7'      (old form, now a hard error)
-  WRONG: miko add -r unix-toolkit "..."  (old form, now a hard error)
-R9.3.1 CREATE-BEFORE-DELETE: any destructive op on a task (drop, reopen, edit) that
-  relocates or replaces state must confirm the new state exists FIRST, then destroy
-  the old. Example -- moving a misfiled task to the right repo: (1) create it correctly
-  in the right repo, (2) verify with miko show, (3) only then miko drop the original.
-  NEVER drop first. Reason: if creation fails, the original still exists as a fallback.
-  Applies to any destructive task op, not only relocation.
-  RIGHT: miko add correct-repo "..." && miko show correct-repo N && miko drop wrong-repo M
-  WRONG: miko drop wrong-repo M && miko add correct-repo "..."
+R9.3.1 CREATE-BEFORE-DELETE: for any destructive task op (drop, move, reopen), create the new state first and verify it exists before destroying the old. miko move handles this atomically.
+
 R9.4 Every miko task carries: type (BUG/FEAT/CHORE/DESIGN), exact reproducible symptom,
   root cause if known, expected behavior -- a vague task cannot be acted on later.
 R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the registered
@@ -255,18 +240,9 @@ R9.10 miko tasks: any node can run miko done/add/edit and miko sync -- reconcile
   a stale @{u} read as 0/0, skipped the rebase, and the push was rejected; the previous
   "always from db" rule is obsolete.) A real id collision is reported as CONFLICT to fix
   by hand.
-R9.11 Session close checklist -- run in order. "Session closed" = work done is saved+synced, NOT backlog empty.
+R9.11 Session close: run `{ miko session-close; } |& clipso` -- shows pending tasks, syncs, and checks dirty repos. Never declare session closed without its output.
 
-STEP 0: miko next --all   -- show all pending tasks to user. User decides closure seeing what remains.
 
-Then run these four, in order, before declaring session closed:
-  (1) miko sync
-  (2) verify no dirty repos    (miko status)
-  (3) verify no orphan remote branches  (git branch -r on worked repos)
-  (4) verify no unpushed commits  (git diff --stat origin/main..HEAD on worked repos)
-  Never declare "session closed" without real output proving each item. If unsure,
-  run the check -- do not assume.
-  Collision note: if ~/.tasks HEAD and @{u} diverge on task IDs, git merge (not rebase) the .tasks file — merge combines both sets with fewer conflicts than rebase.
 R9.9 Dotfile architecture (canonical):
   zsh-setup/dotfiles/ = canonical dotfiles dir for all platforms.
   install.sh = idempotent installer. COPY files (cp -RfL), never symlink (mandatory, R9.9 philosophy).
