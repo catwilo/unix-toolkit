@@ -213,12 +213,25 @@ R9.1 Platforms: Termux (Android), Debian (db). Default: Termux.
 R9.2 Before switching active machine mid-session, verify the machine being left has no
   unpushed commits and no unmerged branch; resolve them first, so work is never stranded
   on a device you walked away from.
-R9.3 Tasks/context via miko: miko next, miko add -r <repo>, miko done '<repo#id>', miko sync.
-  In zsh # is a comment character -- bare repo#id silently drops the id.
-  ALWAYS wrap repo#id in single quotes for every command that takes it:
-  done, edit, reopen, show, note, block, drop, pri, ctx-set, block-add, block-done.
-  RIGHT: miko done 'mkit#3'
-  WRONG: miko done mkit#3   (zsh reads: miko done mkit -- id silently lost)
+R9.3 Tasks/context via miko: strict positional syntax, no exceptions -- repo and id
+  ALWAYS come first, in that order: miko <cmd> <repo> <id> [text...]. Old forms
+  (repo#id, -r/--repo flag) are removed -- they emit an explicit usage error, never
+  silently misparse. Applies to: done, edit, reopen, show, note, block, drop.
+  add: miko add <repo> [--p1|--p2|--p3|--p4] <text> (flag and text can be in any order
+  relative to each other; repo is always first). pri: miko pri up|down|set <repo> <id> [level].
+  RIGHT: miko done unix-toolkit 7
+  RIGHT: miko add unix-toolkit --p1 fix the thing
+  RIGHT: miko pri set unix-toolkit 7 p1
+  WRONG: miko done 'unix-toolkit#7'      (old form, now a hard error)
+  WRONG: miko add -r unix-toolkit "..."  (old form, now a hard error)
+R9.3.1 CREATE-BEFORE-DELETE: any destructive op on a task (drop, reopen, edit) that
+  relocates or replaces state must confirm the new state exists FIRST, then destroy
+  the old. Example -- moving a misfiled task to the right repo: (1) create it correctly
+  in the right repo, (2) verify with miko show, (3) only then miko drop the original.
+  NEVER drop first. Reason: if creation fails, the original still exists as a fallback.
+  Applies to any destructive task op, not only relocation.
+  RIGHT: miko add correct-repo "..." && miko show correct-repo N && miko drop wrong-repo M
+  WRONG: miko drop wrong-repo M && miko add correct-repo "..."
 R9.4 Every miko task carries: type (BUG/FEAT/CHORE/DESIGN), exact reproducible symptom,
   root cause if known, expected behavior -- a vague task cannot be acted on later.
 R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the registered
@@ -277,9 +290,7 @@ R11.0 SESSION-OPEN: at the start of every chat, before choosing a repo, run:
 R11.1 REPO-OPEN: every time a repo is identified as the work target, the first response
   is ONE TYPE A block that captures all session state in one paste. No split turns.
   Run in this exact order, all wrapped in a single clipso block with echo headers:
-
-    { echo "=== miko help ===";         miko -h 2>&1;
-      echo "=== tasks ===";             miko micro <repo>;
+    { echo "=== tasks ===";             miko micro <repo>;
       echo "=== fetch ===";             git -C <repopath> fetch origin 2>&1;
       echo "=== ahead (unpushed) ===";  git -C <repopath> diff --stat origin/main..HEAD;
       echo "=== behind (unpulled) ==="; git -C <repopath> diff --stat HEAD..origin/main;
