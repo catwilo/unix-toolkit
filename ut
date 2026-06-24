@@ -395,7 +395,7 @@ cmd_machines_diff() {
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
         [ "$ip" = "$_self_ip" ] && continue
-        if nssh --raw "$alias" "sh -s" < "$_collect" > "$_out/$alias" 2>/dev/null; then
+        if nssh "$alias" "sh -s" < "$_collect" > "$_out/$alias" 2>/dev/null; then
             _nodes="$_nodes $alias"
         else
             : > "$_out/$alias"; printf 'UNREACH\n' > "$_out/$alias.flag"
