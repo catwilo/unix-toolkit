@@ -153,6 +153,13 @@ R7.0 GUARD (automatic, do not rely on memory): a global pre-commit hook
   routine. New repos get it automatically via git init/clone (templateDir is
   global); confirm with: git config --get init.templateDir.
 
+R7.0.1 BATCH EDITS (one file, many changes): make ALL edits to the same file
+  (e.g. several ai.md fixes) on ONE branch, verifying each, BEFORE a single
+  ut ship + deploy + miko sync at the end. Do NOT ship/deploy/sync per edit.
+  Flow: branch -> all edits + verify -> one close (ship+deploy+sync). Why:
+  patch-line is cheap; the ship/deploy/sync cycle is expensive (~85s each).
+  N edits must cost 1 commit and 1 sync, never N.
+
 R7.1 Standard flow per fix (each step exists so a change is never lost or half-merged):
   1. git pull --rebase origin main
   2. git checkout -b <type>/<name>   -- type: feat | fix | chore | refactor | docs (life ~1 day)
