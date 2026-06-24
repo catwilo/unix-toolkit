@@ -98,7 +98,6 @@ R4.2 To write or change an existing file, use mkit (see TOOL-FIRST for its help)
   the decided method and preserves permissions while doing .new -> verify -> mv. Do not
   re-derive a method with raw python3/sed.
 R4.3 Classify first, so the tool is obvious: CREATE -> write directly; SINGLE-LINE PATCH (line known) -> mkit patch-line; MULTI-LINE or COMPLEX PATCH -> mkit patch (with .py); REWRITE -> mkit write; MOVE-EDIT -> fix references in the same step.
-  write; PATCH -> mkit patch; MOVE-EDIT -> fix references in the same step.
 R4.4 Only if mkit cannot be used: write .new -> verify -> restore permissions -> mv. Never
   overwrite in place, so a failed write always leaves a good copy.
 R4.5 Destructive ops (rm, overwrite, mv over an existing file) run only on an explicit
@@ -111,12 +110,14 @@ R5.1 ALWAYS wrap command output in clipso ({ cmd; } |& clipso) -- mandatory on e
   command that produces output, not only "output worth reading", so the user can
   copy it back in one move. Always use braces and |& (captures both stdout and stderr);
   plain 2>&1 or missing braces silently drops output on compound commands.
+  LONG-RUNNING commands (live output, alt-screen): use pty-run instead -- pty-run cmd args
+  OR pty-run --stdin << EOF (zero quoting). It opens alt-screen, shows live line-by-line
+  output, propagates exit code, then pipes clean output to clipso. clipso alone freezes
+  until the command finishes; pty-run shows progress. Interactive read prompts work inside.
 R5.2 A command that changes state and the command that verifies it go in the SAME copyable
   block, so one paste both acts and proves the result -- never split across turns.
   File writes use mkit (R4.2); the mkit call and its verification (bash -n / grep /
   sed -n) go in the same block, wrapped in clipso -- never split across turns.
-R5.7 In patch.py always use absolute paths -- relative paths fail when cwd is not the
-  repo dir, producing FileNotFoundError with no obvious cause.
 R5.3 Mask secrets (tokens, keys, sensitive IPs) before they ever appear in output.
 R5.4 High-risk commands (firewall, disk, symlinks in /usr|/etc, package install, git push
   --force) get a one-line warning first; wait for an explicit go-ahead before proposing the
@@ -125,6 +126,8 @@ R5.5 A background server/listener is always paired with its exact kill command i
   turn, so nothing is left running unknowingly.
 R5.6 After the same approach fails 3 times with the same error, stop and propose something
   different -- repeating a failing path only burns the user's time.
+R5.7 In patch.py always use absolute paths -- relative paths fail when cwd is not the
+  repo dir, producing FileNotFoundError with no obvious cause.
 
 ## R6 -- DEBUG
 
@@ -139,6 +142,16 @@ R6.3 When a command fails with no visible output (exit != 0), first re-run it ca
   reaching for bash -x.
 
 ## R7 -- GIT
+R7.0 GUARD (automatic, do not rely on memory): a global pre-commit hook
+  (unix-toolkit/git-templates/hooks/pre-commit, wired via git config --global
+  init.templateDir) blocks any direct commit on main/master in every repo
+  -- applied via `git init` (re-populates hooks, non-destructive) when a repo
+  predates the template. ROOT CAUSE this exists for: a commit was made
+  directly on main mid-session (skipped R7.1 step 2), which also skips ut
+  ship's fetch+rebase+merge+push+cleanup guards. If this hook ever needs a
+  bypass, it is git commit --no-verify -- rare and intentional only, never
+  routine. New repos get it automatically via git init/clone (templateDir is
+  global); confirm with: git config --get init.templateDir.
 
 R7.1 Standard flow per fix (each step exists so a change is never lost or half-merged):
   1. git pull --rebase origin main
@@ -229,8 +242,8 @@ Then run these four, in order, before declaring session closed:
   Collision note: if ~/.tasks HEAD and @{u} diverge on task IDs, git merge (not rebase) the .tasks file — merge combines both sets with fewer conflicts than rebase.
 R9.9 Dotfile architecture (canonical):
   zsh-setup/dotfiles/ = canonical dotfiles dir for all platforms.
-  install.sh = idempotent symlink installer.
-  ~/.addons-zsh/aliass/ = symlink -> zsh-setup/dotfiles/.addons-zsh/aliass/.
+  install.sh = idempotent installer. COPY files (cp -RfL), never symlink (mandatory, R9.9 philosophy).
+  ~/.addons-zsh/aliass/ = copied from zsh-setup/dotfiles/.addons-zsh/aliass/ (COPY, not symlink).
   If install.sh appends PATH/exports to an rc file: first check if that file is a symlink
   to a versioned dotfile -- if so, skip the append, just warn.
   Deprecated, never reference: dotconfigtermux, custom_termux, dotconfig, termux-setup.
