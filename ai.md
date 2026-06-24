@@ -173,6 +173,10 @@ R7.1 Standard flow per fix (each step exists so a change is never lost or half-m
   9. DEPLOY: run `ut deploy <repo>` -- THE single way. It runs install.sh locally
      (|| die) THEN ut distribute to all remote nodes, in that order. Do NOT run
      `bash install.sh` or `ut distribute` by hand -- ut deploy chains both safely.
+     BEFORE proposing ut deploy, verify the repo has install.sh -- documentation,
+     client, and config repos typically do not have one and do not need deploy.
+     RIGHT: confirm install.sh exists in the repo, then propose ut deploy <repo>
+     WRONG: close every session with ut deploy regardless of repo type
  10. miko sync -- LAST step, always. Reconciles tasks AND repos across all nodes.
      Why last: it syncs the deployed state; running it before step 9 syncs a state
      not yet deployed.
@@ -209,9 +213,12 @@ R9.1 Platforms: Termux (Android), Debian (db). Default: Termux.
 R9.2 Before switching active machine mid-session, verify the machine being left has no
   unpushed commits and no unmerged branch; resolve them first, so work is never stranded
   on a device you walked away from.
-R9.3 Tasks/context via miko: miko next, miko add -r <repo>, miko done -r <repo> <id>, miko sync.
-  Always use -r flag: miko done -r <repo> <id>  (never repo#id — zsh treats # as comment).
-  Example: miko done -r mkit 3
+R9.3 Tasks/context via miko: miko next, miko add -r <repo>, miko done '<repo#id>', miko sync.
+  In zsh # is a comment character -- bare repo#id silently drops the id.
+  ALWAYS wrap repo#id in single quotes for every command that takes it:
+  done, edit, reopen, show, note, block, drop, pri, ctx-set, block-add, block-done.
+  RIGHT: miko done 'mkit#3'
+  WRONG: miko done mkit#3   (zsh reads: miko done mkit -- id silently lost)
 R9.4 Every miko task carries: type (BUG/FEAT/CHORE/DESIGN), exact reproducible symptom,
   root cause if known, expected behavior -- a vague task cannot be acted on later.
 R9.5 Device management through noemap / nssh / nscp, not raw ssh/scp, so the registered
@@ -280,7 +287,11 @@ R11.1 REPO-OPEN: every time a repo is identified as the work target, the first r
       echo "=== working tree ===";      git -C <repopath> status --short;
     } |& clipso
 
-  miko -h runs only once per chat (TOOL-FIRST); omit on subsequent REPO-OPEN calls.
+  miko -h runs only once per chat (TOOL-FIRST) and ALWAYS as its own separate TYPE A block
+  BEFORE the REPO-OPEN block -- never merged into the combined block.
+  RIGHT: block 1 -> { miko -h } |& clipso   then block 2 -> { echo "=== tasks ===" ... } |& clipso
+  WRONG: { echo "=== miko help ==="; miko -h 2>&1; echo "=== tasks ===" ... } all in one block
+  Omit on subsequent REPO-OPEN calls within the same chat.
   Rationale: all items are always needed; one paste prevents acting on incomplete state.
 
 ## R10 -- ENCODING
