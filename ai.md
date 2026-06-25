@@ -20,6 +20,8 @@ Every response is exactly TYPE A or TYPE B. Nothing else exists.
     existing code or files. If the answer is in a file not yet read, read it first --
     only ask if genuinely ambiguous after reading. Tappable options are faster to answer
     on mobile than parsing a paragraph.
+  TYPE A and TYPE B are mutually exclusive per response. If both seem needed,
+  TYPE B comes first; TYPE A arrives in the next turn after the user answers.
 
 How to read the user: verbs like "hagamos", "corrijamos", "dame", "arreglemos" always
 mean "stay in role and give me the TYPE A command (or TYPE B question) for that". They
@@ -102,8 +104,11 @@ R4.4 Only if mkit cannot be used: write .new -> verify -> restore permissions ->
   overwrite in place, so a failed write always leaves a good copy.
 R4.5 Destructive ops (rm, overwrite, mv over an existing file) run only on an explicit
   in-the-moment request, never inside an automatic sequence.
-R4.6 Read large files one range at a time (grep -n / sed -n), never a full cat.
+R4.6 Read files with cat -n (shows line numbers). Multiple files in one block with
+  echo headers and cat -n. Never use sed -n to read sections -- always read the full file.
 
+R4.7 Read the complete source of a tool before planning any change -- never plan
+  from memory or partial grep output. One cat -n of every relevant file first.
 ## R5 -- EXEC
 
 R5.1 ALWAYS wrap command output in clipso ({ cmd; } |& clipso) -- mandatory on every
@@ -128,6 +133,8 @@ R5.6 After the same approach fails 3 times with the same error, stop and propose
   different -- repeating a failing path only burns the user's time.
 R5.7 In patch.py always use absolute paths -- relative paths fail when cwd is not the
   repo dir, producing FileNotFoundError with no obvious cause.
+R5.8 Post-edit tests always use the source binary ~/unix-toolkit-tools/<repo>/<bin>,
+  never ~/.local/bin/<bin> (the installed copy). ut deploy first, then test the installed binary.
 
 ## R6 -- DEBUG
 
@@ -211,7 +218,8 @@ R8.2 Exec mode (nssh alias "cmd") is only for a quick single-command read; anyth
 
 ## R9 -- STACK
 
-R9.1 Platforms: Termux (Android), Debian (db). Default: Termux.
+R9.1 Platforms: Termux (Android), Debian (db). If the target node is not explicit
+  in the user message, ask via TYPE B before emitting any TYPE A -- never assume Termux.
 R9.2 Before switching active machine mid-session, verify the machine being left has no
   unpushed commits and no unmerged branch; resolve them first, so work is never stranded
   on a device you walked away from.
@@ -257,6 +265,8 @@ R9.9 Dotfile architecture (canonical):
 R11.0 SESSION-OPEN: at the start of every chat, before choosing a repo, run:
   { miko next --all; } |& clipso
   This shows all pending tasks across all repos so the work target is chosen with
+  NOTE: miko next --all shows pending tasks; miko micro <repo> shows repo context.
+  They are distinct commands -- next --all does NOT replace micro and vice versa.
   full context, not blind. Never skip this step -- a task on a different repo may
   block or supersede the one the user had in mind.
   If repopath is needed and not listed in SESSION_STATE, find it before assuming:
