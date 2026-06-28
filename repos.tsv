@@ -34,3 +34,4 @@ ppoint-tool	tool,cli	Presentation engine: Markdown+Frontmatter to PPTX/PDF/HTML	
 RoomBookingDashboard	client,web	SPFx room reservation dashboard for client tenant	active
 predicciones-evento	client,web	Formulario de pronósticos deportivos para eventos presenciales vía QR	active
 mkit	tool,cli,core	LLM file ops toolkit -- anchor/write/patch/verify CLI	active
+miau-dio	audio	CLI modular para sintesis y gestion de ideas musicales
