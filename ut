@@ -385,7 +385,7 @@ PYEOF
 }
 
 cmd_machines_diff() {
-    _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
+    _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
     _collect="$(dirname "$(realpath "$0")")/ut-collect.sh"
     [ -f "$_collect" ] || die "ut-collect.sh not found: $_collect"
@@ -428,8 +428,8 @@ cmd_machines_diff() {
 
 cmd_machines() {
     [ "${1:-}" = diff ] && { cmd_machines_diff; return 0; }
-    _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
-    _hosts="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/hosts.db"
+    _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
+    _hosts="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/hosts.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
     [ -f "$_hosts" ]   || die "hosts.db not found: $_hosts"
     while IFS='|' read -r alias ip user port; do
@@ -700,7 +700,7 @@ cmd_distribute() {
     else
         _rbase="unix-toolkit-tools/$_repo"
     fi
-    _devices="${NOEMAP_HOME:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
+    _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
     _self_alias=""
     _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
