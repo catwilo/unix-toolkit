@@ -235,7 +235,9 @@ cmd_push() {
 }
 
 cmd_run() {
-    _cmd="$1"; shift
+    _cmd="${1:-}"
+    [ -z "$_cmd" ] && die "usage: ut run '<comando>' [tag]"
+    shift
     _tag="${1:-}"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
@@ -518,7 +520,7 @@ cmd_machines() {
 
 [ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
 case "$CMD" in -h|--help|help) CMD="" ;; esac
-[ -z "$CMD" ] && {
+print_help() {
   printf "\nut -- gestor de repos de unix-toolkit\n\n"
   printf "  forma general:  ut <comando> [argumentos]\n"
   printf "  un \"tag\" es una etiqueta del repo (core, tool, client...)\n"
@@ -576,8 +578,9 @@ case "$CMD" in -h|--help|help) CMD="" ;; esac
   printf "  4. ut ship <repo>\n"
   printf "  5. ut deploy <repo>     (omitir si no tiene install.sh)\n"
   printf "  6. miko sync\n\n"
-  exit 0
 }
+
+[ -z "$CMD" ] && { print_help; exit 0; }
 
 cmd_create() {
     _repo="${1:-}"; _tags="${2:-}"; _desc="${3:-}"
@@ -822,5 +825,5 @@ case "$CMD" in
     branch)     cmd_branch     "$@" ;;
     distribute) cmd_distribute "$@" ;;
     deploy)     cmd_deploy     "$@" ;;
-    *) err "unknown command: $CMD"; exit 1 ;;
+    *) err "unknown command: $CMD"; print_help; exit 1 ;;
 esac
