@@ -70,8 +70,43 @@ repos_for_tag() {
 # ── subcommands ──────────────────────────────────────────────────────────────
 cmd_list() {
     _tag="${1:-}"
+    case "$_tag" in
+        cloud)
+            gh auth status >/dev/null 2>&1 || die "gh not authenticated -- run: gh auth login"
+            bold "repos en GitHub ($GITHUB_USER):"
+            gh repo list "$GITHUB_USER" --limit 200 --json name --jq '.[].name' | sort | while IFS= read -r _r; do
+                printf "  %s\n" "$_r"
+            done
+            return 0
+            ;;
+        local)
+            bold "repos clonados en local ($DST):"
+            [ -d "$DST" ] || { warn "no existe: $DST"; return 0; }
+            ( cd "$DST" && for _d in */; do
+                _d="${_d%/}"
+                [ -d "$_d/.git" ] && printf '%s\n' "$_d"
+            done ) | sort | while IFS= read -r _r; do
+                printf "  %s\n" "$_r"
+            done
+            return 0
+            ;;
+        orphans)
+            bold "clones locales no registrados en repos.tsv:"
+            [ -d "$DST" ] || { warn "no existe: $DST"; return 0; }
+            _tmp_tsv=$(mktemp)
+            tail -n +2 "$TSV" | cut -f1 | sort -u > "$_tmp_tsv"
+            ( cd "$DST" && for _d in */; do
+                _d="${_d%/}"
+                [ -d "$_d/.git" ] && printf '%s\n' "$_d"
+            done ) | sort -u | while IFS= read -r _r; do
+                grep -qx "$_r" "$_tmp_tsv" || printf "  %s\n" "$_r"
+            done
+            rm -f "$_tmp_tsv"
+            return 0
+            ;;
+    esac
     bold "repos${_tag:+ [tag: $_tag]}:"
-    tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
+    tail -n +2 "$TSV" | while IFS=	 read -r name tags desc; do
         [ -z "$name" ] && continue
         if [ -n "$_tag" ]; then
             case ",$tags," in *",$_tag,"*) printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tags" "$desc" ;; esac
@@ -80,7 +115,6 @@ cmd_list() {
         fi
     done
 }
-
 cmd_sync() {
     _tag="${1:-}"
     info "unix-toolkit — self-update..."
@@ -456,6 +490,9 @@ case "$CMD" in -h|--help|help) CMD="" ;; esac
   printf "\nLEER (sobre todos los repos)\n"
   printf "  ut list                      -- lista todos los repos registrados\n"
   printf "  ut list core                 -- lista solo los que tienen el tag 'core'\n"
+  printf "  ut list cloud                -- lista todo lo que existe en GitHub\n"
+  printf "  ut list local                -- lista lo clonado en este dispositivo\n"
+  printf "  ut list orphans              -- clones locales no registrados en repos.tsv\n"
   printf "  ut status                    -- git status en cada repo clonado\n"
   printf "  ut diff                      -- git diff en cada repo clonado\n"
   printf "  ut health                    -- busca problemas comunes en cada repo\n"
