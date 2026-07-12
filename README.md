@@ -171,12 +171,6 @@ Rename GitHub repo, update repos.tsv, move local clone directory.
 ut rename <old> <new>
 ```
 
-### ut open
-Open repo on GitHub in the browser.
-```sh
-ut open <repo>
-```
-
 ### ut info
 Show repo metadata, remote URL, branch, ahead/dirty status, recent commits.
 ```sh

@@ -571,7 +571,6 @@ print_help() {
   printf "  ut resume <repo>             -- marca el repo como activo\n"
   printf "  ut archive <repo>            -- marca el repo como archivado\n"
   printf "  ut info <repo>               -- muestra los datos del repo\n"
-  printf "  ut open <repo>               -- abre el directorio del repo\n"
   printf "\nGITHUB  [destructivo -- modifica GitHub]\n"
   printf "  ut create <repo> <tags> '<desc>'  -- crea el repo en GitHub\n"
   printf "  ut delete <repo>             -- borra el repo en GitHub\n"
@@ -669,13 +668,6 @@ PYEOF
         mv "$DST/$_old" "$DST/$_new" && ok "local clone moved: $DST/$_old -> $DST/$_new" || warn "mv failed — move manually"
         git -C "$DST/$_new" remote set-url origin "git@github.com:$GITHUB_USER/$_new.git" && ok "remote URL updated" || warn "remote URL update failed"
     fi
-}
-
-cmd_open() {
-    _repo="${1:-}"
-    [ -z "$_repo" ] && die "usage: ut open <repo>"
-    grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
-    gh repo view "$GITHUB_USER/$_repo" --web
 }
 
 cmd_info() {
@@ -831,7 +823,6 @@ case "$CMD" in
     create)     cmd_create     "$@" ;;
     delete)     cmd_delete     "$@" ;;
     rename)     cmd_rename     "$@" ;;
-    open)       cmd_open       "$@" ;;
     info)       cmd_info       "$@" ;;
     ship)       cmd_ship       "$@" ;;
     branch)     cmd_branch     "$@" ;;
