@@ -273,6 +273,23 @@ cmd_clone() {
     [ "$errors" -eq 0 ] && ok "all repos cloned" || { err "$errors repo(s) failed"; exit 1; }
 }
 
+cmd_install() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut install <repo>"
+    grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
+    target="$DST/$_repo"
+    if [ -d "$target/.git" ]; then
+        info "$_repo -- already cloned, nothing to do"
+        return 0
+    fi
+    gh auth status >/dev/null 2>&1 || die "gh not authenticated -- run: gh auth login"
+    mkdir -p "$DST"
+    info "$_repo -- installing from cloud..."
+    git clone "git@github.com:$GITHUB_USER/$_repo.git" "$target" \
+        && ok "$_repo installed to $target" \
+        || die "$_repo -- clone failed"
+}
+
 cmd_health() {
     _tag="${1:-}"
     _tmp=$(mktemp); printf "0\n" > "$_tmp"
@@ -374,6 +391,25 @@ PYEOF
     warn "local clone NOT removed — delete $DST/$_repo manually if needed"
 }
 
+
+cmd_remove() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut remove <repo>"
+    target="$DST/$_repo"
+    [ -d "$target/.git" ] || die "$_repo not cloned locally at $target"
+    _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+    _dirty=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$_ahead" -gt 0 ] || [ "$_dirty" -gt 0 ]; then
+        warn "$_repo has $_ahead unpushed commit(s) and $_dirty uncommitted change(s)"
+        printf "remove anyway? [y/N] "
+        read -r _ans
+        case "$_ans" in
+            y|Y) : ;;
+            *) info "aborted"; return 0 ;;
+        esac
+    fi
+    maid trash "$target" && ok "$_repo removed locally (recoverable via maid restore) -- still in GitHub" || err "$_repo -- trash failed"
+}
 
 cmd_pause() {
     _repo="${1:-}"; [ -z "$_repo" ] && die "usage: ut pause <repo>"
@@ -505,6 +541,7 @@ case "$CMD" in -h|--help|help) CMD="" ;; esac
   printf "\nGIT (sobre un repo)\n"
   printf "  ut clone                     -- clona todos los repos registrados\n"
   printf "  ut clone core                -- clona solo los del tag 'core'\n"
+  printf "  ut install <repo>           -- clona un repo registrado que no esta local aun\n"
   printf "  ut branch <repo> <rama>      -- pull+rebase y crea la rama en ese repo\n"
   printf "                                  ej: ut branch clipso fix/altg\n"
   printf "  ut ship <repo>               -- rebase+merge+push y borra la rama\n"
@@ -513,6 +550,7 @@ case "$CMD" in -h|--help|help) CMD="" ;; esac
   printf "  ut add <repo> <tags> '<desc>'  -- registra un repo nuevo\n"
   printf "                                  ej: ut add miau-dio audio 'sintesis CLI'\n"
   printf "  ut rm <repo>                 -- quita el repo del registro\n"
+  printf "  ut remove <repo>            -- borra el clon local (recuperable), GitHub y registro intactos\n"
   printf "  ut tag <repo> +<tag>         -- agrega un tag     ej: ut tag clipso +core\n"
   printf "  ut tag <repo> -<tag>         -- quita un tag      ej: ut tag clipso -core\n"
   printf "  ut pause <repo>              -- marca el repo como pausado\n"
@@ -764,11 +802,13 @@ case "$CMD" in
     run)      cmd_run      "$@" ;;
     list)     cmd_list     "$@" ;;
     clone)    cmd_clone    "$@" ;;
+    install)  cmd_install  "$@" ;;
     health)   cmd_health   "$@" ;;
     diff)     cmd_diff     "$@" ;;
     tag)      cmd_tag      "$@" ;;
     add)      cmd_add      "$@" ;;
     rm)       cmd_rm       "$@" ;;
+    remove)   cmd_remove   "$@" ;;
     machines) cmd_machines "$@" ;;
     pause)    cmd_pause    "$@" ;;
     resume)   cmd_resume   "$@" ;;
