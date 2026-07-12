@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # ut — unix-toolkit repo manager
 # usage: ut <command> [args]  -- run ut without args for full command list
 set -eu
@@ -126,7 +126,7 @@ cmd_sync() {
     errors=0
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
-        if [ -d "$target/.git" ]; then
+        if [ -e "$target/.git" ]; then
             info "$repo — pulling..."
             git -C "$target" pull --rebase --autostash 2>/dev/null \
                 && ok "$repo updated" \
@@ -145,12 +145,18 @@ cmd_sync() {
 #  echoes: "<branch> <ahead> <behind> <dirty> <stash>"
 repo_state() {
     _t="$1"
-    _br=$(git -C "$_t" branch --show-current 2>/dev/null || echo "?")
-    _ah=$(git -C "$_t" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-    _bh=$(git -C "$_t" rev-list --count "HEAD..@{u}" 2>/dev/null || echo 0)
-    _dt=$(git -C "$_t" status --short 2>/dev/null | wc -l | tr -d ' ')
-    _st=$(git -C "$_t" stash list 2>/dev/null | wc -l | tr -d ' ')
-    printf '%s %s %s %s %s\n' "${_br:-?}" "$_ah" "$_bh" "$_dt" "$_st"
+    # If git itself cannot read the repo at all, mark as error explicitly instead
+    # of silently reporting a "clean" state built from fallback values.
+    if ! git -C "$_t" rev-parse --git-dir >/dev/null 2>&1; then
+        printf 'ERROR 0 0 0 0\n'
+        return 0
+    fi
+    _br=$(git -C "$_t" branch --show-current 2>/dev/null); _br="${_br:-?}"
+    _ah=$(git -C "$_t" rev-list --count @{u}..HEAD 2>/dev/null); _ah="${_ah:-0}"
+    _bh=$(git -C "$_t" rev-list --count "HEAD..@{u}" 2>/dev/null); _bh="${_bh:-0}"
+    _dt=$(git -C "$_t" status --short 2>/dev/null | wc -l | tr -d ' '); _dt="${_dt:-0}"
+    _st=$(git -C "$_t" stash list 2>/dev/null | wc -l | tr -d ' '); _st="${_st:-0}"
+    printf '%s %s %s %s %s\n' "$_br" "$_ah" "$_bh" "$_dt" "$_st"
 }
 
 cmd_status() {
@@ -159,21 +165,26 @@ cmd_status() {
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         read -r _t _i < "$_tmp"; _t=$((_t+1))
         target="$DST/$repo"
-        if [ ! -d "$target/.git" ]; then
+        if [ ! -e "$target/.git" ]; then
             warn "$repo  not cloned"; _i=$((_i+1))
             printf "%s %s\n" "$_t" "$_i" > "$_tmp"; continue
         fi
         read -r _br _a _b _d _s <<EOF
 $(repo_state "$target")
 EOF
-        _flags=""
-        [ "$_d" -gt 0 ] && _flags="${_flags}dirty:$_d "
-        [ "$_a" -gt 0 ] && _flags="${_flags}ahead:$_a "
-        [ "$_b" -gt 0 ] && _flags="${_flags}behind:$_b "
-        [ "$_s" -gt 0 ] && _flags="${_flags}stash:$_s "
-        [ "$_br" != "main" ] && _flags="${_flags}branch:$_br "
-        if [ -n "$_flags" ]; then
-            warn "$repo  $_flags"; _i=$((_i+1))
+        _a="${_a:-0}"; _b="${_b:-0}"; _d="${_d:-0}"; _s="${_s:-0}"; _br="${_br:-?}"
+        if [ "$_br" = "ERROR" ]; then
+            err "$repo  git read failed"; _i=$((_i+1))
+        else
+            _flags=""
+            [ "$_d" -gt 0 ] && _flags="${_flags}dirty:$_d "
+            [ "$_a" -gt 0 ] && _flags="${_flags}ahead:$_a "
+            [ "$_b" -gt 0 ] && _flags="${_flags}behind:$_b "
+            [ "$_s" -gt 0 ] && _flags="${_flags}stash:$_s "
+            [ "$_br" != "main" ] && _flags="${_flags}branch:$_br "
+            if [ -n "$_flags" ]; then
+                warn "$repo  $_flags"; _i=$((_i+1))
+            fi
         fi
         printf "%s %s\n" "$_t" "$_i" > "$_tmp"
     done
@@ -222,7 +233,7 @@ cmd_push() {
     # push all tool repos
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
-        [ -d "$target/.git" ] || continue
+        [ -e "$target/.git" ] || continue
         _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
         if [ "$_ahead" -gt 0 ]; then
             info "$repo — pushing $_ahead commit(s)..."
@@ -241,7 +252,7 @@ cmd_run() {
     _tag="${1:-}"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
-        [ -d "$target/.git" ] || { warn "$repo — not cloned, skipping"; continue; }
+        [ -e "$target/.git" ] || { warn "$repo — not cloned, skipping"; continue; }
         bold "── $repo ──"
         (cd "$target" && eval "$_cmd") || err "$repo — command failed"
     done
@@ -263,7 +274,7 @@ cmd_clone() {
     }
     _clone_list "$@" | while IFS= read -r repo; do
         target="$DST/$repo"
-        if [ -d "$target/.git" ]; then
+        if [ -e "$target/.git" ]; then
             info "$repo — already cloned, skipping"
         else
             info "$repo — cloning..."
@@ -280,7 +291,7 @@ cmd_install() {
     [ -z "$_repo" ] && die "usage: ut install <repo>"
     grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
     target="$DST/$_repo"
-    if [ -d "$target/.git" ]; then
+    if [ -e "$target/.git" ]; then
         info "$_repo -- already cloned, nothing to do"
         return 0
     fi
@@ -298,13 +309,14 @@ cmd_health() {
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         read -r issues < "$_tmp"
         target="$DST/$repo"
-        if [ ! -d "$target/.git" ]; then
+        if [ ! -e "$target/.git" ]; then
             warn "$repo  not cloned"; issues=$((issues+1))
             printf "%s\n" "$issues" > "$_tmp"; continue
         fi
         read -r _br _a _b _d _s <<EOF
 $(repo_state "$target")
 EOF
+        _a="${_a:-0}"; _b="${_b:-0}"; _d="${_d:-0}"; _s="${_s:-0}"; _br="${_br:-?}"
         if ! git -C "$target" ls-remote --exit-code origin HEAD >/dev/null 2>&1; then
             _rem=$(git -C "$target" remote get-url origin 2>/dev/null || echo "none")
             err "$repo  remote unreachable: $_rem"; issues=$((issues+1))
@@ -323,7 +335,7 @@ cmd_diff() {
     _found=0
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
-        [ -d "$target/.git" ] || continue
+        [ -e "$target/.git" ] || continue
         _dirty=$(git -C "$target" status --short 2>/dev/null)
         if [ -n "$_dirty" ]; then
             bold "── $repo ──"
@@ -398,7 +410,7 @@ cmd_remove() {
     _repo="${1:-}"
     [ -z "$_repo" ] && die "usage: ut remove <repo>"
     target="$DST/$_repo"
-    [ -d "$target/.git" ] || die "$_repo not cloned locally at $target"
+    [ -e "$target/.git" ] || die "$_repo not cloned locally at $target"
     _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
     _dirty=$(git -C "$target" status --short 2>/dev/null | wc -l | tr -d ' ')
     if [ "$_ahead" -gt 0 ] || [ "$_dirty" -gt 0 ]; then
@@ -673,7 +685,7 @@ cmd_info() {
     bold "── $_repo ──"
     printf '%s\n' "$_row" | awk -F'\t' '{printf "tags:  %s\ndesc:  %s\nstate: %s\n", $2, $3, $4}'
     _target="$DST/$_repo"
-    if [ -d "$_target/.git" ]; then
+    if [ -e "$_target/.git" ]; then
         printf "remote: "; git -C "$_target" remote get-url origin
         printf "branch: "; git -C "$_target" rev-parse --abbrev-ref HEAD
         _ahead=$(git -C "$_target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
@@ -696,7 +708,7 @@ cmd_ship() {
     else
         _target="$DST/$_repo"
     fi
-    [ -d "$_target/.git" ] || die "$_repo not cloned at $_target"
+    [ -e "$_target/.git" ] || die "$_repo not cloned at $_target"
     _branch=$(git -C "$_target" rev-parse --abbrev-ref HEAD)
     [ "$_branch" = "main" ] && die "already on main — nothing to ship"
     info "rebasing $_branch onto origin/main..."
@@ -720,7 +732,7 @@ cmd_deploy() {
     else
         _target="$DST/$_repo"
     fi
-    [ -d "$_target/.git" ] || die "$_repo not cloned at $_target"
+    [ -e "$_target/.git" ] || die "$_repo not cloned at $_target"
     if [ -f "$_target/install.sh" ]; then
         info "running install.sh on local..."
         bash "$_target/install.sh" || die "local install.sh failed"
@@ -736,7 +748,7 @@ cmd_branch() {
     [ -z "$_repo" ] || [ -z "$_name" ] && die "usage: ut branch <repo> <name>"
     grep -q "^$_repo	" "$TSV" || die "$_repo not found in repos.tsv"
     _target="$DST/$_repo"
-    [ -d "$_target/.git" ] || die "$_repo not cloned at $_target"
+    [ -e "$_target/.git" ] || die "$_repo not cloned at $_target"
 
     _stashed=0
     if [ -n "$(git -C "$_target" status --short 2>/dev/null)" ]; then
