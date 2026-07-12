@@ -25,10 +25,13 @@ ut sync
 ```
 
 ### ut status
-Only repos with something to report. Summary line format:
+Only repos with something to report. Flags per repo:
+dirty, ahead, behind, stash, branch (when not on main), and drift
+(cloned but absent from the GitHub catalog -- renamed or deleted).
 ```sh
 ut status
-# [32 repos] ✓ 28 clean  ⚡ 2 ahead  ⏮ 1 behind  ✗ 1 conflict
+# ⚠ zsh-setup  dirty:2 ahead:1
+# [37 repos]  36 clean   1 with changes
 ```
 
 ### ut push
@@ -39,12 +42,20 @@ ut push
 In daily workflow use miko sync — runs dstask + ut push in order.
 
 ### ut clone
-Clone all repos in repos.tsv not yet present locally.
+Clone all registered repos not yet present locally, then echo the
+updated local inventory so no separate `ut list local` is needed.
 ```sh
 ut clone           # all missing
 ut clone noemap    # one specific repo
 ```
 Always uses SSH (git@github.com:catwilo/<repo>.git).
+
+### ut install
+Clone one registered repo that is not yet local, then echo the updated
+local inventory.
+```sh
+ut install <repo>
+```
 
 ### ut list
 List all repos with tags and description.
@@ -80,7 +91,9 @@ ut run git log --oneline -1
 ```
 
 ### ut health
-Check each repo: missing remote, HTTPS remote, untracked files, no commits.
+Per repo: unreachable remote, branch off main, ahead/behind, dirty
+tree, stash present, and drift against the GitHub catalog. Uses `gh`
+for the catalog snapshot; if `gh` is unavailable, drift is skipped.
 ```sh
 ut health
 ```

@@ -162,6 +162,7 @@ repo_state() {
 cmd_status() {
     _tag="${1:-}"
     _tmp=$(mktemp); printf "0 0\n" > "$_tmp"
+    _cloud=$(mktemp); cloud_snapshot "$_cloud"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         read -r _t _i < "$_tmp"; _t=$((_t+1))
         target="$DST/$repo"
@@ -182,13 +183,14 @@ EOF
             [ "$_b" -gt 0 ] && _flags="${_flags}behind:$_b "
             [ "$_s" -gt 0 ] && _flags="${_flags}stash:$_s "
             [ "$_br" != "main" ] && _flags="${_flags}branch:$_br "
+            [ -s "$_cloud" ] && ! grep -qx "$repo" "$_cloud" && _flags="${_flags}drift "
             if [ -n "$_flags" ]; then
                 warn "$repo  $_flags"; _i=$((_i+1))
             fi
         fi
         printf "%s %s\n" "$_t" "$_i" > "$_tmp"
     done
-    read -r _total _issues < "$_tmp"; rm -f "$_tmp"
+    read -r _total _issues < "$_tmp"; rm -f "$_tmp" "$_cloud"
     _clean=$((_total - _issues))
     bold "[$_total repos]  $_clean clean   $_issues with changes"
 }
@@ -284,6 +286,7 @@ cmd_clone() {
         fi
     done
     [ "$errors" -eq 0 ] && ok "all repos cloned" || { err "$errors repo(s) failed"; exit 1; }
+    printf '\n'; cmd_list local
 }
 
 cmd_install() {
@@ -301,11 +304,20 @@ cmd_install() {
     git clone "git@github.com:$GITHUB_USER/$_repo.git" "$target" \
         && ok "$_repo installed to $target" \
         || die "$_repo -- clone failed"
+    printf '\n'; cmd_list local
+}
+
+#  cloud_snapshot <outfile> -- write GitHub repo names to outfile
+#  used by health/status drift detection; empty file if gh unavailable
+cloud_snapshot() {
+    gh repo list "$GITHUB_USER" --limit 200 --json name --jq '.[].name' \
+        2>/dev/null | sort -u > "$1"
 }
 
 cmd_health() {
     _tag="${1:-}"
     _tmp=$(mktemp); printf "0\n" > "$_tmp"
+    _cloud=$(mktemp); cloud_snapshot "$_cloud"
     repos_for_tag "$_tag" | while IFS= read -r repo; do
         read -r issues < "$_tmp"
         target="$DST/$repo"
@@ -324,9 +336,13 @@ EOF
             warn "$repo  branch:$_br ahead:$_a behind:$_b dirty:$_d stash:$_s"
             issues=$((issues+1))
         fi
+        if [ -s "$_cloud" ] && ! grep -qx "$repo" "$_cloud"; then
+            err "$repo  drift: cloned but absent from GitHub catalog (renamed/deleted)"
+            issues=$((issues+1))
+        fi
         printf "%s\n" "$issues" > "$_tmp"
     done
-    read -r issues < "$_tmp"; rm -f "$_tmp"
+    read -r issues < "$_tmp"; rm -f "$_tmp" "$_cloud"
     [ "$issues" -eq 0 ] && ok "all repos healthy" || warn "$issues repo(s) need attention"
 }
 
