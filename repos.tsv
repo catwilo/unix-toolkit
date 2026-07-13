@@ -37,3 +37,4 @@ mkit	tool,cli,core	LLM file ops toolkit -- anchor/write/patch/verify CLI	active
 miau-dio	audio	CLI modular para sintesis y gestion de ideas musicales	active
 ecosystem-spec	docs	especificacion tecnica del ecosistema unix-toolkit	active
 BaquiaRaudal	client,web	Multi-tenant business OS (NestJS+Next.js+Neon) -- MVP: plant inventory catalog	active
+es3c28p-firmware	firmware,esp32,embedded,audio,display,ble,es3c28p	Professional C firmware for ES3C28P (ESP32-S3) board using ESP-IDF 5.5	active
