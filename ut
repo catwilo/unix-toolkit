@@ -665,6 +665,7 @@ print_help() {
   printf "  ut deploy <repo>             -- corre install.sh local + distribute\n"
   printf "                                  (si el repo no tiene install.sh, usa\n"
   printf "                                   solo 'ut ship'; 'ut info <repo>' lo dice)\n"
+  printf "  ut distribute-only <repo>    -- copia el repo a los nodos, sin instalar\n"
   printf "\nFLUJO ESTANDAR de un fix\n"
   printf "  1. ut branch <repo> fix/nombre\n"
   printf "  2. editar los archivos\n"
@@ -884,6 +885,32 @@ cmd_distribute() {
     ok "distribute complete"
 }
 
+cmd_distribute_only() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut distribute-only <repo>"
+    if [ "$_repo" = "unix-toolkit" ]; then
+        _rbase="unix-toolkit"
+    else
+        _rbase="unix-toolkit-tools/$_repo"
+    fi
+    _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
+    [ -f "$_devices" ] || die "devices.db not found: $_devices"
+    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    while IFS='|' read -r alias ip user port; do
+        [ -z "$alias" ] && continue
+        [ "$ip" = "$_self_ip" ] && continue
+        info "distributing $_repo -> $alias (no install)..."
+        if nssh "$alias" "[ -d ~/$_rbase/.git ]" 2>/dev/null; then
+            nssh "$alias" "git -C ~/$_rbase pull --rebase origin main" \
+                && ok "$alias — $_repo updated (not installed)" \
+                || err "$alias — distribution failed"
+        else
+            warn "$alias — $_repo not cloned, skipping (run: nssh $alias then ut clone $_repo)"
+        fi
+    done < "$_devices"
+    ok "distribute-only complete"
+}
+
 case "$CMD" in
     sync)     cmd_sync     "$@" ;;
     fetch)    cmd_fetch    "$@" ;;
@@ -911,5 +938,6 @@ case "$CMD" in
     branch)     cmd_branch     "$@" ;;
     distribute) cmd_distribute "$@" ;;
     deploy)     cmd_deploy     "$@" ;;
+    distribute-only) cmd_distribute_only "$@" ;;
     *) err "unknown command: $CMD"; print_help; exit 1 ;;
 esac
