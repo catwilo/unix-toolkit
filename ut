@@ -503,26 +503,93 @@ cmd_machines_diff() {
             _nodes="$_nodes $alias"
         fi
     done < "$_devices"
-    bold "── repo state by node ──"
+
+    # ------------------------------------------------------------------
+    # Only out-of-sync repos are printed; a repo identical on every node is
+    # noise, not information. Columns are fixed-width ASCII so they align in
+    # any terminal font. Counts are accumulated in a temp file because the
+    # repos_all pipe runs the loop in a subshell (vars would not survive).
+    # ------------------------------------------------------------------
+    _rw=28; _cw=20
+    _tally="$_out/.tally"; : > "$_tally"
+    _difflines="$_out/.difflines"; : > "$_difflines"
+
     repos_all | while IFS= read -r _repo; do
         [ -z "$_repo" ] && continue
-        printf '%s' "$_repo"
+
+        _cells=""
+        _local_cell=""
+        _all_match=1
+        _any_unreach=0
+
         for _n in $_nodes; do
-            if [ -f "$_out/$_n.flag" ]; then printf '  %s:unreach' "$_n"; continue; fi
+            if [ -f "$_out/$_n.flag" ]; then
+                _cells="$_cells|UNREACH"
+                _any_unreach=1
+                continue
+            fi
             _line=$(grep "^$_repo	" "$_out/$_n" 2>/dev/null)
-            if [ -z "$_line" ]; then printf '  %s:-' "$_n"; continue; fi
+            if [ -z "$_line" ]; then
+                _cells="$_cells|-"
+                [ "$_n" = local ] || _all_match=0
+                continue
+            fi
             _br=$(printf '%s' "$_line" | cut -f2)
             _h=$(printf '%s' "$_line" | cut -f3)
             _a=$(printf '%s' "$_line" | cut -f4)
             _y=$(printf '%s' "$_line" | cut -f5)
             _cell="$_h"
             [ "$_br" != main ] && [ "$_br" != - ] && _cell="$_br:$_h"
-            [ "$_a" != 0 ] && _cell="$_cell↑$_a"
+            [ "$_a" != 0 ] && _cell="$_cell+$_a"
             [ "$_y" != 0 ] && _cell="$_cell*$_y"
-            printf '  %s %s' "$_n" "$_cell"
+            _cells="$_cells|$_cell"
+
+            if [ "$_n" = local ]; then
+                _local_cell="$_cell"
+            elif [ "$_cell" != "$_local_cell" ]; then
+                _all_match=0
+            fi
         done
-        printf '\n'
+
+        printf 'x\n' >> "$_tally"
+        [ "$_any_unreach" = 0 ] && [ "$_all_match" = 1 ] && continue
+
+        if [ "$_any_unreach" = 1 ]; then
+            _status="${R}[UNREACH]${Z}"
+        else
+            _status="${Y}[DIFF]${Z}"
+        fi
+
+        {
+            printf "%-${_rw}s" "$_repo"
+            _cells="${_cells#|}"
+            _oldifs="$IFS"; IFS='|'
+            for _c in $_cells; do
+                printf "%-${_cw}s" "$_c"
+            done
+            IFS="$_oldifs"
+            printf ' %b\n' "$_status"
+        } >> "$_difflines"
     done
+
+    _total=$(wc -l < "$_tally" 2>/dev/null | tr -d ' ')
+    _ndiff=$(wc -l < "$_difflines" 2>/dev/null | tr -d ' ')
+    _total=${_total:-0}; _ndiff=${_ndiff:-0}
+
+    if [ "$_ndiff" -eq 0 ]; then
+        printf "${G}all %s repos in sync across: %s${Z}\n" "$_total" "$_nodes"
+    else
+        printf "${B}%-${_rw}s${Z}" "REPO"
+        for _n in $_nodes; do printf "${B}%-${_cw}s${Z}" "$_n"; done
+        printf '\n'
+        _width=$((_rw + _cw * $(printf '%s\n' $_nodes | wc -l)))
+        printf '%s\n' "$(printf -- '-%.0s' $(seq 1 $_width))"
+        cat "$_difflines"
+        printf '\n'
+        printf "${B}%s repos total | ${G}%s in sync${Z}${B} | ${Y}%s out of sync${Z}\n" \
+            "$_total" "$((_total - _ndiff))" "$_ndiff"
+    fi
+
     rm -rf "$_out"
 }
 
