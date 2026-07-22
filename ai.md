@@ -242,7 +242,7 @@ warn only.
     `git -C <repopath> diff --stat HEAD..origin/main`
     `git -C <repopath> branch -v --no-merged main`
     `git -C <repopath> status --short`
-  `miko -h` once per conversation, own block, before the repo-open block.
+  `miko -h` and `ut -h`, each once per conversation, own block, before the repo-open block.
 - Close: `miko session-close` — pending tasks, sync, dirty repos.
   Session close is confirmed only by this output.
 
