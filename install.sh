@@ -14,14 +14,11 @@ ok()   { printf "%s[OK]%s    %s\n" "$G" "$Z" "$*"; }
 warn() { printf "%s[WARN]%s  %s\n" "$Y" "$Z" "$*"; }
 err()  { printf "%s[ERROR]%s %s\n" "$R" "$Z" "$*" >&2; }
 
-# -- 1. install ut (atomic copy, never symlink) --
+# -- 1. install ut (symlink to repo source, repo is the only source of truth) --
 mkdir -p "$BIN"
-_tmp="$(mktemp -d "$BIN/.ut-tmp.XXXXXX")/ut"
-cp -f "$HERE/ut" "$_tmp"
-chmod +x "$_tmp"
-mv -f "$_tmp" "$BIN/ut"
-rmdir "$(dirname "$_tmp")" 2>/dev/null || true
-ok "ut -> $BIN/ut"
+chmod +x "$HERE/ut"
+ln -sf "$HERE/ut" "$BIN/ut"
+ok "ut -> $BIN/ut (symlink to $HERE/ut)"
 
 # -- 2. configure git templateDir globally --
 git config --global init.templateDir "$TEMPLATE_DIR"
