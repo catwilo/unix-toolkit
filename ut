@@ -655,6 +655,7 @@ print_help() {
   printf "  ut archive <repo>            -- marca el repo como archivado\n"
   printf "  ut info <repo>               -- muestra los datos del repo\n"
   printf "\nGITHUB  [destructivo -- modifica GitHub]\n"
+  printf "  ut new <repo> <tags> '<desc>'     -- crea repo + clona + sincroniza en todos los nodos\n"
   printf "  ut create <repo> <tags> '<desc>'  -- crea el repo en GitHub\n"
   printf "  ut delete <repo>             -- borra el repo en GitHub\n"
   printf "  ut rename <viejo> <nuevo>    -- renombra el repo en GitHub\n"
@@ -706,6 +707,46 @@ cmd_create() {
     else
         err "$_repo  clone failed"
     fi
+}
+
+cmd_new() {
+    _repo="${1:-}"; _tags="${2:-}"; _desc="${3:-}"
+    [ -z "$_repo" ] || [ -z "$_tags" ] || [ -z "$_desc" ] && die "usage: ut new <repo> <tags> \"<description>\""
+    grep -q "^$_repo	" "$TSV" && die "$_repo already in repos.tsv"
+    gh auth status >/dev/null 2>&1 || die "gh not authenticated -- run: gh auth login"
+    info "creating GitHub repo $GITHUB_USER/$_repo..."
+    gh repo create "$GITHUB_USER/$_repo" --private --description "$_desc" || die "gh repo create failed"
+    printf '%s\t%s\t%s\t%s\n' "$_repo" "$_tags" "$_desc" "active" >> "$TSV"
+    ok "registered: $_repo in repos.tsv"
+    mkdir -p "$DST"
+    if ! git clone "git@github.com:$GITHUB_USER/$_repo.git" "$DST/$_repo"; then
+        err "$_repo  clone failed"
+        return 1
+    fi
+    ok "$_repo cloned to $DST/$_repo"
+    printf '# %s
+
+%s
+' "$_repo" "$_desc" > "$DST/$_repo/README.md"
+    git -C "$DST/$_repo" add README.md
+    git -C "$DST/$_repo" commit -m "docs: add README"
+    git -C "$DST/$_repo" push -u origin main || git -C "$DST/$_repo" push -u origin master || warn "push failed -- run manually"
+    ok "initial commit pushed"
+
+    _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
+    [ -f "$_devices" ] || { warn "devices.db not found, skipping remote sync"; return 0; }
+    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    while IFS='|' read -r alias ip user port; do
+        [ -z "$alias" ] && continue
+        [ "$ip" = "$_self_ip" ] && continue
+        info "syncing $_repo -> $alias..."
+        if nssh "$alias" "mkdir -p ~/unix-toolkit-tools && git clone git@github.com:$GITHUB_USER/$_repo.git ~/unix-toolkit-tools/$_repo" 2>/dev/null; then
+            ok "$alias -- $_repo cloned"
+        else
+            err "$alias -- clone failed"
+        fi
+    done < "$_devices"
+    ok "$_repo distributed to all nodes"
 }
 
 cmd_delete() {
@@ -912,6 +953,7 @@ cmd_distribute_only() {
 }
 
 case "$CMD" in
+    new)      cmd_new      "$@" ;;
     sync)     cmd_sync     "$@" ;;
     fetch)    cmd_fetch    "$@" ;;
     status)   cmd_status   "$@" ;;
