@@ -346,6 +346,43 @@ EOF
     [ "$issues" -eq 0 ] && ok "all repos healthy" || warn "$issues repo(s) need attention"
 }
 
+cmd_branches() {
+    _tag="${1:-}"
+    _tmp=$(mktemp); printf "0\n" > "$_tmp"
+    repos_for_tag "$_tag" | while IFS= read -r repo; do
+        read -r issues < "$_tmp"
+        target="$DST/$repo"
+        [ -e "$target/.git" ] || continue
+        _others=$(git -C "$target" branch --format='%(refname:short)' 2>/dev/null | grep -v '^main$' || true)
+        _dirty=$(git -C "$target" status --short 2>/dev/null)
+        if [ -z "$_dirty" ]; then
+            _dcount=0
+        else
+            _dcount=$(printf '%s\n' "$_dirty" | wc -l | tr -d ' ')
+        fi
+        if [ -n "$_others" ] || [ "$_dcount" -gt 0 ]; then
+            bold "$repo"
+            if [ -n "$_others" ]; then
+                printf '%s\n' "$_others" | while IFS= read -r _b; do
+                    [ -z "$_b" ] && continue
+                    _n=$(git -C "$target" rev-list --count "main..$_b" 2>/dev/null); _n="${_n:-0}"
+                    warn "  branch: $_b (+$_n)"
+                done
+            fi
+            if [ "$_dcount" -gt 0 ]; then
+                printf '%s\n' "$_dirty" | while IFS= read -r _line; do
+                    [ -z "$_line" ] && continue
+                    warn "  file:   $_line"
+                done
+            fi
+            issues=$((issues+1))
+        fi
+        printf "%s\n" "$issues" > "$_tmp"
+    done
+    read -r issues < "$_tmp"; rm -f "$_tmp"
+    [ "$issues" -eq 0 ] && ok "no unmerged branches or dirty state" || warn "$issues repo(s) with unmerged branches or dirty state"
+}
+
 cmd_diff() {
     _tag="${1:-}"
     _found=0
@@ -968,6 +1005,7 @@ case "$CMD" in
     clone)    cmd_clone    "$@" ;;
     install)  cmd_install  "$@" ;;
     health)   cmd_health   "$@" ;;
+    branches) cmd_branches "$@" ;;
     diff)     cmd_diff     "$@" ;;
     tag)      cmd_tag      "$@" ;;
     add)      cmd_add      "$@" ;;
