@@ -883,9 +883,25 @@ cmd_ship() {
     ok "$_repo shipped to origin/main"
 }
 
-cmd_deploy() {
-    _repo="${1:-}"
-    [ -z "$_repo" ] && die "usage: ut deploy <repo>"
+# ── repo cleanliness check (used by deploy/distribute-only all) ────────────
+#  _repo_is_dirty <target> -- prints reason if dirty/unmerged, empty if clean
+_repo_is_dirty() {
+    _t="$1"
+    _others=$(git -C "$_t" branch --format='%(refname:short)' 2>/dev/null | grep -v '^main$' || true)
+    _dirty=$(git -C "$_t" status --short 2>/dev/null)
+    if [ -n "$_others" ]; then
+        printf 'unmerged branch(es): %s' "$(printf '%s' "$_others" | tr '\n' ',' | sed 's/,$//')"
+        return 0
+    fi
+    if [ -n "$_dirty" ]; then
+        printf 'dirty working tree'
+        return 0
+    fi
+    return 1
+}
+
+cmd_deploy_one() {
+    _repo="$1"
     if [ "$_repo" = "unix-toolkit" ]; then
         _target="${UNIX_TOOLKIT_SELF:-$HOME/unix-toolkit}"
     else
@@ -900,6 +916,35 @@ cmd_deploy() {
         warn "no install.sh for $_repo, skipping local install"
     fi
     cmd_distribute "$_repo"
+}
+
+_local_repo_names() {
+    [ -d "$DST" ] || return 0
+    ( cd "$DST" && for _d in */; do
+        _d="${_d%/}"
+        [ -d "$_d/.git" ] && printf '%s\n' "$_d"
+    done ) | sort
+}
+
+cmd_deploy() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut deploy <repo|all>"
+    if [ "$_repo" != "all" ]; then
+        cmd_deploy_one "$_repo"
+        return 0
+    fi
+    _skipped=$(mktemp); : > "$_skipped"
+    _ok=$(mktemp); : > "$_ok"
+    _local_repo_names | while IFS= read -r _r; do
+        [ -z "$_r" ] && continue
+        _target="$DST/$_r"
+        _reason=$(_repo_is_dirty "$_target") && { warn "$_r  skipped: $_reason"; printf '%s\n' "$_r" >> "$_skipped"; continue; }
+        info "deploying $_r..."
+        cmd_deploy_one "$_r" && printf '%s\n' "$_r" >> "$_ok" || { warn "$_r  skipped: deploy failed"; printf '%s\n' "$_r" >> "$_skipped"; }
+    done
+    _nok=$(wc -l < "$_ok" | tr -d ' '); _nskip=$(wc -l < "$_skipped" | tr -d ' ')
+    rm -f "$_ok" "$_skipped"
+    bold "deploy all: $_nok deployed, $_nskip skipped"
 }
 
 cmd_branch() {
@@ -968,9 +1013,8 @@ cmd_distribute() {
     ok "distribute complete"
 }
 
-cmd_distribute_only() {
-    _repo="${1:-}"
-    [ -z "$_repo" ] && die "usage: ut distribute-only <repo>"
+cmd_distribute_only_one() {
+    _repo="$1"
     if [ "$_repo" = "unix-toolkit" ]; then
         _rbase="unix-toolkit"
     else
@@ -992,6 +1036,26 @@ cmd_distribute_only() {
         fi
     done < "$_devices"
     ok "distribute-only complete"
+}
+
+cmd_distribute_only() {
+    _repo="${1:-}"
+    [ -z "$_repo" ] && die "usage: ut distribute-only <repo|all>"
+    if [ "$_repo" != "all" ]; then
+        cmd_distribute_only_one "$_repo"
+        return 0
+    fi
+    _skipped=$(mktemp); : > "$_skipped"
+    _ok=$(mktemp); : > "$_ok"
+    _local_repo_names | while IFS= read -r _r; do
+        [ -z "$_r" ] && continue
+        _target="$DST/$_r"
+        _reason=$(_repo_is_dirty "$_target") && { warn "$_r  skipped: $_reason"; printf '%s\n' "$_r" >> "$_skipped"; continue; }
+        cmd_distribute_only_one "$_r" && printf '%s\n' "$_r" >> "$_ok" || { warn "$_r  skipped: distribute failed"; printf '%s\n' "$_r" >> "$_skipped"; }
+    done
+    _nok=$(wc -l < "$_ok" | tr -d ' '); _nskip=$(wc -l < "$_skipped" | tr -d ' ')
+    rm -f "$_ok" "$_skipped"
+    bold "distribute-only all: $_nok distributed, $_nskip skipped"
 }
 
 case "$CMD" in
