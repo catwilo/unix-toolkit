@@ -781,6 +781,11 @@ cmd_new() {
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
         [ "$ip" = "$_self_ip" ] && continue
+        _port="${port:-22}"
+        if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
+            warn "$alias -- skipped (unreachable: $ip:$_port)"
+            continue
+        fi
         info "syncing $_repo -> $alias..."
         if nssh "$alias" "mkdir -p ~/unix-toolkit-tools && git clone git@github.com:$GITHUB_USER/$_repo.git ~/unix-toolkit-tools/$_repo" 2>/dev/null; then
             ok "$alias -- $_repo cloned"
@@ -1001,6 +1006,11 @@ cmd_distribute() {
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
         [ "$ip" = "$_self_ip" ] && { _self_alias="$alias"; continue; }
+        _port="${port:-22}"
+        if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
+            warn "$alias — skipped (unreachable: $ip:$_port)"
+            continue
+        fi
         info "distributing $_repo -> $alias..."
         if nssh "$alias" "[ -d ~/$_rbase/.git ]" 2>/dev/null; then
             nssh "$alias" "git -C ~/$_rbase pull --rebase origin main && { [ ! -f ~/$_rbase/install.sh ] || ~/$_rbase/install.sh; }" \
@@ -1026,6 +1036,11 @@ cmd_distribute_only_one() {
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
         [ "$ip" = "$_self_ip" ] && continue
+        _port="${port:-22}"
+        if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
+            warn "$alias — skipped (unreachable: $ip:$_port)"
+            continue
+        fi
         info "distributing $_repo -> $alias (no install)..."
         if nssh "$alias" "[ -d ~/$_rbase/.git ]" 2>/dev/null; then
             nssh "$alias" "git -C ~/$_rbase pull --rebase origin main" \
