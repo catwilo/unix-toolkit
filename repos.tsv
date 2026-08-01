@@ -43,3 +43,9 @@ report-studio	core,tool,docs	sistema documental estandar para reportes instituci
 ASAMTEFUR	client,docs	Reportes institucionales ASAMTEFUR (trimestral, anual, etc.)	active
 biblio-convocat	client,docs	convocatoria biblioteca municipal cultura llanera	active
 unix-toolkit	core,tool	self-hosted repo manager and dev toolkit root	active
+anydesk-install	uncat	uncatalogued -- pending review	active
+catwilo	uncat	uncatalogued -- pending review	active
+miko-tasks	uncat	uncatalogued -- pending review, possible legacy/duplicate of miko-task	active
+thumb-key	uncat	uncatalogued -- pending review	active
+toolbox	uncat	uncatalogued -- pending review	active
+unix-toolkit-tasks	uncat	uncatalogued -- pending review, possible legacy/duplicate of miko-task	active
