@@ -6,3 +6,5 @@
 *~
 .DS_Store
 audit-report.txt
+.ctx.db
+.ctx.md
