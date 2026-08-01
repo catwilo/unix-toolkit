@@ -118,9 +118,15 @@ cmd_list() {
 cmd_sync() {
     _tag="${1:-}"
     info "unix-toolkit — self-update..."
-    git -C "$(dirname "$(realpath "$0")")" pull --rebase --autostash 2>/dev/null \
-        && ok "unix-toolkit updated" \
-        || warn "unix-toolkit self-update failed — continuing"
+    _self="$(dirname "$(realpath "$0")")"
+    _err=$(mktemp "${TMPDIR:-/tmp}/ut-selfupdate-err.XXXXXX")
+    if git -C "$_self" pull --rebase --autostash 2>"$_err"; then
+        ok "unix-toolkit updated"
+    else
+        warn "unix-toolkit self-update failed:"
+        sed 's/^/    /' "$_err" >&2
+    fi
+    rm -f "$_err"
     gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
     mkdir -p "$DST"
     errors=0

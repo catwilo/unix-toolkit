@@ -163,9 +163,14 @@ Tasks are manageable from any node; sync reconciles across all.
 Strict order: ship → deploy → sync. ship merges+pushes; deploy installs
 across all nodes; sync reconciles tasks only after new state is live.
 A fix to a shared tool is complete only once deployed on every node using
-it. Source of truth: the repo (`~/unix-toolkit-tools/<tool>`), never
+it.
+Source of truth: the repo (`~/unix-toolkit-tools/<tool>`), never
 `~/.local/bin` directly. Syncing before tasks are marked done propagates
-stale state.
+stale state. Installers link (symlink) binaries into PATH from the repo,
+never copy -- except `zsh-setup/dotfiles/install.sh`, which stays
+`cp -RfL` (see DOTFILES). A symlinked binary updates automatically on
+`git pull`; no reinstall needed unless install.sh also changed something
+else (templateDir, hooks, non-binary state).
 
 ## GIT — STANDARD FLOW
 
