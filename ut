@@ -616,8 +616,15 @@ cmd_machines_diff() {
         } >> "$_difflines"
     done
 
-    _total=$(wc -l < "$_tally" 2>/dev/null | tr -d ' ')
-    _ndiff=$(wc -l < "$_difflines" 2>/dev/null | tr -d ' ')
+        printf "${B}%-${_rw}s${Z}" "REPO"
+        for _n in $_nodes; do
+            if [ "$_n" = "local" ]; then
+                printf "${B}%-${_cw}s${Z}" "$_n <-- this"
+            else
+                printf "${B}%-${_cw}s${Z}" "$_n"
+            fi
+        done
+        printf '\n'
     _total=${_total:-0}; _ndiff=${_ndiff:-0}
 
     if [ "$_ndiff" -eq 0 ]; then
