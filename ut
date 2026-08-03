@@ -45,6 +45,23 @@ repos_for_tag() {
         repos_active
         return
     fi
+    case "$_tag" in
+        *,*)
+            _seen=$(mktemp)
+            _oldifs="$IFS"; IFS=','
+            for _one in $_tag; do
+                IFS="$_oldifs"
+                [ -z "$_one" ] && continue
+                repos_for_tag "$_one" | while IFS= read -r _r; do
+                    grep -qxF "$_r" "$_seen" 2>/dev/null || { printf '%s\n' "$_r"; printf '%s\n' "$_r" >> "$_seen"; }
+                done
+                IFS=','
+            done
+            IFS="$_oldifs"
+            rm -f "$_seen"
+            return
+            ;;
+    esac
     _tmp_matched=$(mktemp)
     printf '0' > "$_tmp_matched"
     tail -n +2 "$TSV" | while IFS='	' read -r name tags desc state; do
