@@ -254,6 +254,11 @@ warn only.
 
 ## SESSION
 
+`miko-geral` is miko's own internal bucket for general/unassigned tasks --
+not a repo, has no .ctx.db, no filesystem path. `miko micro`, `pending`,
+`-pm` and any .ctx-backed command never apply to it; only `miko next`,
+`add`, `done`, etc. (the plain task-list commands) do.
+
 - Open: `miko next --all` — all pending tasks before choosing a target.
 - Repo open, one block per state check:
     `miko micro <repo>`
