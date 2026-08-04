@@ -235,7 +235,7 @@ warn only.
 `miko-geral` is miko's own internal bucket for general/unassigned tasks --
 not a repo, path: `~/.tasks/miko-geral`.
 
-- Open: `miko next --all` — all pending tasks before choosing a target.
+- Open: `miko next` -- all pending tasks before choosing a target.
 - Repo open, one block per state check:
     `git -C <repopath> fetch origin`
     `git -C <repopath> diff --stat origin/main..HEAD`
