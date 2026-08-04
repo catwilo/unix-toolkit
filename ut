@@ -268,7 +268,8 @@ cmd_fetch() {
         esac
     done < "$_outfile"
 
-    _errors=$(grep -c "^fail" "$_outfile" 2>/dev/null || printf '0')
+    _errors=$(grep -c "^fail" "$_outfile" 2>/dev/null || true)
+    _errors="${_errors:-0}"
     rm -f "$_errfile" "$_outfile"
     [ "$_errors" -eq 0 ] && ok "all repos fetched" || { err "${_errors} repo(s) failed"; exit 1; }
 }
