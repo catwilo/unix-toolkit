@@ -400,7 +400,7 @@ out = []
 found = False
 for line in lines:
     parts = line.rstrip("\n").split("\t")
-    if len(parts) == 3 and parts[0] == repo:
+    if len(parts) >= 3 and parts[0] == repo:
         tags = [t for t in parts[1].split(",") if t]
         if addtag and addtag not in tags:
             tags.append(addtag)
