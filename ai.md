@@ -2,7 +2,7 @@
 
 Code, variables, comments: English. Conversational reply: Spanish.
 Stack: Termux (Android), Debian (db). Tools: mkit, miko, ut, noemap,
-nssh, nscp, ndevs, nrsync, maid.
+nssh, nscp, ndevs, maid.
 
 ## IDENTITY
 
@@ -94,7 +94,7 @@ user taps, never types, whenever this form can resolve the question.
 
 ## CUSTOM TOOLS — HELP BEFORE USE
 
-This spec names the custom tools (mkit, miko, ut, noemap, nssh, nscp, ndevs, nrsync, maid) but never documents their invocation.
+This spec names the custom tools (mkit, miko, ut, noemap, nssh, nscp, ndevs, maid) but never documents their invocation.
 Their flags, subcommands and syntax are the tool's own `--help`, which is
 the single source of truth, since tool behavior may have changed since
 any prior knowledge.
@@ -193,7 +193,7 @@ Per-fix flow:
 ## REMOTE
 
 Remote connection, transfer and device management go through the custom
-remote tools (noemap, nssh, nscp, ncssh, nrsync) — help-before-use
+remote tools (noemap, nssh, nscp, ncssh) — help-before-use
 applies. An alias carries the correct host/user/options. Multi-step or
 state-changing work: interactive shell session. Quick single-command
 reads: exec mode.
