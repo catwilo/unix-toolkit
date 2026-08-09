@@ -122,8 +122,16 @@ cmd_list() {
             return 0
             ;;
     esac
+    if [ -n "$_tag" ] && ! grep -q ",$_tag," <(tail -n +2 "$TSV" | cut -f2 | sed 's/^/,/;s/$/,/') \
+       && grep -q "^${_tag}	" "$TSV"; then
+        bold "repos [repo: $_tag]:"
+        tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
+            case "$name" in "$_tag") printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tags" "$desc" ;; esac
+        done
+        return 0
+    fi
     bold "repos${_tag:+ [tag: $_tag]}:"
-    tail -n +2 "$TSV" | while IFS=	 read -r name tags desc; do
+    tail -n +2 "$TSV" | while IFS='	' read -r name tags desc; do
         [ -z "$name" ] && continue
         if [ -n "$_tag" ]; then
             case ",$tags," in *",$_tag,"*) printf "  %-35s ${C}%-10s${Z} %s\n" "$name" "$tags" "$desc" ;; esac
