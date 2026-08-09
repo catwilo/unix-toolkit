@@ -41,7 +41,7 @@ es3c28p-firmware	firmware,esp32,embedded,audio,display,ble,es3c28p	Professional 
 kakaw	client,web,agro	Registro sanitario y de insumos por lote para fincas cacaoteras -- captura offline, analisis en servidor	active
 report-studio	core,tool,docs	sistema documental estandar para reportes institucionales de cualquier tipo/tema/asociacion	active
 ASAMTEFUR	client,docs	Reportes institucionales ASAMTEFUR (trimestral, anual, etc.)	active
-biblio-convocat	client,docs	convocatoria biblioteca municipal cultura llanera	active
+biblio-convocat	client,docs,rpx-report	convocatoria biblioteca municipal cultura llanera	active
 unix-toolkit	core,tool	self-hosted repo manager and dev toolkit root	active
 anydesk-install	uncat	uncatalogued -- pending review	active
 catwilo	uncat	uncatalogued -- pending review	active
