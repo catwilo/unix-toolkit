@@ -289,7 +289,7 @@ cmd_push() {
     _ahead=$(git -C "$_self" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
     if [ "$_ahead" -gt 0 ]; then
         info "unix-toolkit — pushing $_ahead commit(s)..."
-        git -C "$_self" push && ok "unix-toolkit pushed" || err "unix-toolkit — push failed"
+        git -C "$_self" push && { ok "unix-toolkit pushed"; log_change "unix-toolkit" "push"; } || err "unix-toolkit — push failed"
     fi
     # push all tool repos
     repos_for_target "$_tag" | while IFS= read -r repo; do
@@ -298,7 +298,7 @@ cmd_push() {
         _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
         if [ "$_ahead" -gt 0 ]; then
             info "$repo — pushing $_ahead commit(s)..."
-            git -C "$target" push && ok "$repo pushed" || err "$repo — push failed"
+            git -C "$target" push && { ok "$repo pushed"; log_change "$repo" "push"; } || err "$repo — push failed"
         fi
     done
     # post-push status report
@@ -368,6 +368,13 @@ cmd_install() {
 
 #  cloud_snapshot <outfile> -- write GitHub repo names to outfile
 #  used by health/status drift detection; empty file if gh unavailable
+#  log_change <repo> <action> -- append a change record to $DST/.ut-changelog
+#  format: repo<TAB>epoch<TAB>action -- called only after an observed success
+log_change() {
+    _lc_repo="$1"; _lc_action="$2"
+    printf '%s\t%s\t%s\n' "$_lc_repo" "$(date +%s)" "$_lc_action" >> "$DST/.ut-changelog"
+}
+
 cloud_snapshot() {
     gh repo list "$GITHUB_USER" --limit 200 --json name --jq '.[].name' \
         2>/dev/null | sort -u > "$1"
@@ -912,6 +919,7 @@ cmd_deploy_one() {
         info "running install.sh on local..."
         bash "$_target/install.sh" || die "local install.sh failed"
         ok "local install complete"
+        log_change "$_repo" "deploy"
     else
         warn "no install.sh for $_repo, skipping local install"
     fi
@@ -1004,7 +1012,7 @@ cmd_distribute() {
         info "distributing $_repo -> $alias..."
         if nssh "$alias" "[ -d ~/$_rbase/.git ]" 2>/dev/null; then
             nssh "$alias" "git -C ~/$_rbase pull --rebase origin main && { [ ! -f ~/$_rbase/install.sh ] || ~/$_rbase/install.sh; }" \
-                && ok "$alias — $_repo updated" \
+                && { ok "$alias — $_repo updated"; log_change "$_repo" "distribute:$alias"; } \
                 || err "$alias — distribution failed"
         else
             warn "$alias — $_repo not cloned, skipping (run: nssh $alias then ut clone $_repo)"
@@ -1030,7 +1038,7 @@ cmd_distribute_only_one() {
         info "distributing $_repo -> $alias (no install)..."
         if nssh "$alias" "[ -d ~/$_rbase/.git ]" 2>/dev/null; then
             nssh "$alias" "git -C ~/$_rbase pull --rebase origin main" \
-                && ok "$alias — $_repo updated (not installed)" \
+                && { ok "$alias — $_repo updated (not installed)"; log_change "$_repo" "distribute:$alias"; } \
                 || err "$alias — distribution failed"
         else
             warn "$alias — $_repo not cloned, skipping (run: nssh $alias then ut clone $_repo)"
