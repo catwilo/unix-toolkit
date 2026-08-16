@@ -38,21 +38,21 @@ repos_active() {
     done
 }
 
-#  repos_for_tag -- repo names filtered by tag, or active repos if no tag given
-repos_for_tag() {
-    _tag="${1:-}"
-    if [ -z "$_tag" ]; then
+#  repos_for_target -- repo names filtered by tag, or active repos if no tag given
+repos_for_target() {
+    _target="${1:-}"
+    if [ -z "$_target" ]; then
         repos_active
         return
     fi
-    case "$_tag" in
+    case "$_target" in
         *,*)
             _seen=$(mktemp)
             _oldifs="$IFS"; IFS=','
-            for _one in $_tag; do
+            for _one in $_target; do
                 IFS="$_oldifs"
                 [ -z "$_one" ] && continue
-                repos_for_tag "$_one" | while IFS= read -r _r; do
+                repos_for_target "$_one" | while IFS= read -r _r; do
                     grep -qxF "$_r" "$_seen" 2>/dev/null || { printf '%s\n' "$_r"; printf '%s\n' "$_r" >> "$_seen"; }
                 done
                 IFS=','
@@ -67,7 +67,7 @@ repos_for_tag() {
     tail -n +2 "$TSV" | while IFS='	' read -r name tags desc state; do
         [ -z "$name" ] && continue
         case ",$tags," in
-            *",$_tag,"*)
+            *",$_target,"*)
                 printf '%s\n' "$name"
                 printf '1' > "$_tmp_matched"
                 ;;
@@ -75,10 +75,10 @@ repos_for_tag() {
     done
     _matched=$(cat "$_tmp_matched"); rm -f "$_tmp_matched"
     if [ "$_matched" -eq 0 ]; then
-        if grep -q "^${_tag}	" "$TSV"; then
-            printf '%s\n' "$_tag"
+        if grep -q "^${_target}	" "$TSV"; then
+            printf '%s\n' "$_target"
         else
-            die "unknown tag or repo: $_tag"
+            die "unknown tag or repo: $_target -- intenta 'ut sync' primero si crees que deberia existir"
         fi
     fi
 }
@@ -155,7 +155,7 @@ cmd_sync() {
     gh auth status >/dev/null 2>&1 || die "gh not authenticated — run: gh auth login"
     mkdir -p "$DST"
     errors=0
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
+    repos_for_target "$_tag" | while IFS= read -r repo; do
         [ "$repo" = "unix-toolkit" ] && continue
         target="$DST/$repo"
         if [ -e "$target/.git" ]; then
@@ -196,7 +196,7 @@ cmd_status() {
     _tag="${1:-}"
     _tmp=$(mktemp); printf "0 0\n" > "$_tmp"
     _cloud=$(mktemp); cloud_snapshot "$_cloud"
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
+    repos_for_target "$_tag" | while IFS= read -r repo; do
         read -r _t _i < "$_tmp"; _t=$((_t+1))
         target="$DST/$repo"
         if [ ! -e "$target/.git" ]; then
@@ -260,7 +260,7 @@ cmd_fetch() {
     _outfile=$(mktemp "${TMPDIR:-/tmp}/ut-fetch-out.XXXXXX")
     printf '0' > "$_errfile"
 
-    repos_for_tag "$_tag" \
+    repos_for_target "$_tag" \
         | DST="$DST" xargs -P 8 -I{} sh -c \
             'if [ -d "$DST/{}/.git" ]; then
                 git -C "$DST/{}" fetch --quiet 2>/dev/null \
@@ -292,7 +292,7 @@ cmd_push() {
         git -C "$_self" push && ok "unix-toolkit pushed" || err "unix-toolkit — push failed"
     fi
     # push all tool repos
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
+    repos_for_target "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
         [ -e "$target/.git" ] || continue
         _ahead=$(git -C "$target" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
@@ -311,7 +311,7 @@ cmd_run() {
     [ -z "$_cmd" ] && die "usage: ut run '<comando>' [tag]"
     shift
     _tag="${1:-}"
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
+    repos_for_target "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
         [ -e "$target/.git" ] || { warn "$repo — not cloned, skipping"; continue; }
         bold "── $repo ──"
@@ -326,11 +326,11 @@ cmd_clone() {
     errors=0
     _clone_list() {
         if [ "$#" -eq 0 ]; then
-            repos_for_tag ""
+            repos_for_target ""
         elif [ "$#" -eq 1 ]; then
-            repos_for_tag "$1"
+            repos_for_target "$1"
         else
-            for _a in "$@"; do repos_for_tag "$_a"; done
+            for _a in "$@"; do repos_for_target "$_a"; done
         fi
     }
     _clone_list "$@" | while IFS= read -r repo; do
@@ -377,7 +377,7 @@ cloud_snapshot() {
 cmd_diff() {
     _tag="${1:-}"
     _found=0
-    repos_for_tag "$_tag" | while IFS= read -r repo; do
+    repos_for_target "$_tag" | while IFS= read -r repo; do
         target="$DST/$repo"
         [ -e "$target/.git" ] || continue
         _dirty=$(git -C "$target" status --short 2>/dev/null)
@@ -666,7 +666,7 @@ print_help() {
   printf "  ut diff                      -- git diff en cada repo clonado\n"
   printf "  ut fetch                     -- git fetch en cada repo\n"
   printf "\nGIT (sobre todos los repos)\n"
-  printf "  ut sync                      -- auto-actualiza ut, luego sincroniza todos\n"
+  printf "  ut sync [tag]                -- auto-actualiza ut, sincroniza todos o solo el tag dado\n"
   printf "  ut push                      -- sube los repos con commits pendientes\n"
   printf "  ut run '<comando>'           -- corre el comando en todos los repos\n"
   printf "  ut run '<comando>' core      -- igual, pero solo en los del tag 'core'\n"
@@ -703,12 +703,19 @@ print_help() {
   printf "                                   solo 'ut ship'; 'ut info <repo>' lo dice)\n"
   printf "  ut distribute-only <repo>    -- copia el repo a los nodos, sin instalar\n"
   printf "\nFLUJO ESTANDAR de un fix\n"
-  printf "  1. ut branch <repo> fix/nombre\n"
+  printf "  1. ut branch <repo> fix/nombre  -- pull+rebase + crea la rama\n"
+  printf "                                     (autostash automatico: si hay\n"
+  printf "                                     cambios sin commit, los guarda\n"
+  printf "                                     antes y los restaura despues)\n"
   printf "  2. editar los archivos\n"
-  printf "  3. verifico   (confirmas que esta bien)\n"
-  printf "  4. ut ship <repo>\n"
-  printf "  5. ut deploy <repo>     (omitir si no tiene install.sh)\n"
-  printf "  6. miko sync\n\n"
+  printf "  3. verificar el cambio          (confirmas que esta bien)\n"
+  printf "  4. ut ship <repo>               -- rebase+merge+push a main, borra la rama\n"
+  printf "  5. [PREGUNTA] deployar ahora? [y/N]\n"
+  printf "     y -> ut deploy <repo>        (omitir si el repo no tiene install.sh)\n"
+  printf "     N -> continuar sin deploy\n"
+  printf "  6. [PREGUNTA] sincronizar tareas de miko ahora? [y/N]\n"
+  printf "     y -> miko sync\n"
+  printf "     N -> continuar sin sync\n\n"
 }
 
 [ -z "$CMD" ] && { print_help; exit 0; }
