@@ -146,6 +146,15 @@ known, expected behavior. For destructive task operations, create new
 state first, verify it exists, then destroy the old (miko is atomic).
 Tasks are manageable from any node; sync reconciles across all.
 
+New-repo onboarding is two separate registrations, not one:
+`ut new`/`ut create` registers the repo in `ut`'s own registry
+(repos.tsv) -- this alone does not give the repo a task bucket.
+`miko add <repo> ...` registers the repo in miko's bucket system on its
+first call for that repo -- this alone does not register it with `ut`.
+A repo is fully onboarded only once both registrations exist. Tasks for
+a repo always live in miko's bucket for that repo name (`~/.tasks/<repo>/`),
+never in repos.tsv.
+
 ## DEPLOYMENT
 
 Strict order: ship → deploy → sync. ship merges+pushes; deploy installs
