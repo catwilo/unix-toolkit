@@ -53,3 +53,4 @@ acionasoci	tool,client	base de datos centralizada de la asociacion	active
 lucituris	docs,client,rpx-report	reporte rpx	active
 asamtefur-ingreso-salida	client,rpx-report	planteamiento de proyecto ingreso-salida ASAMTEFUR	active
 asamtefur-registro	app,react-native	App React Native para registro de jornadas de trabajo en el predio de ASAMTEFUR	active
+prometeia	client	CRM para idea de empresa	active
