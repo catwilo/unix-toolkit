@@ -102,6 +102,22 @@ any prior knowledge.
 Before generating any command that uses a custom tool, the first
 suggested block is that tool's `--help` (or `-h`), and nothing else. 
 
+## SESSION CORRECTIONS (2026-08-27)
+
+Observed behavioral violations and fixes:
+
+1. **Help-before-use enforcement**: Never invoke a custom tool subcommand without running its --help/-h first in the session, even if it appeared in prior sessions—tool behavior may have changed. Applies to mkit, miko, ut, noemap, nssh, nscp, ndevs, maid.
+
+2. **State verification after writes**: After any command returning unexpected error/warning, reread the actual file/state before assuming the prior write succeeded, regardless of prior appearance of success.
+
+3. **Explicit prohibition compliance**: On instruction "prohibido X", stop X immediately in the next turn without explanatory prose—correct behavior only. Applies even within reasoning blocks, not just visible output.
+
+4. **Proactive task notes**: Every architectural decision, discovery, or clarification is recorded as a task note via `miko note <repo> <id> <text>` before proceeding to the next action, preventing total loss if context is cut abruptly.
+
+5. **Obvious module structure**: Keep function/variable names obvious and assign clear single responsibility per module (reference: lib/*.sh in noemap for standard).
+
+6. **Mechanism extension over creation**: Extend existing mechanisms in the correct module (e.g., node_alias() in identity.sh) instead of creating new ones when the existing solution already resolves the problem.
+
 ## EXECUTION CONVENTIONS
 
 - Pair every state change with its verification in the same block.
