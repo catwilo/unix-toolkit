@@ -9,12 +9,11 @@ cmd_machines_diff() {
     _collect="$(dirname "$(realpath "$0")")/ut-collect.sh"
     [ -f "$_collect" ] || die "ut-collect.sh not found: $_collect"
     mkdir -p "$HOME/tmp"; _out="$HOME/tmp/utdiff"; rm -rf "$_out"; mkdir -p "$_out"
-    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     _nodes="local"
     sh "$_collect" > "$_out/local" 2>/dev/null
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
-        [ "$ip" = "$_self_ip" ] && continue
+        is_local_ip "$ip" && continue
         if nssh "$alias" "sh -s" < "$_collect" > "$_out/$alias" 2>/dev/null; then
             _nodes="$_nodes $alias"
         else
@@ -189,10 +188,9 @@ cmd_distribute() {
     _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
     _self_alias=""
-    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
-        [ "$ip" = "$_self_ip" ] && { _self_alias="$alias"; continue; }
+        is_local_ip "$ip" && { _self_alias="$alias"; continue; }
         _port="${port:-22}"
         if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
             warn "$alias — skipped (unreachable: $ip:$_port)"
@@ -215,10 +213,9 @@ cmd_distribute_only_one() {
     _rbase="unix-toolkit-tools/$_repo"
     _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
-    _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     while IFS='|' read -r alias ip user port; do
         [ -z "$alias" ] && continue
-        [ "$ip" = "$_self_ip" ] && continue
+        is_local_ip "$ip" && continue
         _port="${port:-22}"
         if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
             warn "$alias — skipped (unreachable: $ip:$_port)"
