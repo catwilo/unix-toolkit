@@ -8,21 +8,60 @@
 Origen: analisis comparativo de 6 repos propios (BaquiaRaudal como
 referencia de madurez) + Google Engineering Practices.
 
+## 0. Perfiles -- elegir antes de aplicar el resto del estandar
+No todo repo cliente necesita backend. Elegir el perfil segun el problema
+real, nunca por defecto al mas complejo (ver seccion 7, Nada especulativo).
+
+**Perfil A -- Estatico simple** (sitios institucionales, portafolios,
+landing pages, contenido editado con baja frecuencia, sin logica de
+negocio ni datos transaccionales):
+- Sin backend, sin base de datos.
+- Contenido en Markdown/JSON versionado en el propio repo.
+- Stack: Vite + React + TypeScript, sin SSR salvo necesidad probada.
+- Deploy: Vercel o Netlify (gratis, sin servidor que mantener).
+- Las secciones 2 y 3 (arquitectura hexagonal, contrato OpenAPI) NO
+  aplican a este perfil -- no hay dominios de negocio ni API propia.
+
+**Perfil B -- Full-stack con backend** (logica de negocio, datos
+transaccionales, multiples usuarios/roles, integraciones):
+- Aplica el estandar completo: secciones 1 a 8 sin excepcion.
+- Referencia de madurez: BaquiaRaudal (arquitectura hexagonal,
+  multi-tenant, OpenAPI como contrato).
+
+Documentar el perfil elegido y por que, en el ARCHITECTURE.md propio del
+repo -- ese documento no repite este estandar generico, aplica sus
+decisiones concretas.
+
 ## 1. Gobierno de repo
 - README.md -- que es, como instalar, como contribuir
-- ARCHITECTURE.md -- decisiones, limites, flujo de datos
+- ARCHITECTURE.md -- decisiones, limites, flujo de datos (concreto del
+  repo, nunca una copia de este estandar generico)
 - REQUIREMENTS.md -- dependencias, versiones minimas
 - CONTRIBUTING.md -- flujo de trabajo, convencion de commits
 
-## 2. Arquitectura por capas verificada en CI
+## 2. Arquitectura por capas verificada en CI (solo Perfil B)
 - Hexagonal por dominio: domain -> application -> infrastructure -> interface
 - Dependencia siempre hacia adentro; verificado con go-arch-lint (Go) o equivalente (JS/TS)
 - Comunicacion entre dominios via eventos internos, nunca imports directos
 
-## 3. Contrato de API como fuente unica de verdad
+## 3. Contrato de API como fuente unica de verdad (solo Perfil B)
 - OpenAPI 3.1 en api/openapi.yaml
 - Cliente TS generado automaticamente, nunca escrito a mano
 - CI valida que el contrato este sincronizado con la implementacion
+
+## 3b. Organizacion de estilos/CSS (ambos perfiles)
+- CSS Modules: un archivo <Componente>.module.css por componente,
+  scope automatico, sin fugas de estilos entre componentes.
+- Nunca CSS global salvo variables/reset minimo en un unico
+  styles/globals.css (tokens: colores, tipografia, espaciado).
+- Un componente y su .module.css viven en la misma carpeta -- nombre
+  del componente y nombre del modulo deben coincidir exactamente.
+- Nombres de clase dentro del modulo: descriptivos de la funcion visual
+  (ej. .card, .cardTitle), nunca genericos (.box1, .wrapper2).
+- Jerarquia de carpetas refleja jerarquia visual: components/ui/ para
+  atomos reutilizables (Button, Card), components/layout/ para
+  estructura de pagina (Header, Footer), pages/ para una carpeta por
+  ruta del sitio.
 
 ## 4. Linters agresivos por lenguaje
 Go: golangci-lint con bodyclose, sqlclosecheck, contextcheck, errorlint, nilerr, gosec, noctx
