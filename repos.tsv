@@ -42,7 +42,7 @@ kakaw	client,web,agro	Registro sanitario y de insumos por lote para fincas cacao
 report-studio	core,tool,docs	sistema documental estandar para reportes institucionales de cualquier tipo/tema/asociacion	active
 ASAMTEFUR	client,docs	Reportes institucionales ASAMTEFUR (trimestral, anual, etc.)	active
 biblio-convocat	client,docs,rpx-report	convocatoria biblioteca municipal cultura llanera	active
-unix-toolkit	core,tool	self-hosted repo manager and dev toolkit root	active
+ut	core,tool	self-hosted repo manager and dev toolkit root	active
 anydesk-install	uncat	uncatalogued -- pending review	active
 catwilo	uncat	uncatalogued -- pending review	active
 miko-tasks	uncat	uncatalogued -- pending review, possible legacy/duplicate of miko-task	active
