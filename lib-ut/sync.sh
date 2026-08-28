@@ -6,13 +6,13 @@
 
 cmd_sync() {
     _tag="${1:-}"
-    info "unix-toolkit — self-update..."
+    info "ut — self-update..."
     _self="$(dirname "$(realpath "$0")")"
     _err=$(mktemp "${TMPDIR:-/tmp}/ut-selfupdate-err.XXXXXX")
     if git -C "$_self" pull --rebase --autostash 2>"$_err"; then
-        ok "unix-toolkit updated"
+        ok "ut updated"
     else
-        warn "unix-toolkit self-update failed:"
+        warn "ut self-update failed:"
         sed 's/^/    /' "$_err" >&2
     fi
     rm -f "$_err"
@@ -68,11 +68,11 @@ cmd_fetch() {
 cmd_push() {
     _tag="${1:-}"
     _self="$(dirname "$(realpath "$0")")"
-    # push self (unix-toolkit) first
+    # push self (ut) first
     _ahead=$(git -C "$_self" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
     if [ "$_ahead" -gt 0 ]; then
-        info "unix-toolkit — pushing $_ahead commit(s)..."
-        git -C "$_self" push && { ok "unix-toolkit pushed"; log_change "unix-toolkit" "push"; } || err "unix-toolkit — push failed"
+        info "ut — pushing $_ahead commit(s)..."
+        git -C "$_self" push && { ok "ut pushed"; log_change "ut" "push"; } || err "ut — push failed"
     fi
     # push all tool repos
     repos_for_target "$_tag" | while IFS= read -r repo; do

@@ -1,4 +1,4 @@
-# catwilo/unix-toolkit — portfolio index
+# catwilo/ut — portfolio index
 
 A collection of command-line tools built to solve real problems on Linux, Termux (Android), and macOS. Each one started from a concrete need, runs in production on my own machines, and is written to be portable, safe to re-run, and clear to maintain.
 
@@ -70,4 +70,4 @@ Most tools are written in POSIX shell for portability across Debian, Arch, Termu
 
 ---
 
-→ [unix-toolkit manager (ut) — manual](README.md)
+→ [ut manager (ut) — manual](README.md)

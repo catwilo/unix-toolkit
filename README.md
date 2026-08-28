@@ -1,4 +1,4 @@
-# ut — unix-toolkit repo manager
+# ut — unix-toolkit-tools repo manager
 
 Manages all repos in the catwilo ecosystem across Termux, Debian, and macOS.
 Source of truth: repos.tsv. Works with miko (task + ctx) and gh (GitHub CLI).
@@ -8,8 +8,8 @@ Source of truth: repos.tsv. Works with miko (task + ctx) and gh (GitHub CLI).
 ## Installation
 
 ```sh
-git clone git@github.com:catwilo/unix-toolkit.git ~/unix-toolkit
-export PATH="$HOME/unix-toolkit:$PATH"  # add to ~/.zshenv
+git clone git@github.com:catwilo/ut.git ~/unix-toolkit-tools/ut
+export PATH="$HOME/unix-toolkit-tools/ut:$PATH"  # add to ~/.zshenv
 ```
 
 All repos clone into ~/unix-toolkit-tools/<name>/.

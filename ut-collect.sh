@@ -4,13 +4,13 @@
 # POSIX sh: runs identically on Termux (busybox), Debian, macOS.
 # invoked locally (sh ut-collect.sh) and remotely (nssh <alias> "sh -s" < ut-collect.sh)
 
-_tsv="$HOME/unix-toolkit/repos.tsv"
+_tsv="$HOME/unix-toolkit-tools/ut/repos.tsv"
 [ -f "$_tsv" ] || exit 0
 
 tail -n +2 "$_tsv" | while IFS='	' read -r _name _rest; do
     [ -z "$_name" ] && continue
-    if [ "$_name" = unix-toolkit ]; then
-        _dir="$HOME/unix-toolkit"
+    if [ "$_name" = ut ]; then
+        _dir="$HOME/unix-toolkit-tools/ut"
     else
         _dir="$HOME/unix-toolkit-tools/$_name"
     fi

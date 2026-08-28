@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh -- unix-toolkit local install
+# install.sh -- ut local install
 # - installs ut to PATH (atomic copy)
 # - configures git templateDir globally
 # - populates pre-commit hook in all active repos
@@ -46,7 +46,7 @@ populate_repo() {
     fi
 }
 
-# unix-toolkit itself
+# ut itself
 populate_repo "$HERE"
 
 # all repos in unix-toolkit-tools
@@ -66,4 +66,4 @@ case ":$PATH:" in
     *) warn "add to PATH: export PATH=\"$BIN:\$PATH\"" ;;
 esac
 
-ok "unix-toolkit install complete"
+ok "ut install complete"

@@ -13,7 +13,7 @@ bold() { printf "${B}%s${Z}\n" "$*"; }
 GITHUB_USER="catwilo"
 DST="${UNIX_TOOLKIT_TOOLS:-$HOME/unix-toolkit-tools}"
 TSV="${UT_HOME:-$(dirname "$(realpath "$0")")}/repos.tsv"
-[ -f "$TSV" ] || TSV="$HOME/unix-toolkit-tools/unix-toolkit/repos.tsv"
+[ -f "$TSV" ] || TSV="$HOME/unix-toolkit-tools/ut/repos.tsv"
 
 die() { err "$*"; exit 1; }
 
@@ -27,7 +27,7 @@ done
 [ $# -gt 0 ] && { CMD="$1"; shift; } || CMD=""
 case "$CMD" in -h|--help|help) CMD="" ;; esac
 print_help() {
-  printf "\nut -- gestor de repos de unix-toolkit\n\n"
+  printf "\nut -- gestor de repos de unix-toolkit-tools\n\n"
   printf "  forma general:  ut <comando> [argumentos]\n"
   printf "  un \"tag\" es una etiqueta del repo (core, tool, client...)\n"
   printf "  definida al registrarlo; varios comandos aceptan un tag para filtrar.\n"
