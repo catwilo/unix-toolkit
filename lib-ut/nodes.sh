@@ -46,7 +46,7 @@ cmd_machines_diff() {
                 _any_unreach=1
                 continue
             fi
-            _line=$(grep "^$_repo	" "$_out/$_n" 2>/dev/null)
+            _line=$(grep "^$_repo	" "$_out/$_n" 2>/dev/null || true)
             if [ -z "$_line" ]; then
                 _cells="$_cells|-"
                 [ "$_n" = local ] || _all_match=0
