@@ -70,7 +70,7 @@ cmd_new() {
         [ -z "$alias" ] && continue
         [ "$ip" = "$_self_ip" ] && continue
         _port="${port:-22}"
-        if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
+        if ! _wait_reachable "$ip" "$_port"; then
             warn "$alias -- skipped (unreachable: $ip:$_port)"
             continue
         fi
