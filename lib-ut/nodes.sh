@@ -3,6 +3,17 @@
 # sourced by ./ut; expects $TSV, $DST set by the entrypoint
 # depends on lib-ut/changelog.sh (log_change) and lib-ut/status.sh (_repo_is_dirty)
 
+# _wait_reachable ip port -- tcp check with 1 retry + backoff, to avoid
+# false negatives from a transient network blip (nc -z single-shot has no
+# way to distinguish "node down" from "network slow right now").
+_wait_reachable() {
+    _ip="$1" _p="$2"
+    nc -z -w5 "$_ip" "$_p" >/dev/null 2>&1 && return 0
+    sleep 2
+    nc -z -w5 "$_ip" "$_p" >/dev/null 2>&1
+}
+
+
 cmd_machines_diff() {
     _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
@@ -192,7 +203,7 @@ cmd_distribute() {
         [ -z "$alias" ] && continue
         is_local_ip "$ip" && { _self_alias="$alias"; continue; }
         _port="${port:-22}"
-        if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
+        if ! _wait_reachable "$ip" "$_port"; then
             warn "$alias — skipped (unreachable: $ip:$_port)"
             continue
         fi
@@ -217,7 +228,7 @@ cmd_distribute_only_one() {
         [ -z "$alias" ] && continue
         is_local_ip "$ip" && continue
         _port="${port:-22}"
-        if ! nc -z -w5 "$ip" "$_port" >/dev/null 2>&1; then
+        if ! _wait_reachable "$ip" "$_port"; then
             warn "$alias — skipped (unreachable: $ip:$_port)"
             continue
         fi
