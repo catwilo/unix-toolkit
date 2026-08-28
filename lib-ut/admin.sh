@@ -66,7 +66,7 @@ cmd_new() {
     _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || { warn "devices.db not found, skipping remote sync"; return 0; }
     _self_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-    while IFS='|' read -r alias ip user port; do
+    while IFS='|' read -r alias ip user port _hostkey; do
         [ -z "$alias" ] && continue
         [ "$ip" = "$_self_ip" ] && continue
         _port="${port:-22}"

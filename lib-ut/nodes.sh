@@ -22,7 +22,7 @@ cmd_machines_diff() {
     mkdir -p "$HOME/tmp"; _out="$HOME/tmp/utdiff"; rm -rf "$_out"; mkdir -p "$_out"
     _nodes="local"
     sh "$_collect" > "$_out/local" 2>/dev/null
-    while IFS='|' read -r alias ip user port; do
+    while IFS='|' read -r alias ip user port _hostkey; do
         [ -z "$alias" ] && continue
         is_local_ip "$ip" && continue
         if nssh "$alias" "sh -s" < "$_collect" > "$_out/$alias" 2>/dev/null; then
@@ -135,7 +135,7 @@ cmd_machines() {
     _hosts="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/hosts.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
     [ -f "$_hosts" ]   || die "hosts.db not found: $_hosts"
-    while IFS='|' read -r alias ip user port; do
+    while IFS='|' read -r alias ip user port _hostkey; do
         [ -z "$alias" ] && continue
         _os=$(grep "^$ip|" "$_hosts" | cut -d'|' -f2)
         _os="${_os:-unknown}"
@@ -199,7 +199,7 @@ cmd_distribute() {
     _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
     _self_alias=""
-    while IFS='|' read -r alias ip user port; do
+    while IFS='|' read -r alias ip user port _hostkey; do
         [ -z "$alias" ] && continue
         is_local_ip "$ip" && { _self_alias="$alias"; continue; }
         _port="${port:-22}"
@@ -224,7 +224,7 @@ cmd_distribute_only_one() {
     _rbase="unix-toolkit-tools/$_repo"
     _devices="${NOEMAP_HOME:-$HOME/.local/share/noemap}/state/devices.db"
     [ -f "$_devices" ] || die "devices.db not found: $_devices"
-    while IFS='|' read -r alias ip user port; do
+    while IFS='|' read -r alias ip user port _hostkey; do
         [ -z "$alias" ] && continue
         is_local_ip "$ip" && continue
         _port="${port:-22}"
