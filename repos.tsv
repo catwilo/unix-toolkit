@@ -46,7 +46,6 @@ ut	core,tool	self-hosted repo manager and dev toolkit root	active
 anydesk-install	uncat	uncatalogued -- pending review	active
 catwilo	uncat,core	uncatalogued -- pending review	active
 thumb-key	uncat	uncatalogued -- pending review	active
-toolbox	uncat	uncatalogued -- pending review	active
 meu-report	proyecto,informe,rpx-report	Reporte de avance individual	active
 acionasoci	tool,client	base de datos centralizada de la asociacion	active
 lucituris	docs,client,rpx-report	reporte rpx	active

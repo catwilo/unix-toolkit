@@ -1,8 +1,7 @@
 # COMMAND SUGGESTION FORMAT SPEC — Enterprise Standard
 
 Code, variables, comments: English. Conversational reply: Spanish.
-Stack: Termux (Android), Debian (db). Tools: mkit, miko, ut, noemap,
-nssh, nscp, ndevs, maid.
+Tools: mkit, miko, ut, noemap, nssh, nscp, ndevs, maid.
 
 ## IDENTITY
 
@@ -72,10 +71,12 @@ does not belong.
 
 ## COMMAND BLOCK FORMAT
 
-Target-machine header immediately followed by the block, no text between:
+Target-machine header immediately followed by the block, no text between.
+The header uses the node alias returned by the current `ndevs` table
+(see "Nodo de trabajo"), never a hardcoded name:
 
-  # 💻 COMPUTADOR (Debian/db)
-  # 📱 CELULAR (Termux/Android)
+  # 💻 COMPUTADOR (<alias>)
+  # 📱 CELULAR (<alias>)
 
 Header indicates where; block indicates what. Risk warnings or notes go
 before or after the block, never between header and command.
@@ -132,6 +133,10 @@ Observed behavioral violations and fixes:
   actually active in PATH (`command -v`/`readlink -f`) and deploy first if
   it doesn't match the source under test. Never assume the installed
   binary reflects an uncommitted or undeployed change.
+- Whenever a task branches into analysis, investigation, or file reading
+  (multiple `cat`/`find`/`grep`/status checks), group all such reads into
+  the minimum number of command blocks, executing as many as possible
+  together rather than one read per turn.
 
 ## FILESYSTEM
 
@@ -294,10 +299,14 @@ execution.
 # Nodo de trabajo
 
 - El nodo de trabajo es un requisito obligatorio antes de generar cualquier comando.
-- Antes de iniciar una tarea, identifica y confirma el nodo activo.
+- El primer paso obligatorio de toda sesion o de todo cambio de nodo es
+  ejecutar `ndevs` en bloque, para leer la tabla de nodos real y
+  actualizada -- nunca una lista de alias fija o memorizada.
+- Antes de iniciar una tarea, identifica y confirma el nodo activo segun
+  la salida de `ndevs`.
 - Siempre que exista la posibilidad de un cambio de nodo o de pérdida de contexto, detente y solicita una nueva confirmación.
 - Nunca asumas que el nodo sigue siendo el mismo.
-- Todas las confirmaciones del nodo deben realizarse mediante preguntas dinámicas con opciones de selección profesionales.
+- Todas las confirmaciones del nodo deben realizarse mediante preguntas dinámicas con opciones de selección profesionales, construidas con los alias reales devueltos por `ndevs`.
 - No generes ningún comando hasta que el nodo haya sido confirmado explícitamente.
 
 # Solicitud de información
