@@ -160,9 +160,19 @@ zsh-setup cfg         dotfiles + zsh installer for all platforms
 
 ## Integration
 
-- miko owns all .ctx.md files and task state. Use miko sync for full sync.
+- miko owns task state (ctx files removed; auto-generation was dropped,
+  see ut#472). Use miko sync for full sync.
 - gh required for GitHub operations (repo create, etc).
 - noemap provides device aliases used by ut machines.
+- ut's task system (miko buckets, ~/.tasks/<repo>) is NOT the same thing
+  as a code repository registered here (repos.tsv). A miko project can
+  exist without a registered repo. The normal path is the other
+  direction: a repo registered in ut needs a miko project (bucket) to
+  have tasks -- this is done via 'miko add <repo> ...' on first use,
+  and is effectively automatic from then on.
+- Manual git checks (fetch/diff/branch/status per repo) are already
+  automated -- use 'ut status' or 'ut status --remote' instead of
+  running the individual git commands by hand.
 
 ---
 
