@@ -83,6 +83,8 @@ print_help() {
   printf "  ut deploy <repo>             -- corre install.sh local + distribute\n"
   printf "                                  (si el repo no tiene install.sh, usa\n"
   printf "                                   solo 'ut ship'; 'ut info <repo>' lo dice)\n"
+  printf "  ut deploy all                -- igual, pero solo en repos con tag 'core'\n"
+  printf "                                  (los demas: 'ut deploy <repo>' manual)\n"
   printf "  ut distribute-only <repo>    -- copia el repo a los nodos, sin instalar\n"
   printf "\nFLUJO ESTANDAR de un fix\n"
   printf "  1. ut branch <repo> fix/nombre  -- pull+rebase + crea la rama\n"

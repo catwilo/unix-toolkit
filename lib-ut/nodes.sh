@@ -207,18 +207,23 @@ cmd_deploy() {
         cmd_deploy_one "$_repo"
         return 0
     fi
+    # deploy all installs core-tagged repos only by default (ut#472 pt.2);
+    # non-core repos are installed consciously via 'ut deploy <repo>'.
     _skipped=$(mktemp); : > "$_skipped"
     _ok=$(mktemp); : > "$_ok"
+    _corelist=$(mktemp); repos_for_target core | sort -u > "$_corelist"
     _local_repo_names | while IFS= read -r _r; do
         [ -z "$_r" ] && continue
+        grep -qxF "$_r" "$_corelist" || continue
         _target="$DST/$_r"
         _reason=$(_repo_is_dirty "$_target") && { warn "$_r  skipped: $_reason"; printf '%s\n' "$_r" >> "$_skipped"; continue; }
         info "deploying $_r..."
         cmd_deploy_one "$_r" && printf '%s\n' "$_r" >> "$_ok" || { warn "$_r  skipped: deploy failed"; printf '%s\n' "$_r" >> "$_skipped"; }
     done
+    rm -f "$_corelist"
     _nok=$(wc -l < "$_ok" | tr -d ' '); _nskip=$(wc -l < "$_skipped" | tr -d ' ')
     rm -f "$_ok" "$_skipped"
-    bold "deploy all: $_nok deployed, $_nskip skipped"
+    bold "deploy all (core only): $_nok deployed, $_nskip skipped"
 }
 
 cmd_distribute() {
