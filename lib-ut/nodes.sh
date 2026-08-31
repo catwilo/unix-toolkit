@@ -183,7 +183,7 @@ cmd_deploy_one() {
     [ -e "$_target/.git" ] || die "$_repo not cloned at $_target"
     if [ -f "$_target/install.sh" ]; then
         info "running install.sh on local..."
-        bash "$_target/install.sh" || die "local install.sh failed"
+        bash "$_target/install.sh" || { err "$_repo  local install.sh failed"; return 1; }
         ok "local install complete"
         log_change "$_repo" "deploy"
     else
